@@ -1,0 +1,304 @@
+package capi
+
+import (
+	"context"
+)
+
+// AppsClient defines operations for apps
+type AppsClient interface {
+	Create(ctx context.Context, request *AppCreateRequest) (*App, error)
+	Get(ctx context.Context, guid string) (*App, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[App], error)
+	Update(ctx context.Context, guid string, request *AppUpdateRequest) (*App, error)
+	Delete(ctx context.Context, guid string) error
+
+	// Lifecycle operations
+	Start(ctx context.Context, guid string) (*App, error)
+	Stop(ctx context.Context, guid string) (*App, error)
+	Restart(ctx context.Context, guid string) (*App, error)
+
+	// Environment operations
+	GetEnv(ctx context.Context, guid string) (*AppEnvironment, error)
+	GetEnvVars(ctx context.Context, guid string) (map[string]interface{}, error)
+	UpdateEnvVars(ctx context.Context, guid string, envVars map[string]interface{}) (map[string]interface{}, error)
+
+	// Other operations
+	GetCurrentDroplet(ctx context.Context, guid string) (*Droplet, error)
+	SetCurrentDroplet(ctx context.Context, guid string, dropletGUID string) (*Relationship, error)
+	GetSSHEnabled(ctx context.Context, guid string) (*AppSSHEnabled, error)
+	GetPermissions(ctx context.Context, guid string) (*AppPermissions, error)
+	ClearBuildpackCache(ctx context.Context, guid string) error
+	GetManifest(ctx context.Context, guid string) (string, error)
+}
+
+// OrganizationsClient defines operations for organizations
+type OrganizationsClient interface {
+	Create(ctx context.Context, request *OrganizationCreateRequest) (*Organization, error)
+	Get(ctx context.Context, guid string) (*Organization, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Organization], error)
+	Update(ctx context.Context, guid string, request *OrganizationUpdateRequest) (*Organization, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+
+	// Relationships
+	GetDefaultIsolationSegment(ctx context.Context, guid string) (*Relationship, error)
+	SetDefaultIsolationSegment(ctx context.Context, guid string, isolationSegmentGUID string) (*Relationship, error)
+	GetDefaultDomain(ctx context.Context, guid string) (*Domain, error)
+	GetUsageSummary(ctx context.Context, guid string) (*OrganizationUsageSummary, error)
+	ListUsers(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
+	ListDomains(ctx context.Context, guid string, params *QueryParams) (*ListResponse[Domain], error)
+}
+
+// SpacesClient defines operations for spaces
+type SpacesClient interface {
+	Create(ctx context.Context, request *SpaceCreateRequest) (*Space, error)
+	Get(ctx context.Context, guid string) (*Space, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Space], error)
+	Update(ctx context.Context, guid string, request *SpaceUpdateRequest) (*Space, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+
+	// Features
+	GetFeatures(ctx context.Context, guid string) (*SpaceFeatures, error)
+	GetFeature(ctx context.Context, guid string, name string) (*SpaceFeature, error)
+	UpdateFeature(ctx context.Context, guid string, name string, enabled bool) (*SpaceFeature, error)
+
+	// Relationships
+	GetIsolationSegment(ctx context.Context, guid string) (*Relationship, error)
+	SetIsolationSegment(ctx context.Context, guid string, isolationSegmentGUID string) (*Relationship, error)
+	GetUsageSummary(ctx context.Context, guid string) (*SpaceUsageSummary, error)
+	ListUsers(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
+	ListManagers(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
+	ListDevelopers(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
+	ListAuditors(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
+	ListSupporters(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
+
+	// Space quota
+	GetQuota(ctx context.Context, guid string) (*SpaceQuota, error)
+	ApplyQuota(ctx context.Context, guid string, quotaGUID string) (*Relationship, error)
+	RemoveQuota(ctx context.Context, guid string) error
+
+	// Security Groups
+	ListRunningSecurityGroups(ctx context.Context, guid string, params *QueryParams) (*ListResponse[SecurityGroup], error)
+	ListStagingSecurityGroups(ctx context.Context, guid string, params *QueryParams) (*ListResponse[SecurityGroup], error)
+
+	// Manifest operations
+	ApplyManifest(ctx context.Context, guid string, manifest string) (*Job, error)
+	CreateManifestDiff(ctx context.Context, guid string, manifest string) (*ManifestDiff, error)
+
+	// Routes
+	DeleteUnmappedRoutes(ctx context.Context, guid string) (*Job, error)
+}
+
+// DomainsClient defines operations for domains
+type DomainsClient interface {
+	Create(ctx context.Context, request *DomainCreateRequest) (*Domain, error)
+	Get(ctx context.Context, guid string) (*Domain, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Domain], error)
+	Update(ctx context.Context, guid string, request *DomainUpdateRequest) (*Domain, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+
+	// Sharing
+	ShareWithOrganization(ctx context.Context, guid string, orgGUIDs []string) (*ToManyRelationship, error)
+	UnshareFromOrganization(ctx context.Context, guid string, orgGUID string) error
+	CheckRouteReservations(ctx context.Context, guid string, request *RouteReservationRequest) (*RouteReservation, error)
+}
+
+// RoutesClient defines operations for routes
+type RoutesClient interface {
+	Create(ctx context.Context, request *RouteCreateRequest) (*Route, error)
+	Get(ctx context.Context, guid string) (*Route, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Route], error)
+	Update(ctx context.Context, guid string, request *RouteUpdateRequest) (*Route, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+
+	// Destinations
+	ListDestinations(ctx context.Context, guid string) (*RouteDestinations, error)
+	InsertDestinations(ctx context.Context, guid string, destinations []RouteDestination) (*RouteDestinations, error)
+	ReplaceDestinations(ctx context.Context, guid string, destinations []RouteDestination) (*RouteDestinations, error)
+	UpdateDestination(ctx context.Context, guid string, destGUID string, protocol string) (*RouteDestination, error)
+	RemoveDestination(ctx context.Context, guid string, destGUID string) error
+
+	// Sharing
+	ListSharedSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
+	ShareWithSpace(ctx context.Context, guid string, spaceGUIDs []string) (*ToManyRelationship, error)
+	UnshareFromSpace(ctx context.Context, guid string, spaceGUID string) error
+	TransferOwnership(ctx context.Context, guid string, spaceGUID string) (*Route, error)
+}
+
+// ServiceBrokersClient defines operations for service brokers
+type ServiceBrokersClient interface {
+	Create(ctx context.Context, request *ServiceBrokerCreateRequest) (*Job, error)
+	Get(ctx context.Context, guid string) (*ServiceBroker, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceBroker], error)
+	Update(ctx context.Context, guid string, request *ServiceBrokerUpdateRequest) (*Job, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+}
+
+// ServiceOfferingsClient defines operations for service offerings
+type ServiceOfferingsClient interface {
+	Get(ctx context.Context, guid string) (*ServiceOffering, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceOffering], error)
+	Update(ctx context.Context, guid string, request *ServiceOfferingUpdateRequest) (*ServiceOffering, error)
+	Delete(ctx context.Context, guid string) error
+}
+
+// ServicePlansClient defines operations for service plans
+type ServicePlansClient interface {
+	Get(ctx context.Context, guid string) (*ServicePlan, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[ServicePlan], error)
+	Update(ctx context.Context, guid string, request *ServicePlanUpdateRequest) (*ServicePlan, error)
+	Delete(ctx context.Context, guid string) error
+
+	// Visibility
+	GetVisibility(ctx context.Context, guid string) (*ServicePlanVisibility, error)
+	UpdateVisibility(ctx context.Context, guid string, request *ServicePlanVisibilityUpdateRequest) (*ServicePlanVisibility, error)
+	ApplyVisibility(ctx context.Context, guid string, request *ServicePlanVisibilityApplyRequest) (*ServicePlanVisibility, error)
+	RemoveOrgFromVisibility(ctx context.Context, guid string, orgGUID string) error
+}
+
+// ServiceInstancesClient defines operations for service instances
+type ServiceInstancesClient interface {
+	Create(ctx context.Context, request *ServiceInstanceCreateRequest) (*Job, error)
+	Get(ctx context.Context, guid string) (*ServiceInstance, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceInstance], error)
+	Update(ctx context.Context, guid string, request *ServiceInstanceUpdateRequest) (*Job, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+
+	// Credentials and parameters
+	GetCredentials(ctx context.Context, guid string) (map[string]interface{}, error)
+	GetParameters(ctx context.Context, guid string) (map[string]interface{}, error)
+	GetPermissions(ctx context.Context, guid string) (*ServiceInstancePermissions, error)
+
+	// Sharing
+	ListSharedSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
+	ShareWithSpace(ctx context.Context, guid string, spaceGUIDs []string) (*ToManyRelationship, error)
+	UnshareFromSpace(ctx context.Context, guid string, spaceGUID string) error
+	GetUsageSummaryInSharedSpaces(ctx context.Context, guid string) (*ServiceInstanceUsageSummary, error)
+}
+
+// Additional client interfaces for other resources...
+type BuildsClient interface {
+	Create(ctx context.Context, request *BuildCreateRequest) (*Build, error)
+	Get(ctx context.Context, guid string) (*Build, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Build], error)
+	Update(ctx context.Context, guid string, request *BuildUpdateRequest) (*Build, error)
+}
+
+type BuildpacksClient interface {
+	Create(ctx context.Context, request *BuildpackCreateRequest) (*Buildpack, error)
+	Get(ctx context.Context, guid string) (*Buildpack, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Buildpack], error)
+	Update(ctx context.Context, guid string, request *BuildpackUpdateRequest) (*Buildpack, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+	Upload(ctx context.Context, guid string, bits []byte) (*Job, error)
+}
+
+type DeploymentsClient interface {
+	Create(ctx context.Context, request *DeploymentCreateRequest) (*Deployment, error)
+	Get(ctx context.Context, guid string) (*Deployment, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Deployment], error)
+	Update(ctx context.Context, guid string, request *DeploymentUpdateRequest) (*Deployment, error)
+	Cancel(ctx context.Context, guid string) (*Deployment, error)
+	Continue(ctx context.Context, guid string) (*Deployment, error)
+}
+
+type DropletsClient interface {
+	Create(ctx context.Context, request *DropletCreateRequest) (*Droplet, error)
+	Get(ctx context.Context, guid string) (*Droplet, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Droplet], error)
+	Update(ctx context.Context, guid string, request *DropletUpdateRequest) (*Droplet, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+	Copy(ctx context.Context, sourceGUID string) (*Droplet, error)
+	Download(ctx context.Context, guid string) ([]byte, error)
+	Upload(ctx context.Context, guid string, bits []byte) (*Job, error)
+}
+
+type PackagesClient interface {
+	Create(ctx context.Context, request *PackageCreateRequest) (*Package, error)
+	Get(ctx context.Context, guid string) (*Package, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Package], error)
+	Update(ctx context.Context, guid string, request *PackageUpdateRequest) (*Package, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+	Copy(ctx context.Context, sourceGUID string) (*Package, error)
+	Download(ctx context.Context, guid string) ([]byte, error)
+	Upload(ctx context.Context, guid string, bits []byte) (*Package, error)
+}
+
+type ProcessesClient interface {
+	Get(ctx context.Context, guid string) (*Process, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Process], error)
+	Update(ctx context.Context, guid string, request *ProcessUpdateRequest) (*Process, error)
+	Scale(ctx context.Context, guid string, request *ProcessScaleRequest) (*Process, error)
+	GetStats(ctx context.Context, guid string) (*ProcessStats, error)
+	TerminateInstance(ctx context.Context, guid string, index int) error
+}
+
+type TasksClient interface {
+	Create(ctx context.Context, appGUID string, request *TaskCreateRequest) (*Task, error)
+	Get(ctx context.Context, guid string) (*Task, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Task], error)
+	Update(ctx context.Context, guid string, request *TaskUpdateRequest) (*Task, error)
+	Cancel(ctx context.Context, guid string) (*Task, error)
+}
+
+type StacksClient interface {
+	Create(ctx context.Context, request *StackCreateRequest) (*Stack, error)
+	Get(ctx context.Context, guid string) (*Stack, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Stack], error)
+	Update(ctx context.Context, guid string, request *StackUpdateRequest) (*Stack, error)
+	Delete(ctx context.Context, guid string) error
+	ListApps(ctx context.Context, guid string, params *QueryParams) (*ListResponse[App], error)
+}
+
+type UsersClient interface {
+	Create(ctx context.Context, request *UserCreateRequest) (*User, error)
+	Get(ctx context.Context, guid string) (*User, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[User], error)
+	Update(ctx context.Context, guid string, request *UserUpdateRequest) (*User, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+}
+
+type RolesClient interface {
+	Create(ctx context.Context, request *RoleCreateRequest) (*Role, error)
+	Get(ctx context.Context, guid string) (*Role, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Role], error)
+	Delete(ctx context.Context, guid string) error
+}
+
+type SecurityGroupsClient interface {
+	Create(ctx context.Context, request *SecurityGroupCreateRequest) (*SecurityGroup, error)
+	Get(ctx context.Context, guid string) (*SecurityGroup, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[SecurityGroup], error)
+	Update(ctx context.Context, guid string, request *SecurityGroupUpdateRequest) (*SecurityGroup, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+
+	// Space bindings
+	BindRunningSpaces(ctx context.Context, guid string, spaceGUIDs []string) (*ToManyRelationship, error)
+	UnbindRunningSpace(ctx context.Context, guid string, spaceGUID string) error
+	BindStagingSpaces(ctx context.Context, guid string, spaceGUIDs []string) (*ToManyRelationship, error)
+	UnbindStagingSpace(ctx context.Context, guid string, spaceGUID string) error
+}
+
+type IsolationSegmentsClient interface {
+	Create(ctx context.Context, request *IsolationSegmentCreateRequest) (*IsolationSegment, error)
+	Get(ctx context.Context, guid string) (*IsolationSegment, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[IsolationSegment], error)
+	Update(ctx context.Context, guid string, request *IsolationSegmentUpdateRequest) (*IsolationSegment, error)
+	Delete(ctx context.Context, guid string) error
+
+	// Organization entitlements
+	EntitleOrganizations(ctx context.Context, guid string, orgGUIDs []string) (*ToManyRelationship, error)
+	RevokeOrganization(ctx context.Context, guid string, orgGUID string) error
+	ListOrganizations(ctx context.Context, guid string) (*ListResponse[Organization], error)
+	ListSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
+}
+
+type FeatureFlagsClient interface {
+	Get(ctx context.Context, name string) (*FeatureFlag, error)
+	List(ctx context.Context) (*ListResponse[FeatureFlag], error)
+	Update(ctx context.Context, name string, enabled bool, customErrorMessage string) (*FeatureFlag, error)
+}
+
+type JobsClient interface {
+	Get(ctx context.Context, guid string) (*Job, error)
+	PollUntilComplete(ctx context.Context, guid string) (*Job, error)
+}
