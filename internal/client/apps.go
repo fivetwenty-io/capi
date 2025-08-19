@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/fivetwenty-io/capi-client-go/internal/http"
-	"github.com/fivetwenty-io/capi-client-go/pkg/capi"
+	"github.com/fivetwenty-io/capi-client/internal/http"
+	"github.com/fivetwenty-io/capi-client/pkg/capi"
 )
 
 // AppsClient implements capi.AppsClient

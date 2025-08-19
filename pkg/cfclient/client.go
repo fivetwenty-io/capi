@@ -2,8 +2,8 @@
 package cfclient
 
 import (
-	"github.com/fivetwenty-io/capi-client-go/internal/client"
-	"github.com/fivetwenty-io/capi-client-go/pkg/capi"
+	"github.com/fivetwenty-io/capi-client/internal/client"
+	"github.com/fivetwenty-io/capi-client/pkg/capi"
 )
 
 // New creates a new Cloud Foundry API client

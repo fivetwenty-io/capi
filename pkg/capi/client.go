@@ -78,7 +78,7 @@ type Config struct {
 func NewClient(config *Config) (Client, error) {
 	// We'll implement a factory in a separate package to avoid circular dependencies
 	// For now, return an error indicating the client needs to be created using the factory
-	return nil, fmt.Errorf("use github.com/fivetwenty-io/capi-client-go/pkg/cfclient.New to create a client")
+	return nil, fmt.Errorf("use github.com/fivetwenty-io/capi-client/pkg/cfclient.New to create a client")
 }
 
 // Info represents the /v3/info response

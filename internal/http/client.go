@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client-go/internal/auth"
-	"github.com/fivetwenty-io/capi-client-go/pkg/capi"
+	"github.com/fivetwenty-io/capi-client/internal/auth"
+	"github.com/fivetwenty-io/capi-client/pkg/capi"
 	"github.com/hashicorp/go-retryablehttp"
 )
 

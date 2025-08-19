@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client-go/internal/auth"
-	"github.com/fivetwenty-io/capi-client-go/internal/http"
-	"github.com/fivetwenty-io/capi-client-go/pkg/capi"
+	"github.com/fivetwenty-io/capi-client/internal/auth"
+	"github.com/fivetwenty-io/capi-client/internal/http"
+	"github.com/fivetwenty-io/capi-client/pkg/capi"
 )
 
 // Client implements the capi.Client interface

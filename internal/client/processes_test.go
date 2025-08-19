@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fivetwenty-io/capi-client-go/pkg/capi"
+	"github.com/fivetwenty-io/capi-client/pkg/capi"
 )
 
 func TestProcessesClient_Get(t *testing.T) {
