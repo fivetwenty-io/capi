@@ -186,6 +186,16 @@ type ServiceCredentialBindingsClient interface {
 // ServiceBindingsClient is an alias for ServiceCredentialBindingsClient for backward compatibility
 type ServiceBindingsClient = ServiceCredentialBindingsClient
 
+// ServiceRouteBindingsClient defines operations for service route bindings
+type ServiceRouteBindingsClient interface {
+	Create(ctx context.Context, request *ServiceRouteBindingCreateRequest) (interface{}, error) // Returns *ServiceRouteBinding or *Job
+	Get(ctx context.Context, guid string) (*ServiceRouteBinding, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceRouteBinding], error)
+	Update(ctx context.Context, guid string, request *ServiceRouteBindingUpdateRequest) (*ServiceRouteBinding, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+	GetParameters(ctx context.Context, guid string) (*ServiceRouteBindingParameters, error)
+}
+
 // Additional client interfaces for other resources...
 type BuildsClient interface {
 	Create(ctx context.Context, request *BuildCreateRequest) (*Build, error)

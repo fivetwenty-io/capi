@@ -1081,3 +1081,45 @@ type ServiceCredentialBindingParameters struct {
 
 // ServiceBinding is an alias for ServiceCredentialBinding for backward compatibility
 type ServiceBinding = ServiceCredentialBinding
+
+// ServiceRouteBinding represents a service route binding
+type ServiceRouteBinding struct {
+	Resource
+	RouteServiceURL *string                           `json:"route_service_url,omitempty"`
+	LastOperation   *ServiceRouteBindingLastOperation `json:"last_operation,omitempty"`
+	Metadata        *Metadata                         `json:"metadata,omitempty"`
+	Relationships   ServiceRouteBindingRelationships  `json:"relationships"`
+	Links           Links                             `json:"links,omitempty"`
+}
+
+// ServiceRouteBindingLastOperation represents the last operation for a service route binding
+type ServiceRouteBindingLastOperation struct {
+	Type        string     `json:"type"`  // "create", "update", "delete"
+	State       string     `json:"state"` // "initial", "in_progress", "succeeded", "failed"
+	Description *string    `json:"description,omitempty"`
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}
+
+// ServiceRouteBindingRelationships represents the relationships for a service route binding
+type ServiceRouteBindingRelationships struct {
+	ServiceInstance Relationship `json:"service_instance"`
+	Route           Relationship `json:"route"`
+}
+
+// ServiceRouteBindingCreateRequest represents a request to create a service route binding
+type ServiceRouteBindingCreateRequest struct {
+	Parameters    map[string]interface{}           `json:"parameters,omitempty"`
+	Metadata      *Metadata                        `json:"metadata,omitempty"`
+	Relationships ServiceRouteBindingRelationships `json:"relationships"`
+}
+
+// ServiceRouteBindingUpdateRequest represents a request to update a service route binding
+type ServiceRouteBindingUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// ServiceRouteBindingParameters represents parameters for a service route binding
+type ServiceRouteBindingParameters struct {
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+}

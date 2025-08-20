@@ -28,6 +28,7 @@ type Client struct {
 	servicePlans              capi.ServicePlansClient
 	serviceInstances          capi.ServiceInstancesClient
 	serviceCredentialBindings capi.ServiceCredentialBindingsClient
+	serviceRouteBindings      capi.ServiceRouteBindingsClient
 	builds                    capi.BuildsClient
 	buildpacks                capi.BuildpacksClient
 	deployments               capi.DeploymentsClient
@@ -142,6 +143,7 @@ func (c *Client) initializeResourceClients() {
 	c.servicePlans = NewServicePlansClient(c.httpClient)
 	c.serviceInstances = NewServiceInstancesClient(c.httpClient)
 	c.serviceCredentialBindings = NewServiceCredentialBindingsClient(c.httpClient)
+	c.serviceRouteBindings = NewServiceRouteBindingsClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 
@@ -255,6 +257,11 @@ func (c *Client) ServiceInstances() capi.ServiceInstancesClient {
 // ServiceCredentialBindings implements capi.Client.ServiceCredentialBindings
 func (c *Client) ServiceCredentialBindings() capi.ServiceCredentialBindingsClient {
 	return c.serviceCredentialBindings
+}
+
+// ServiceRouteBindings implements capi.Client.ServiceRouteBindings
+func (c *Client) ServiceRouteBindings() capi.ServiceRouteBindingsClient {
+	return c.serviceRouteBindings
 }
 
 // Builds implements capi.Client.Builds
