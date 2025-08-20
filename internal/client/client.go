@@ -146,12 +146,12 @@ func (c *Client) initializeResourceClients() {
 	c.serviceCredentialBindings = NewServiceCredentialBindingsClient(c.httpClient)
 	c.serviceRouteBindings = NewServiceRouteBindingsClient(c.httpClient)
 	c.stacks = NewStacksClient(c.httpClient)
+	c.users = NewUsersClient(c.httpClient)
 	c.roles = NewRolesClient(c.httpClient)
 	c.securityGroups = NewSecurityGroupsClient(c.httpClient)
 	c.isolationSegments = NewIsolationSegmentsClient(c.httpClient)
 	c.featureFlags = NewFeatureFlagsClient(c.httpClient)
 	c.jobs = NewJobsClient(c.httpClient)
-	// Other resource clients will be added as we implement them
 }
 
 // GetInfo implements capi.Client.GetInfo

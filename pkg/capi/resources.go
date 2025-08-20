@@ -256,7 +256,9 @@ type User struct {
 
 // UserCreateRequest represents a request to create a user
 type UserCreateRequest struct {
-	GUID     string    `json:"guid"`
+	GUID     string    `json:"guid,omitempty"`
+	Username string    `json:"username,omitempty"`
+	Origin   string    `json:"origin,omitempty"`
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 

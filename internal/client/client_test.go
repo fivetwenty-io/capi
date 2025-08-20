@@ -243,5 +243,5 @@ func TestClient_ResourceAccessors(t *testing.T) {
 	assert.NotNil(t, client.IsolationSegments())         // IsolationSegments client is implemented
 	assert.NotNil(t, client.FeatureFlags())              // FeatureFlags client is implemented
 	assert.NotNil(t, client.Jobs())                      // Jobs client is implemented
-	assert.Nil(t, client.Users())
+	assert.NotNil(t, client.Users())                     // Users client is implemented
 }
