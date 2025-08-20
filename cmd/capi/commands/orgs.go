@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fivetwenty-io/capi-client/pkg/capi"
 	"github.com/olekukonko/tablewriter"
@@ -27,6 +28,11 @@ func NewOrgsCommand() *cobra.Command {
 	cmd.AddCommand(newOrgsCreateCommand())
 	cmd.AddCommand(newOrgsUpdateCommand())
 	cmd.AddCommand(newOrgsDeleteCommand())
+	cmd.AddCommand(newOrgsSetQuotaCommand())
+	cmd.AddCommand(newOrgsListUsersCommand())
+	cmd.AddCommand(newOrgsAddUserCommand())
+	cmd.AddCommand(newOrgsRemoveUserCommand())
+	cmd.AddCommand(newOrgsListSpacesCommand())
 
 	return cmd
 }
@@ -386,6 +392,440 @@ func newOrgsDeleteCommand() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "force deletion without confirmation")
+
+	return cmd
+}
+
+func newOrgsSetQuotaCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-quota ORG_NAME_OR_GUID QUOTA_NAME_OR_GUID",
+		Short: "Set organization quota",
+		Long:  "Assign a quota to an organization",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// TODO: Implement when quota management API is available
+			fmt.Println("Organization quota management is not yet implemented in the client library")
+			return nil
+		},
+	}
+}
+
+func newOrgsListUsersCommand() *cobra.Command {
+	var (
+		allPages bool
+		perPage  int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list-users ORG_NAME_OR_GUID",
+		Short: "List users in organization",
+		Long:  "List all users with roles in the organization",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			orgNameOrGUID := args[0]
+
+			client, err := createClient()
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			orgsClient := client.Organizations()
+
+			// Find organization
+			var orgGUID string
+			var orgName string
+			org, err := orgsClient.Get(ctx, orgNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", orgNameOrGUID)
+				orgs, err := orgsClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find organization: %w", err)
+				}
+				if len(orgs.Resources) == 0 {
+					return fmt.Errorf("organization '%s' not found", orgNameOrGUID)
+				}
+				orgGUID = orgs.Resources[0].GUID
+				orgName = orgs.Resources[0].Name
+			} else {
+				orgGUID = org.GUID
+				orgName = org.Name
+			}
+
+			// Get users with roles in organization
+			params := capi.NewQueryParams()
+			params.PerPage = perPage
+
+			users, err := orgsClient.ListUsers(ctx, orgGUID, params)
+			if err != nil {
+				return fmt.Errorf("failed to list users: %w", err)
+			}
+
+			// Fetch all pages if requested
+			allUsers := users.Resources
+			if allPages && users.Pagination.TotalPages > 1 {
+				for page := 2; page <= users.Pagination.TotalPages; page++ {
+					params.Page = page
+					moreUsers, err := orgsClient.ListUsers(ctx, orgGUID, params)
+					if err != nil {
+						return fmt.Errorf("failed to fetch page %d: %w", page, err)
+					}
+					allUsers = append(allUsers, moreUsers.Resources...)
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allUsers)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(allUsers)
+			default:
+				if len(allUsers) == 0 {
+					fmt.Printf("No users found in organization '%s'\n", orgName)
+					return nil
+				}
+
+				fmt.Printf("Users in organization '%s':\n\n", orgName)
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Username", "GUID", "Roles", "Created")
+
+				for _, user := range allUsers {
+					// Get roles for this user
+					rolesParams := capi.NewQueryParams()
+					rolesParams.WithFilter("user_guids", user.GUID)
+					rolesParams.WithFilter("organization_guids", orgGUID)
+					roles, _ := client.Roles().List(ctx, rolesParams)
+
+					roleNames := []string{}
+					for _, role := range roles.Resources {
+						roleNames = append(roleNames, role.Type)
+					}
+					rolesStr := "none"
+					if len(roleNames) > 0 {
+						rolesStr = strings.Join(roleNames, ", ")
+					}
+
+					table.Append(user.Username, user.GUID, rolesStr,
+						user.CreatedAt.Format("2006-01-02"))
+				}
+
+				table.Render()
+
+				if !allPages && users.Pagination.TotalPages > 1 {
+					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", users.Pagination.TotalPages)
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
+	cmd.Flags().IntVar(&perPage, "per-page", 50, "results per page")
+
+	return cmd
+}
+
+func newOrgsAddUserCommand() *cobra.Command {
+	var role string
+
+	cmd := &cobra.Command{
+		Use:   "add-user ORG_NAME_OR_GUID USERNAME_OR_GUID",
+		Short: "Add user to organization",
+		Long:  "Add a user to an organization with a specific role",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			orgNameOrGUID := args[0]
+			userNameOrGUID := args[1]
+
+			if role == "" {
+				role = "organization_user"
+			}
+
+			client, err := createClient()
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find organization
+			orgsClient := client.Organizations()
+			var orgGUID string
+			org, err := orgsClient.Get(ctx, orgNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", orgNameOrGUID)
+				orgs, err := orgsClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find organization: %w", err)
+				}
+				if len(orgs.Resources) == 0 {
+					return fmt.Errorf("organization '%s' not found", orgNameOrGUID)
+				}
+				orgGUID = orgs.Resources[0].GUID
+			} else {
+				orgGUID = org.GUID
+			}
+
+			// Find user
+			usersClient := client.Users()
+			var userGUID string
+			user, err := usersClient.Get(ctx, userNameOrGUID)
+			if err != nil {
+				// Try by username
+				params := capi.NewQueryParams()
+				params.WithFilter("usernames", userNameOrGUID)
+				users, err := usersClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find user: %w", err)
+				}
+				if len(users.Resources) == 0 {
+					return fmt.Errorf("user '%s' not found", userNameOrGUID)
+				}
+				userGUID = users.Resources[0].GUID
+			} else {
+				userGUID = user.GUID
+			}
+
+			// Create role
+			roleReq := &capi.RoleCreateRequest{
+				Type: role,
+				Relationships: capi.RoleRelationships{
+					Organization: &capi.Relationship{
+						Data: &capi.RelationshipData{GUID: orgGUID},
+					},
+					User: capi.Relationship{
+						Data: &capi.RelationshipData{GUID: userGUID},
+					},
+				},
+			}
+
+			_, err = client.Roles().Create(ctx, roleReq)
+			if err != nil {
+				return fmt.Errorf("failed to add user to organization: %w", err)
+			}
+
+			fmt.Printf("Successfully added user to organization with role '%s'\n", role)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&role, "role", "r", "organization_user", "role to assign (organization_user, organization_manager, organization_auditor, organization_billing_manager)")
+
+	return cmd
+}
+
+func newOrgsRemoveUserCommand() *cobra.Command {
+	var role string
+
+	cmd := &cobra.Command{
+		Use:   "remove-user ORG_NAME_OR_GUID USERNAME_OR_GUID",
+		Short: "Remove user from organization",
+		Long:  "Remove a user's role from an organization",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			orgNameOrGUID := args[0]
+			userNameOrGUID := args[1]
+
+			client, err := createClient()
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find organization
+			orgsClient := client.Organizations()
+			var orgGUID string
+			org, err := orgsClient.Get(ctx, orgNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", orgNameOrGUID)
+				orgs, err := orgsClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find organization: %w", err)
+				}
+				if len(orgs.Resources) == 0 {
+					return fmt.Errorf("organization '%s' not found", orgNameOrGUID)
+				}
+				orgGUID = orgs.Resources[0].GUID
+			} else {
+				orgGUID = org.GUID
+			}
+
+			// Find user
+			usersClient := client.Users()
+			var userGUID string
+			user, err := usersClient.Get(ctx, userNameOrGUID)
+			if err != nil {
+				// Try by username
+				params := capi.NewQueryParams()
+				params.WithFilter("usernames", userNameOrGUID)
+				users, err := usersClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find user: %w", err)
+				}
+				if len(users.Resources) == 0 {
+					return fmt.Errorf("user '%s' not found", userNameOrGUID)
+				}
+				userGUID = users.Resources[0].GUID
+			} else {
+				userGUID = user.GUID
+			}
+
+			// Find and delete role(s)
+			rolesClient := client.Roles()
+			params := capi.NewQueryParams()
+			params.WithFilter("user_guids", userGUID)
+			params.WithFilter("organization_guids", orgGUID)
+			if role != "" {
+				params.WithFilter("types", role)
+			}
+
+			roles, err := rolesClient.List(ctx, params)
+			if err != nil {
+				return fmt.Errorf("failed to list user roles: %w", err)
+			}
+
+			if len(roles.Resources) == 0 {
+				fmt.Println("No roles found to remove")
+				return nil
+			}
+
+			// Delete each role
+			for _, r := range roles.Resources {
+				err = rolesClient.Delete(ctx, r.GUID)
+				if err != nil {
+					return fmt.Errorf("failed to remove role '%s': %w", r.Type, err)
+				}
+				fmt.Printf("Removed role '%s'\n", r.Type)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&role, "role", "r", "", "specific role to remove (if not specified, removes all roles)")
+
+	return cmd
+}
+
+func newOrgsListSpacesCommand() *cobra.Command {
+	var (
+		allPages bool
+		perPage  int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list-spaces ORG_NAME_OR_GUID",
+		Short: "List spaces in organization",
+		Long:  "List all spaces within an organization",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			orgNameOrGUID := args[0]
+
+			client, err := createClient()
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			orgsClient := client.Organizations()
+
+			// Find organization
+			var orgGUID string
+			var orgName string
+			org, err := orgsClient.Get(ctx, orgNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", orgNameOrGUID)
+				orgs, err := orgsClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find organization: %w", err)
+				}
+				if len(orgs.Resources) == 0 {
+					return fmt.Errorf("organization '%s' not found", orgNameOrGUID)
+				}
+				orgGUID = orgs.Resources[0].GUID
+				orgName = orgs.Resources[0].Name
+			} else {
+				orgGUID = org.GUID
+				orgName = org.Name
+			}
+
+			// List spaces in organization
+			params := capi.NewQueryParams()
+			params.PerPage = perPage
+			params.WithFilter("organization_guids", orgGUID)
+
+			spaces, err := client.Spaces().List(ctx, params)
+			if err != nil {
+				return fmt.Errorf("failed to list spaces: %w", err)
+			}
+
+			// Fetch all pages if requested
+			allSpaces := spaces.Resources
+			if allPages && spaces.Pagination.TotalPages > 1 {
+				for page := 2; page <= spaces.Pagination.TotalPages; page++ {
+					params.Page = page
+					moreSpaces, err := client.Spaces().List(ctx, params)
+					if err != nil {
+						return fmt.Errorf("failed to fetch page %d: %w", page, err)
+					}
+					allSpaces = append(allSpaces, moreSpaces.Resources...)
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allSpaces)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(allSpaces)
+			default:
+				if len(allSpaces) == 0 {
+					fmt.Printf("No spaces found in organization '%s'\n", orgName)
+					return nil
+				}
+
+				fmt.Printf("Spaces in organization '%s':\n\n", orgName)
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Name", "GUID", "Created", "Updated")
+
+				for _, space := range allSpaces {
+					table.Append(space.Name, space.GUID,
+						space.CreatedAt.Format("2006-01-02"),
+						space.UpdatedAt.Format("2006-01-02"))
+				}
+
+				table.Render()
+
+				if !allPages && spaces.Pagination.TotalPages > 1 {
+					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", spaces.Pagination.TotalPages)
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
+	cmd.Flags().IntVar(&perPage, "per-page", 50, "results per page")
 
 	return cmd
 }

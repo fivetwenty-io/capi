@@ -48,7 +48,7 @@ func New(config *capi.Config) (capi.Client, error) {
 
 // needsAuth checks if the config requires authentication
 func needsAuth(config *capi.Config) bool {
-	return config.AccessToken == "" && 
+	return config.AccessToken == "" &&
 		(config.Username != "" || config.ClientID != "" || config.RefreshToken != "")
 }
 
