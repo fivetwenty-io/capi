@@ -196,7 +196,7 @@ run-example: ## Run a specific example (use EXAMPLE=<name>)
 .PHONY: clean
 clean: ## Clean build artifacts and test cache
 	@echo "$(YELLOW)Cleaning up...$(RESET)"
-	@rm -f coverage.out coverage.html test.cov
+	@rm -f coverage.out coverage.html test.cov capi
 	@rm -rf artifacts/
 	@go clean -testcache
 	@if [ -d "examples" ]; then \
@@ -259,6 +259,14 @@ deps-graph: ## Show dependency graph
 	@go mod graph
 	@echo "$(GREEN)✓ Dependency graph complete$(RESET)"
 
+##@ Build
+
+.PHONY: cli
+cli: ## Build the CLI binary
+	@echo "$(GREEN)Building CLI...$(RESET)"
+	@go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(GIT_SHA) -X main.date=$(BUILD_TIME)" -o capi cmd/capi/main.go
+	@echo "$(GREEN)✓ CLI built as 'capi'$(RESET)"
+
 ##@ Development
 
 .PHONY: setup
@@ -274,4 +282,4 @@ ci: lint vet test-race coverage security ## Run all CI checks
 # Include all phony targets
 .PHONY: help test test-short test-race test-all coverage coverage-html report benchmark fmt vet lint \
         govulncheck gosec staticcheck trivy security check check-all docs godoc examples run-example \
-        clean tag release-notes version deps deps-update deps-tidy deps-graph setup ci
+        clean tag release-notes version deps deps-update deps-tidy deps-graph cli setup ci
