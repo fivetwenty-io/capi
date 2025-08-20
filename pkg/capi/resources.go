@@ -352,8 +352,60 @@ type PackageCopyRequest struct {
 	Relationships PackageRelationships `json:"relationships"`
 }
 
-// Additional stub types to satisfy the compiler - these would be fully implemented
-type Droplet struct{ Resource }
+// Droplet represents a Cloud Foundry droplet
+type Droplet struct {
+	Resource
+	State             string                `json:"state"`
+	Error             *string               `json:"error"`
+	Lifecycle         Lifecycle             `json:"lifecycle"`
+	ExecutionMetadata string                `json:"execution_metadata"`
+	ProcessTypes      map[string]string     `json:"process_types"`
+	Checksum          *DropletChecksum      `json:"checksum,omitempty"`
+	Buildpacks        []DetectedBuildpack   `json:"buildpacks,omitempty"`
+	Stack             *string               `json:"stack,omitempty"`
+	Image             *string               `json:"image,omitempty"`
+	Metadata          *Metadata             `json:"metadata,omitempty"`
+	Relationships     *DropletRelationships `json:"relationships,omitempty"`
+}
+
+// DropletChecksum represents droplet checksum information
+type DropletChecksum struct {
+	Type  string `json:"type"` // e.g., "sha256" or "sha1"
+	Value string `json:"value"`
+}
+
+// DetectedBuildpack represents a buildpack detected during staging
+type DetectedBuildpack struct {
+	Name          string  `json:"name"`
+	DetectOutput  string  `json:"detect_output"`
+	Version       *string `json:"version,omitempty"`
+	BuildpackName *string `json:"buildpack_name,omitempty"`
+}
+
+// DropletRelationships represents the relationships for a droplet
+type DropletRelationships struct {
+	App *Relationship `json:"app,omitempty"`
+}
+
+// DropletCreateRequest represents a request to create a droplet
+type DropletCreateRequest struct {
+	Relationships DropletRelationships `json:"relationships"`
+	ProcessTypes  map[string]string    `json:"process_types,omitempty"`
+}
+
+// DropletUpdateRequest represents a request to update a droplet
+type DropletUpdateRequest struct {
+	Metadata     *Metadata         `json:"metadata,omitempty"`
+	Image        *string           `json:"image,omitempty"`
+	ProcessTypes map[string]string `json:"process_types,omitempty"`
+}
+
+// DropletCopyRequest represents a request to copy a droplet
+type DropletCopyRequest struct {
+	Relationships DropletRelationships `json:"relationships"`
+}
+
+// Build represents a Cloud Foundry build
 type Build struct{ Resource }
 type BuildCreateRequest struct{}
 type BuildUpdateRequest struct{}
@@ -363,8 +415,6 @@ type BuildpackUpdateRequest struct{}
 type Deployment struct{ Resource }
 type DeploymentCreateRequest struct{}
 type DeploymentUpdateRequest struct{}
-type DropletCreateRequest struct{}
-type DropletUpdateRequest struct{}
 
 // Process represents a Cloud Foundry process
 type Process struct {

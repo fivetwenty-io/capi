@@ -205,11 +205,13 @@ type DropletsClient interface {
 	Create(ctx context.Context, request *DropletCreateRequest) (*Droplet, error)
 	Get(ctx context.Context, guid string) (*Droplet, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Droplet], error)
+	ListForApp(ctx context.Context, appGUID string, params *QueryParams) (*ListResponse[Droplet], error)
+	ListForPackage(ctx context.Context, packageGUID string, params *QueryParams) (*ListResponse[Droplet], error)
 	Update(ctx context.Context, guid string, request *DropletUpdateRequest) (*Droplet, error)
-	Delete(ctx context.Context, guid string) (*Job, error)
-	Copy(ctx context.Context, sourceGUID string) (*Droplet, error)
+	Delete(ctx context.Context, guid string) error
+	Copy(ctx context.Context, sourceGUID string, request *DropletCopyRequest) (*Droplet, error)
 	Download(ctx context.Context, guid string) ([]byte, error)
-	Upload(ctx context.Context, guid string, bits []byte) (*Job, error)
+	Upload(ctx context.Context, guid string, bits []byte) (*Droplet, error)
 }
 
 type PackagesClient interface {
