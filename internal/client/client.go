@@ -130,6 +130,7 @@ func (c *Client) initializeResourceClients() {
 	c.apps = NewAppsClient(c.httpClient)
 	c.processes = NewProcessesClient(c.httpClient)
 	c.tasks = NewTasksClient(c.httpClient)
+	c.packages = NewPackagesClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 

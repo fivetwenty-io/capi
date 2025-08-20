@@ -283,6 +283,75 @@ type RoleRelationships struct {
 	Space        *Relationship `json:"space,omitempty"`
 }
 
+// Package represents a Cloud Foundry package
+type Package struct {
+	Resource
+	Type          string                `json:"type"`
+	Data          *PackageData          `json:"data"`
+	State         string                `json:"state"`
+	Metadata      *Metadata             `json:"metadata,omitempty"`
+	Relationships *PackageRelationships `json:"relationships,omitempty"`
+}
+
+// PackageData represents package-specific data
+type PackageData struct {
+	Checksum *PackageChecksum `json:"checksum,omitempty"`
+	Error    *string          `json:"error,omitempty"`
+	Image    *string          `json:"image,omitempty"`    // For Docker packages
+	Username *string          `json:"username,omitempty"` // For Docker packages
+	Password *string          `json:"password,omitempty"` // For Docker packages
+}
+
+// PackageChecksum represents package checksum information
+type PackageChecksum struct {
+	Type  string  `json:"type"` // e.g., "sha256"
+	Value *string `json:"value"`
+}
+
+// PackageRelationships represents the relationships for a package
+type PackageRelationships struct {
+	App *Relationship `json:"app,omitempty"`
+}
+
+// PackageCreateRequest represents a request to create a package
+type PackageCreateRequest struct {
+	Type          string               `json:"type"`
+	Relationships PackageRelationships `json:"relationships"`
+	Data          *PackageCreateData   `json:"data,omitempty"`
+	Metadata      *Metadata            `json:"metadata,omitempty"`
+}
+
+// PackageCreateData represents data for creating a package
+type PackageCreateData struct {
+	Image    *string `json:"image,omitempty"`    // For Docker packages
+	Username *string `json:"username,omitempty"` // For Docker packages
+	Password *string `json:"password,omitempty"` // For Docker packages
+}
+
+// PackageUpdateRequest represents a request to update a package
+type PackageUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// PackageUploadRequest represents a request to upload package bits
+type PackageUploadRequest struct {
+	Bits      []byte            `json:"-"` // The actual file bits
+	Resources []PackageResource `json:"resources,omitempty"`
+}
+
+// PackageResource represents a resource in a package upload
+type PackageResource struct {
+	SHA1 string `json:"sha1"`
+	Size int64  `json:"size"`
+	Path string `json:"path"`
+	Mode string `json:"mode"`
+}
+
+// PackageCopyRequest represents a request to copy a package
+type PackageCopyRequest struct {
+	Relationships PackageRelationships `json:"relationships"`
+}
+
 // Additional stub types to satisfy the compiler - these would be fully implemented
 type Droplet struct{ Resource }
 type Build struct{ Resource }
@@ -296,9 +365,6 @@ type DeploymentCreateRequest struct{}
 type DeploymentUpdateRequest struct{}
 type DropletCreateRequest struct{}
 type DropletUpdateRequest struct{}
-type Package struct{ Resource }
-type PackageCreateRequest struct{}
-type PackageUpdateRequest struct{}
 
 // Process represents a Cloud Foundry process
 type Process struct {

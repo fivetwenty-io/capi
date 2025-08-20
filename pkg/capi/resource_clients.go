@@ -217,10 +217,10 @@ type PackagesClient interface {
 	Get(ctx context.Context, guid string) (*Package, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Package], error)
 	Update(ctx context.Context, guid string, request *PackageUpdateRequest) (*Package, error)
-	Delete(ctx context.Context, guid string) (*Job, error)
-	Copy(ctx context.Context, sourceGUID string) (*Package, error)
+	Delete(ctx context.Context, guid string) error
+	Upload(ctx context.Context, guid string, zipFile []byte) (*Package, error)
 	Download(ctx context.Context, guid string) ([]byte, error)
-	Upload(ctx context.Context, guid string, bits []byte) (*Package, error)
+	Copy(ctx context.Context, sourceGUID string, request *PackageCopyRequest) (*Package, error)
 }
 
 type ProcessesClient interface {
