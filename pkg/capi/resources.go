@@ -733,9 +733,49 @@ type FeatureFlag struct {
 	Name    string
 	Enabled bool
 }
-type ServiceBroker struct{ Resource }
-type ServiceBrokerCreateRequest struct{}
-type ServiceBrokerUpdateRequest struct{}
+
+// ServiceBroker represents a service broker
+type ServiceBroker struct {
+	Resource
+	Name          string                     `json:"name"`
+	URL           string                     `json:"url"`
+	Relationships ServiceBrokerRelationships `json:"relationships"`
+	Metadata      *Metadata                  `json:"metadata,omitempty"`
+}
+
+// ServiceBrokerRelationships represents service broker relationships
+type ServiceBrokerRelationships struct {
+	Space *Relationship `json:"space,omitempty"`
+}
+
+// ServiceBrokerAuthentication represents authentication for a service broker
+type ServiceBrokerAuthentication struct {
+	Type        string                                 `json:"type"`
+	Credentials ServiceBrokerAuthenticationCredentials `json:"credentials"`
+}
+
+// ServiceBrokerAuthenticationCredentials represents authentication credentials
+type ServiceBrokerAuthenticationCredentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// ServiceBrokerCreateRequest represents a request to create a service broker
+type ServiceBrokerCreateRequest struct {
+	Name           string                      `json:"name"`
+	URL            string                      `json:"url"`
+	Authentication ServiceBrokerAuthentication `json:"authentication"`
+	Relationships  *ServiceBrokerRelationships `json:"relationships,omitempty"`
+	Metadata       *Metadata                   `json:"metadata,omitempty"`
+}
+
+// ServiceBrokerUpdateRequest represents a request to update a service broker
+type ServiceBrokerUpdateRequest struct {
+	Name           *string                      `json:"name,omitempty"`
+	URL            *string                      `json:"url,omitempty"`
+	Authentication *ServiceBrokerAuthentication `json:"authentication,omitempty"`
+	Metadata       *Metadata                    `json:"metadata,omitempty"`
+}
 type ServiceOffering struct{ Resource }
 type ServiceOfferingUpdateRequest struct{}
 type ServicePlan struct{ Resource }

@@ -219,12 +219,12 @@ func TestClient_ResourceAccessors(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test that all accessors return their respective clients (or nil for now)
-	assert.NotNil(t, client.Apps())          // Apps client is implemented
-	assert.NotNil(t, client.Organizations()) // Organizations client is implemented
-	assert.NotNil(t, client.Spaces())        // Spaces client is implemented
-	assert.NotNil(t, client.Domains())       // Domains client is implemented
-	assert.NotNil(t, client.Routes())        // Routes client is implemented
-	assert.Nil(t, client.ServiceBrokers())
+	assert.NotNil(t, client.Apps())           // Apps client is implemented
+	assert.NotNil(t, client.Organizations())  // Organizations client is implemented
+	assert.NotNil(t, client.Spaces())         // Spaces client is implemented
+	assert.NotNil(t, client.Domains())        // Domains client is implemented
+	assert.NotNil(t, client.Routes())         // Routes client is implemented
+	assert.NotNil(t, client.ServiceBrokers()) // ServiceBrokers client is implemented
 	assert.Nil(t, client.ServiceOfferings())
 	assert.Nil(t, client.ServicePlans())
 	assert.Nil(t, client.ServiceInstances())
