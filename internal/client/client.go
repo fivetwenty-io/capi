@@ -134,6 +134,8 @@ func (c *Client) initializeResourceClients() {
 	c.droplets = NewDropletsClient(c.httpClient)
 	c.builds = NewBuildsClient(c.httpClient)
 	c.deployments = NewDeploymentsClient(c.httpClient)
+	c.domains = NewDomainsClient(c.httpClient)
+	c.routes = NewRoutesClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 

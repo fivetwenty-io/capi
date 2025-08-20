@@ -222,8 +222,8 @@ func TestClient_ResourceAccessors(t *testing.T) {
 	assert.NotNil(t, client.Apps())          // Apps client is implemented
 	assert.NotNil(t, client.Organizations()) // Organizations client is implemented
 	assert.NotNil(t, client.Spaces())        // Spaces client is implemented
-	assert.Nil(t, client.Domains())
-	assert.Nil(t, client.Routes())
+	assert.NotNil(t, client.Domains())       // Domains client is implemented
+	assert.NotNil(t, client.Routes())        // Routes client is implemented
 	assert.Nil(t, client.ServiceBrokers())
 	assert.Nil(t, client.ServiceOfferings())
 	assert.Nil(t, client.ServicePlans())
