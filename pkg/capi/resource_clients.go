@@ -172,6 +172,20 @@ type ServiceInstancesClient interface {
 	UnshareFromSpace(ctx context.Context, guid string, spaceGUID string) error
 }
 
+// ServiceCredentialBindingsClient provides operations for Service Credential Bindings (v3 name for service bindings)
+type ServiceCredentialBindingsClient interface {
+	Create(ctx context.Context, request *ServiceCredentialBindingCreateRequest) (interface{}, error) // Returns *ServiceCredentialBinding or *Job
+	Get(ctx context.Context, guid string) (*ServiceCredentialBinding, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceCredentialBinding], error)
+	Update(ctx context.Context, guid string, request *ServiceCredentialBindingUpdateRequest) (*ServiceCredentialBinding, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+	GetDetails(ctx context.Context, guid string) (*ServiceCredentialBindingDetails, error)
+	GetParameters(ctx context.Context, guid string) (*ServiceCredentialBindingParameters, error)
+}
+
+// ServiceBindingsClient is an alias for ServiceCredentialBindingsClient for backward compatibility
+type ServiceBindingsClient = ServiceCredentialBindingsClient
+
 // Additional client interfaces for other resources...
 type BuildsClient interface {
 	Create(ctx context.Context, request *BuildCreateRequest) (*Build, error)

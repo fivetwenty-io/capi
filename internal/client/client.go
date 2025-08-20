@@ -18,29 +18,30 @@ type Client struct {
 	logger     capi.Logger
 
 	// Resource clients
-	apps              capi.AppsClient
-	organizations     capi.OrganizationsClient
-	spaces            capi.SpacesClient
-	domains           capi.DomainsClient
-	routes            capi.RoutesClient
-	serviceBrokers    capi.ServiceBrokersClient
-	serviceOfferings  capi.ServiceOfferingsClient
-	servicePlans      capi.ServicePlansClient
-	serviceInstances  capi.ServiceInstancesClient
-	builds            capi.BuildsClient
-	buildpacks        capi.BuildpacksClient
-	deployments       capi.DeploymentsClient
-	droplets          capi.DropletsClient
-	packages          capi.PackagesClient
-	processes         capi.ProcessesClient
-	tasks             capi.TasksClient
-	stacks            capi.StacksClient
-	users             capi.UsersClient
-	roles             capi.RolesClient
-	securityGroups    capi.SecurityGroupsClient
-	isolationSegments capi.IsolationSegmentsClient
-	featureFlags      capi.FeatureFlagsClient
-	jobs              capi.JobsClient
+	apps                      capi.AppsClient
+	organizations             capi.OrganizationsClient
+	spaces                    capi.SpacesClient
+	domains                   capi.DomainsClient
+	routes                    capi.RoutesClient
+	serviceBrokers            capi.ServiceBrokersClient
+	serviceOfferings          capi.ServiceOfferingsClient
+	servicePlans              capi.ServicePlansClient
+	serviceInstances          capi.ServiceInstancesClient
+	serviceCredentialBindings capi.ServiceCredentialBindingsClient
+	builds                    capi.BuildsClient
+	buildpacks                capi.BuildpacksClient
+	deployments               capi.DeploymentsClient
+	droplets                  capi.DropletsClient
+	packages                  capi.PackagesClient
+	processes                 capi.ProcessesClient
+	tasks                     capi.TasksClient
+	stacks                    capi.StacksClient
+	users                     capi.UsersClient
+	roles                     capi.RolesClient
+	securityGroups            capi.SecurityGroupsClient
+	isolationSegments         capi.IsolationSegmentsClient
+	featureFlags              capi.FeatureFlagsClient
+	jobs                      capi.JobsClient
 }
 
 // New creates a new CF API client
@@ -140,6 +141,7 @@ func (c *Client) initializeResourceClients() {
 	c.serviceOfferings = NewServiceOfferingsClient(c.httpClient)
 	c.servicePlans = NewServicePlansClient(c.httpClient)
 	c.serviceInstances = NewServiceInstancesClient(c.httpClient)
+	c.serviceCredentialBindings = NewServiceCredentialBindingsClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 
@@ -248,6 +250,11 @@ func (c *Client) ServicePlans() capi.ServicePlansClient {
 // ServiceInstances implements capi.Client.ServiceInstances
 func (c *Client) ServiceInstances() capi.ServiceInstancesClient {
 	return c.serviceInstances
+}
+
+// ServiceCredentialBindings implements capi.Client.ServiceCredentialBindings
+func (c *Client) ServiceCredentialBindings() capi.ServiceCredentialBindingsClient {
+	return c.serviceCredentialBindings
 }
 
 // Builds implements capi.Client.Builds

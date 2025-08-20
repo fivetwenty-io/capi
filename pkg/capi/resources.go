@@ -1026,3 +1026,58 @@ type ServiceInstancePermissions struct {
 	Read   bool `json:"read"`
 	Manage bool `json:"manage"`
 }
+
+// ServiceCredentialBinding represents a service credential binding (new name for service binding)
+type ServiceCredentialBinding struct {
+	Resource
+	Name          string                                 `json:"name"`
+	Type          string                                 `json:"type"` // "app" or "key"
+	LastOperation *ServiceCredentialBindingLastOperation `json:"last_operation,omitempty"`
+	Metadata      *Metadata                              `json:"metadata,omitempty"`
+	Relationships ServiceCredentialBindingRelationships  `json:"relationships"`
+	Links         Links                                  `json:"links,omitempty"`
+}
+
+// ServiceCredentialBindingLastOperation represents the last operation for a service credential binding
+type ServiceCredentialBindingLastOperation struct {
+	Type        string     `json:"type"` // "create", "update", "delete"
+	State       string     `json:"state"`
+	Description *string    `json:"description,omitempty"`
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}
+
+// ServiceCredentialBindingRelationships represents relationships for a service credential binding
+type ServiceCredentialBindingRelationships struct {
+	App             *Relationship `json:"app,omitempty"` // Only for type="app"
+	ServiceInstance Relationship  `json:"service_instance"`
+}
+
+// ServiceCredentialBindingCreateRequest represents a request to create a service credential binding
+type ServiceCredentialBindingCreateRequest struct {
+	Type          string                                `json:"type"` // "app" or "key"
+	Name          *string                               `json:"name,omitempty"`
+	Parameters    map[string]interface{}                `json:"parameters,omitempty"`
+	Metadata      *Metadata                             `json:"metadata,omitempty"`
+	Relationships ServiceCredentialBindingRelationships `json:"relationships"`
+}
+
+// ServiceCredentialBindingUpdateRequest represents a request to update a service credential binding
+type ServiceCredentialBindingUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// ServiceCredentialBindingDetails represents the details of a service credential binding
+type ServiceCredentialBindingDetails struct {
+	Credentials    map[string]interface{} `json:"credentials"`
+	SyslogDrainURL *string                `json:"syslog_drain_url,omitempty"`
+	VolumeMounts   []interface{}          `json:"volume_mounts,omitempty"`
+}
+
+// ServiceCredentialBindingParameters represents the parameters of a service credential binding
+type ServiceCredentialBindingParameters struct {
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+}
+
+// ServiceBinding is an alias for ServiceCredentialBinding for backward compatibility
+type ServiceBinding = ServiceCredentialBinding

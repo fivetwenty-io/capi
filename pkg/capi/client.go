@@ -18,6 +18,7 @@ type Client interface {
 	ServiceOfferings() ServiceOfferingsClient
 	ServicePlans() ServicePlansClient
 	ServiceInstances() ServiceInstancesClient
+	ServiceCredentialBindings() ServiceCredentialBindingsClient
 	Builds() BuildsClient
 	Buildpacks() BuildpacksClient
 	Deployments() DeploymentsClient
