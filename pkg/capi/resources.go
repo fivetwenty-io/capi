@@ -831,9 +831,28 @@ type StackCreateRequest struct {
 type StackUpdateRequest struct {
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
-type IsolationSegment struct{ Resource }
-type IsolationSegmentCreateRequest struct{}
-type IsolationSegmentUpdateRequest struct{}
+
+// IsolationSegment represents an isolation segment
+type IsolationSegment struct {
+	Resource
+	Name     string    `json:"name"`
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// IsolationSegmentCreateRequest represents a request to create an isolation segment
+type IsolationSegmentCreateRequest struct {
+	Name     string    `json:"name"`
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// IsolationSegmentUpdateRequest represents a request to update an isolation segment
+type IsolationSegmentUpdateRequest struct {
+	Name     *string   `json:"name,omitempty"`
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// IsolationSegmentEntitleOrganizationsRequest represents a request to entitle organizations
+type IsolationSegmentEntitleOrganizationsRequest = ToManyRelationship
 type FeatureFlag struct {
 	Name    string
 	Enabled bool

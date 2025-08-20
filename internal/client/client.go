@@ -148,6 +148,7 @@ func (c *Client) initializeResourceClients() {
 	c.stacks = NewStacksClient(c.httpClient)
 	c.roles = NewRolesClient(c.httpClient)
 	c.securityGroups = NewSecurityGroupsClient(c.httpClient)
+	c.isolationSegments = NewIsolationSegmentsClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 
