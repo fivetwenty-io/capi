@@ -1,5 +1,7 @@
 package capi
 
+import "time"
+
 // App represents a Cloud Foundry application
 type App struct {
 	Resource
@@ -461,9 +463,105 @@ type BuildUpdateRequest struct {
 type Buildpack struct{ Resource }
 type BuildpackCreateRequest struct{}
 type BuildpackUpdateRequest struct{}
-type Deployment struct{ Resource }
-type DeploymentCreateRequest struct{}
-type DeploymentUpdateRequest struct{}
+
+// Deployment represents a Cloud Foundry deployment
+type Deployment struct {
+	Resource
+	State           string                   `json:"state"`
+	Status          DeploymentStatus         `json:"status"`
+	Strategy        string                   `json:"strategy"`
+	Options         *DeploymentOptions       `json:"options,omitempty"`
+	Droplet         *DeploymentDropletRef    `json:"droplet"`
+	PreviousDroplet *DeploymentDropletRef    `json:"previous_droplet"`
+	NewProcesses    []DeploymentProcess      `json:"new_processes"`
+	Revision        *DeploymentRevisionRef   `json:"revision,omitempty"`
+	Metadata        *Metadata                `json:"metadata,omitempty"`
+	Relationships   *DeploymentRelationships `json:"relationships,omitempty"`
+}
+
+// DeploymentStatus represents the status of a deployment
+type DeploymentStatus struct {
+	Value   string                   `json:"value"`
+	Reason  string                   `json:"reason"`
+	Details *DeploymentStatusDetails `json:"details,omitempty"`
+	Canary  *DeploymentCanaryStatus  `json:"canary,omitempty"`
+}
+
+// DeploymentStatusDetails provides details about deployment status
+type DeploymentStatusDetails struct {
+	LastHealthyAt    *time.Time `json:"last_healthy_at,omitempty"`
+	LastStatusChange *time.Time `json:"last_status_change,omitempty"`
+	Error            *string    `json:"error,omitempty"`
+}
+
+// DeploymentCanaryStatus represents canary deployment status
+type DeploymentCanaryStatus struct {
+	Steps DeploymentCanarySteps `json:"steps"`
+}
+
+// DeploymentCanarySteps represents canary deployment step info
+type DeploymentCanarySteps struct {
+	Current int `json:"current"`
+	Total   int `json:"total"`
+}
+
+// DeploymentOptions represents deployment options
+type DeploymentOptions struct {
+	MaxInFlight                  *int                     `json:"max_in_flight,omitempty"`
+	WebInstances                 *int                     `json:"web_instances,omitempty"`
+	MemoryInMB                   *int                     `json:"memory_in_mb,omitempty"`
+	DiskInMB                     *int                     `json:"disk_in_mb,omitempty"`
+	LogRateLimitInBytesPerSecond *int                     `json:"log_rate_limit_in_bytes_per_second,omitempty"`
+	Canary                       *DeploymentCanaryOptions `json:"canary,omitempty"`
+}
+
+// DeploymentCanaryOptions represents canary deployment options
+type DeploymentCanaryOptions struct {
+	Steps []DeploymentCanaryStep `json:"steps"`
+}
+
+// DeploymentCanaryStep represents a canary deployment step
+type DeploymentCanaryStep struct {
+	Instances int `json:"instances"`
+	WaitTime  int `json:"wait_time,omitempty"`
+}
+
+// DeploymentDropletRef represents a droplet reference in a deployment
+type DeploymentDropletRef struct {
+	GUID string `json:"guid"`
+}
+
+// DeploymentRevisionRef represents a revision reference in a deployment
+type DeploymentRevisionRef struct {
+	GUID    string `json:"guid"`
+	Version int    `json:"version"`
+}
+
+// DeploymentProcess represents a process created during deployment
+type DeploymentProcess struct {
+	GUID string `json:"guid"`
+	Type string `json:"type"`
+}
+
+// DeploymentRelationships represents the relationships for a deployment
+type DeploymentRelationships struct {
+	App *Relationship `json:"app,omitempty"`
+}
+
+// DeploymentCreateRequest represents a request to create a deployment
+type DeploymentCreateRequest struct {
+	Droplet       *DeploymentDropletRef   `json:"droplet,omitempty"`
+	Revision      *DeploymentRevisionRef  `json:"revision,omitempty"`
+	Strategy      *string                 `json:"strategy,omitempty"`
+	Options       *DeploymentOptions      `json:"options,omitempty"`
+	Relationships DeploymentRelationships `json:"relationships"`
+	Metadata      *Metadata               `json:"metadata,omitempty"`
+}
+
+// DeploymentUpdateRequest represents a request to update a deployment
+type DeploymentUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
 
 // Process represents a Cloud Foundry process
 type Process struct {

@@ -198,8 +198,8 @@ type DeploymentsClient interface {
 	Get(ctx context.Context, guid string) (*Deployment, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Deployment], error)
 	Update(ctx context.Context, guid string, request *DeploymentUpdateRequest) (*Deployment, error)
-	Cancel(ctx context.Context, guid string) (*Deployment, error)
-	Continue(ctx context.Context, guid string) (*Deployment, error)
+	Cancel(ctx context.Context, guid string) error
+	Continue(ctx context.Context, guid string) error
 }
 
 type DropletsClient interface {

@@ -230,11 +230,11 @@ func TestClient_ResourceAccessors(t *testing.T) {
 	assert.Nil(t, client.ServiceInstances())
 	assert.NotNil(t, client.Builds()) // Builds client is implemented
 	assert.Nil(t, client.Buildpacks())
-	assert.Nil(t, client.Deployments())
-	assert.NotNil(t, client.Droplets())  // Droplets client is implemented
-	assert.NotNil(t, client.Packages())  // Packages client is implemented
-	assert.NotNil(t, client.Processes()) // Processes client is implemented
-	assert.NotNil(t, client.Tasks())     // Tasks client is implemented
+	assert.NotNil(t, client.Deployments()) // Deployments client is implemented
+	assert.NotNil(t, client.Droplets())    // Droplets client is implemented
+	assert.NotNil(t, client.Packages())    // Packages client is implemented
+	assert.NotNil(t, client.Processes())   // Processes client is implemented
+	assert.NotNil(t, client.Tasks())       // Tasks client is implemented
 	assert.Nil(t, client.Stacks())
 	assert.Nil(t, client.Users())
 	assert.Nil(t, client.Roles())
