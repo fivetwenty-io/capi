@@ -318,10 +318,11 @@ type IsolationSegmentsClient interface {
 	ListSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
 }
 
+// FeatureFlagsClient provides access to Feature Flags resources
 type FeatureFlagsClient interface {
 	Get(ctx context.Context, name string) (*FeatureFlag, error)
-	List(ctx context.Context) (*ListResponse[FeatureFlag], error)
-	Update(ctx context.Context, name string, enabled bool, customErrorMessage string) (*FeatureFlag, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[FeatureFlag], error)
+	Update(ctx context.Context, name string, request *FeatureFlagUpdateRequest) (*FeatureFlag, error)
 }
 
 type JobsClient interface {

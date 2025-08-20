@@ -853,9 +853,20 @@ type IsolationSegmentUpdateRequest struct {
 
 // IsolationSegmentEntitleOrganizationsRequest represents a request to entitle organizations
 type IsolationSegmentEntitleOrganizationsRequest = ToManyRelationship
+
+// FeatureFlag represents a feature flag
 type FeatureFlag struct {
-	Name    string
-	Enabled bool
+	Name               string     `json:"name"`
+	Enabled            bool       `json:"enabled"`
+	UpdatedAt          *time.Time `json:"updated_at"`
+	CustomErrorMessage *string    `json:"custom_error_message"`
+	Links              Links      `json:"links,omitempty"`
+}
+
+// FeatureFlagUpdateRequest represents a request to update a feature flag
+type FeatureFlagUpdateRequest struct {
+	Enabled            bool    `json:"enabled"`
+	CustomErrorMessage *string `json:"custom_error_message,omitempty"`
 }
 
 // ServiceBroker represents a service broker
