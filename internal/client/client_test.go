@@ -238,8 +238,8 @@ func TestClient_ResourceAccessors(t *testing.T) {
 	assert.NotNil(t, client.Processes())                 // Processes client is implemented
 	assert.NotNil(t, client.Tasks())                     // Tasks client is implemented
 	assert.NotNil(t, client.Stacks())                    // Stacks client is implemented
+	assert.NotNil(t, client.Roles())                     // Roles client is implemented
 	assert.Nil(t, client.Users())
-	assert.Nil(t, client.Roles())
 	assert.Nil(t, client.SecurityGroups())
 	assert.Nil(t, client.IsolationSegments())
 	assert.Nil(t, client.FeatureFlags())
