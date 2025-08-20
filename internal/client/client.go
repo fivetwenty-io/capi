@@ -137,6 +137,7 @@ func (c *Client) initializeResourceClients() {
 	c.domains = NewDomainsClient(c.httpClient)
 	c.routes = NewRoutesClient(c.httpClient)
 	c.serviceBrokers = NewServiceBrokersClient(c.httpClient)
+	c.serviceOfferings = NewServiceOfferingsClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 

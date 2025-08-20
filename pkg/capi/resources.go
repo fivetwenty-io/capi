@@ -776,8 +776,47 @@ type ServiceBrokerUpdateRequest struct {
 	Authentication *ServiceBrokerAuthentication `json:"authentication,omitempty"`
 	Metadata       *Metadata                    `json:"metadata,omitempty"`
 }
-type ServiceOffering struct{ Resource }
-type ServiceOfferingUpdateRequest struct{}
+
+// ServiceOffering represents a service offering
+type ServiceOffering struct {
+	Resource
+	Name             string                       `json:"name"`
+	Description      string                       `json:"description"`
+	Available        bool                         `json:"available"`
+	Tags             []string                     `json:"tags"`
+	Requires         []string                     `json:"requires"`
+	Shareable        bool                         `json:"shareable"`
+	DocumentationURL *string                      `json:"documentation_url,omitempty"`
+	BrokerCatalog    ServiceOfferingCatalog       `json:"broker_catalog"`
+	Relationships    ServiceOfferingRelationships `json:"relationships"`
+	Metadata         *Metadata                    `json:"metadata,omitempty"`
+}
+
+// ServiceOfferingCatalog represents catalog information for a service offering
+type ServiceOfferingCatalog struct {
+	ID       string                         `json:"id"`
+	Metadata map[string]interface{}         `json:"metadata,omitempty"`
+	Features ServiceOfferingCatalogFeatures `json:"features"`
+}
+
+// ServiceOfferingCatalogFeatures represents features of a service offering catalog
+type ServiceOfferingCatalogFeatures struct {
+	PlanUpdateable       bool `json:"plan_updateable"`
+	Bindable             bool `json:"bindable"`
+	InstancesRetrievable bool `json:"instances_retrievable"`
+	BindingsRetrievable  bool `json:"bindings_retrievable"`
+	AllowContextUpdates  bool `json:"allow_context_updates"`
+}
+
+// ServiceOfferingRelationships represents service offering relationships
+type ServiceOfferingRelationships struct {
+	ServiceBroker Relationship `json:"service_broker"`
+}
+
+// ServiceOfferingUpdateRequest represents a request to update a service offering
+type ServiceOfferingUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
 type ServicePlan struct{ Resource }
 type ServicePlanUpdateRequest struct{}
 type ServicePlanVisibility struct{}
