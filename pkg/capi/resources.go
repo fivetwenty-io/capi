@@ -285,6 +285,58 @@ type RoleRelationships struct {
 	Space        *Relationship `json:"space,omitempty"`
 }
 
+// SecurityGroup represents a security group
+type SecurityGroup struct {
+	Resource
+	Name            string                       `json:"name"`
+	GloballyEnabled SecurityGroupGloballyEnabled `json:"globally_enabled"`
+	Rules           []SecurityGroupRule          `json:"rules"`
+	Relationships   SecurityGroupRelationships   `json:"relationships"`
+}
+
+// SecurityGroupGloballyEnabled represents globally enabled settings for a security group
+type SecurityGroupGloballyEnabled struct {
+	Running bool `json:"running"`
+	Staging bool `json:"staging"`
+}
+
+// SecurityGroupRule represents a security group rule
+type SecurityGroupRule struct {
+	Protocol    string  `json:"protocol"`
+	Destination string  `json:"destination"`
+	Ports       *string `json:"ports,omitempty"`
+	Type        *int    `json:"type,omitempty"`
+	Code        *int    `json:"code,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Log         *bool   `json:"log,omitempty"`
+}
+
+// SecurityGroupRelationships represents security group relationships
+type SecurityGroupRelationships struct {
+	RunningSpaces ToManyRelationship `json:"running_spaces"`
+	StagingSpaces ToManyRelationship `json:"staging_spaces"`
+}
+
+// SecurityGroupCreateRequest represents a request to create a security group
+type SecurityGroupCreateRequest struct {
+	Name            string                        `json:"name"`
+	GloballyEnabled *SecurityGroupGloballyEnabled `json:"globally_enabled,omitempty"`
+	Rules           []SecurityGroupRule           `json:"rules,omitempty"`
+	Relationships   *SecurityGroupRelationships   `json:"relationships,omitempty"`
+}
+
+// SecurityGroupUpdateRequest represents a request to update a security group
+type SecurityGroupUpdateRequest struct {
+	Name            *string                       `json:"name,omitempty"`
+	GloballyEnabled *SecurityGroupGloballyEnabled `json:"globally_enabled,omitempty"`
+	Rules           []SecurityGroupRule           `json:"rules,omitempty"`
+}
+
+// SecurityGroupBindRequest represents a request to bind a security group to spaces
+type SecurityGroupBindRequest struct {
+	Data []RelationshipData `json:"data"`
+}
+
 // Package represents a Cloud Foundry package
 type Package struct {
 	Resource
@@ -779,9 +831,6 @@ type StackCreateRequest struct {
 type StackUpdateRequest struct {
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
-type SecurityGroup struct{ Resource }
-type SecurityGroupCreateRequest struct{}
-type SecurityGroupUpdateRequest struct{}
 type IsolationSegment struct{ Resource }
 type IsolationSegmentCreateRequest struct{}
 type IsolationSegmentUpdateRequest struct{}

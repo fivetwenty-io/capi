@@ -147,6 +147,7 @@ func (c *Client) initializeResourceClients() {
 	c.serviceRouteBindings = NewServiceRouteBindingsClient(c.httpClient)
 	c.stacks = NewStacksClient(c.httpClient)
 	c.roles = NewRolesClient(c.httpClient)
+	c.securityGroups = NewSecurityGroupsClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 
