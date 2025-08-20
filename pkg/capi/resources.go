@@ -403,9 +403,60 @@ type ProcessInstancePort struct {
 	ExternalTLSProxyPort int `json:"external_tls_proxy_port,omitempty"`
 	InternalTLSProxyPort int `json:"internal_tls_proxy_port,omitempty"`
 }
-type Task struct{ Resource }
-type TaskCreateRequest struct{}
-type TaskUpdateRequest struct{}
+
+// Task represents a Cloud Foundry task
+type Task struct {
+	Resource
+	SequenceID                   int                `json:"sequence_id"`
+	Name                         string             `json:"name"`
+	Command                      string             `json:"command,omitempty"`
+	User                         *string            `json:"user"`
+	State                        string             `json:"state"`
+	MemoryInMB                   int                `json:"memory_in_mb"`
+	DiskInMB                     int                `json:"disk_in_mb"`
+	LogRateLimitInBytesPerSecond *int               `json:"log_rate_limit_in_bytes_per_second"`
+	Result                       *TaskResult        `json:"result,omitempty"`
+	DropletGUID                  string             `json:"droplet_guid"`
+	Metadata                     *Metadata          `json:"metadata,omitempty"`
+	Relationships                *TaskRelationships `json:"relationships,omitempty"`
+}
+
+// TaskResult represents the result of a task execution
+type TaskResult struct {
+	FailureReason *string `json:"failure_reason"`
+}
+
+// TaskRelationships represents the relationships for a task
+type TaskRelationships struct {
+	App *Relationship `json:"app,omitempty"`
+}
+
+// TaskCreateRequest represents a request to create a task
+type TaskCreateRequest struct {
+	Command                      *string       `json:"command,omitempty"`
+	Name                         *string       `json:"name,omitempty"`
+	MemoryInMB                   *int          `json:"memory_in_mb,omitempty"`
+	DiskInMB                     *int          `json:"disk_in_mb,omitempty"`
+	LogRateLimitInBytesPerSecond *int          `json:"log_rate_limit_in_bytes_per_second,omitempty"`
+	Template                     *TaskTemplate `json:"template,omitempty"`
+	Metadata                     *Metadata     `json:"metadata,omitempty"`
+	DropletGUID                  *string       `json:"droplet_guid,omitempty"`
+}
+
+// TaskTemplate represents a template for creating a task from a process
+type TaskTemplate struct {
+	Process *TaskTemplateProcess `json:"process,omitempty"`
+}
+
+// TaskTemplateProcess represents a process reference in a task template
+type TaskTemplateProcess struct {
+	GUID string `json:"guid"`
+}
+
+// TaskUpdateRequest represents a request to update a task
+type TaskUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
 type Stack struct{ Resource }
 type StackCreateRequest struct{}
 type StackUpdateRequest struct{}

@@ -234,7 +234,7 @@ func TestClient_ResourceAccessors(t *testing.T) {
 	assert.Nil(t, client.Droplets())
 	assert.Nil(t, client.Packages())
 	assert.NotNil(t, client.Processes())
-	assert.Nil(t, client.Tasks())
+	assert.NotNil(t, client.Tasks())
 	assert.Nil(t, client.Stacks())
 	assert.Nil(t, client.Users())
 	assert.Nil(t, client.Roles())
