@@ -702,8 +702,10 @@ type ReadinessHealthCheckData struct {
 
 // ProcessUpdateRequest represents a request to update a process
 type ProcessUpdateRequest struct {
-	Command  *string   `json:"command,omitempty"`
-	Metadata *Metadata `json:"metadata,omitempty"`
+	Command              *string               `json:"command,omitempty"`
+	HealthCheck          *HealthCheck          `json:"health_check,omitempty"`
+	ReadinessHealthCheck *ReadinessHealthCheck `json:"readiness_health_check,omitempty"`
+	Metadata             *Metadata             `json:"metadata,omitempty"`
 }
 
 // ProcessScaleRequest represents a request to scale a process

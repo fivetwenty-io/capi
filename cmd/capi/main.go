@@ -58,10 +58,12 @@ func init() {
 	rootCmd.AddCommand(commands.NewServicesCommand())
 	rootCmd.AddCommand(commands.NewDomainsCommand())
 	rootCmd.AddCommand(commands.NewRoutesCommand())
+	rootCmd.AddCommand(commands.NewSecurityGroupsCommand())
 	rootCmd.AddCommand(commands.NewBuildpacksCommand())
 	rootCmd.AddCommand(commands.NewStacksCommand())
 	rootCmd.AddCommand(commands.NewUsersCommand())
 	rootCmd.AddCommand(commands.NewRolesCommand())
+	rootCmd.AddCommand(commands.NewJobsCommand())
 	rootCmd.AddCommand(commands.NewTargetCommand())
 	rootCmd.AddCommand(commands.NewInfoCommand())
 }

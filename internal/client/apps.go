@@ -298,3 +298,19 @@ func (c *AppsClient) GetManifest(ctx context.Context, guid string) (string, erro
 	// The manifest is returned as YAML, so we return it as a string
 	return string(resp.Body), nil
 }
+
+// Restage implements capi.AppsClient.Restage
+func (c *AppsClient) Restage(ctx context.Context, guid string) (*capi.Build, error) {
+	path := fmt.Sprintf("/v3/apps/%s/actions/restage", guid)
+	resp, err := c.httpClient.Post(ctx, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("restaging app: %w", err)
+	}
+
+	var build capi.Build
+	if err := json.Unmarshal(resp.Body, &build); err != nil {
+		return nil, fmt.Errorf("parsing build response: %w", err)
+	}
+
+	return &build, nil
+}

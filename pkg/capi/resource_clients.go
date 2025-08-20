@@ -17,6 +17,7 @@ type AppsClient interface {
 	Start(ctx context.Context, guid string) (*App, error)
 	Stop(ctx context.Context, guid string) (*App, error)
 	Restart(ctx context.Context, guid string) (*App, error)
+	Restage(ctx context.Context, guid string) (*Build, error)
 
 	// Environment operations
 	GetEnv(ctx context.Context, guid string) (*AppEnvironment, error)
