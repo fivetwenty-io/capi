@@ -406,9 +406,58 @@ type DropletCopyRequest struct {
 }
 
 // Build represents a Cloud Foundry build
-type Build struct{ Resource }
-type BuildCreateRequest struct{}
-type BuildUpdateRequest struct{}
+type Build struct {
+	Resource
+	State                             string              `json:"state"`
+	StagingMemoryInMB                 int                 `json:"staging_memory_in_mb"`
+	StagingDiskInMB                   int                 `json:"staging_disk_in_mb"`
+	StagingLogRateLimitBytesPerSecond *int                `json:"staging_log_rate_limit_bytes_per_second"`
+	Error                             *string             `json:"error"`
+	Lifecycle                         *Lifecycle          `json:"lifecycle,omitempty"`
+	Package                           *BuildPackageRef    `json:"package"`
+	Droplet                           *BuildDropletRef    `json:"droplet"`
+	CreatedBy                         *UserRef            `json:"created_by"`
+	Relationships                     *BuildRelationships `json:"relationships,omitempty"`
+	Metadata                          *Metadata           `json:"metadata,omitempty"`
+}
+
+// BuildPackageRef represents a package reference in a build
+type BuildPackageRef struct {
+	GUID string `json:"guid"`
+}
+
+// BuildDropletRef represents a droplet reference in a build
+type BuildDropletRef struct {
+	GUID string `json:"guid"`
+}
+
+// UserRef represents a user reference
+type UserRef struct {
+	GUID  string `json:"guid"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+// BuildRelationships represents the relationships for a build
+type BuildRelationships struct {
+	App *Relationship `json:"app,omitempty"`
+}
+
+// BuildCreateRequest represents a request to create a build
+type BuildCreateRequest struct {
+	Package                           *BuildPackageRef `json:"package"`
+	Lifecycle                         *Lifecycle       `json:"lifecycle,omitempty"`
+	StagingMemoryInMB                 *int             `json:"staging_memory_in_mb,omitempty"`
+	StagingDiskInMB                   *int             `json:"staging_disk_in_mb,omitempty"`
+	StagingLogRateLimitBytesPerSecond *int             `json:"staging_log_rate_limit_bytes_per_second,omitempty"`
+	Metadata                          *Metadata        `json:"metadata,omitempty"`
+}
+
+// BuildUpdateRequest represents a request to update a build
+type BuildUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+	State    *string   `json:"state,omitempty"`
+}
 type Buildpack struct{ Resource }
 type BuildpackCreateRequest struct{}
 type BuildpackUpdateRequest struct{}

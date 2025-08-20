@@ -180,6 +180,7 @@ type BuildsClient interface {
 	Create(ctx context.Context, request *BuildCreateRequest) (*Build, error)
 	Get(ctx context.Context, guid string) (*Build, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Build], error)
+	ListForApp(ctx context.Context, appGUID string, params *QueryParams) (*ListResponse[Build], error)
 	Update(ctx context.Context, guid string, request *BuildUpdateRequest) (*Build, error)
 }
 

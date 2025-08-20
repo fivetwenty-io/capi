@@ -132,6 +132,7 @@ func (c *Client) initializeResourceClients() {
 	c.tasks = NewTasksClient(c.httpClient)
 	c.packages = NewPackagesClient(c.httpClient)
 	c.droplets = NewDropletsClient(c.httpClient)
+	c.builds = NewBuildsClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 
