@@ -59,8 +59,10 @@ func discoverUAAEndpoint(apiEndpoint string, skipTLS bool) (string, error) {
 		Timeout: 10 * time.Second,
 	}
 	if skipTLS {
+		// WARNING: Only use InsecureSkipVerify in development environments
+		// This disables TLS certificate verification which can expose to man-in-the-middle attacks
 		httpClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // G402: Intentionally allowing insecure TLS for dev environments
 		}
 	}
 

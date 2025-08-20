@@ -371,6 +371,14 @@ func (m *MockAppsClient) Restart(ctx context.Context, guid string) (*capi.App, e
 	return args.Get(0).(*capi.App), args.Error(1)
 }
 
+func (m *MockAppsClient) Restage(ctx context.Context, guid string) (*capi.Build, error) {
+	args := m.Called(ctx, guid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*capi.Build), args.Error(1)
+}
+
 func (m *MockAppsClient) ClearBuildpackCache(ctx context.Context, guid string) error {
 	args := m.Called(ctx, guid)
 	return args.Error(0)

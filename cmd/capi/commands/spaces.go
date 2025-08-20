@@ -204,14 +204,14 @@ func newSpacesGetCommand() *cobra.Command {
 					}
 				}
 
-				if space.Metadata.Labels != nil && len(space.Metadata.Labels) > 0 {
+				if len(space.Metadata.Labels) > 0 {
 					fmt.Println("  Labels:")
 					for k, v := range space.Metadata.Labels {
 						fmt.Printf("    %s: %s\n", k, v)
 					}
 				}
 
-				if space.Metadata.Annotations != nil && len(space.Metadata.Annotations) > 0 {
+				if len(space.Metadata.Annotations) > 0 {
 					fmt.Println("  Annotations:")
 					for k, v := range space.Metadata.Annotations {
 						fmt.Printf("    %s: %s\n", k, v)

@@ -84,7 +84,7 @@ func initConfig() {
 
 		// Create config directory if it doesn't exist
 		configDir := filepath.Join(home, ".capi")
-		if err := os.MkdirAll(configDir, 0755); err != nil {
+		if err := os.MkdirAll(configDir, 0750); err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating config directory: %v\n", err)
 		}
 

@@ -2,11 +2,16 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 // NewRoutesCommand creates the routes command group
@@ -89,27 +94,60 @@ func newRoutesListCommand() *cobra.Command {
 				return fmt.Errorf("failed to list routes: %w", err)
 			}
 
-			if len(routes.Resources) == 0 {
-				fmt.Println("No routes found")
-				return nil
-			}
-
-			fmt.Println("Routes:")
-			for _, route := range routes.Resources {
-				fmt.Printf("  %s (%s) - %s [%s]\n", route.URL, route.GUID, route.Protocol, route.Host)
-				if len(route.Destinations) > 0 {
-					fmt.Printf("    Destinations:\n")
-					for _, dest := range route.Destinations {
-						fmt.Printf("      App: %s", dest.App.GUID)
-						if dest.Port != nil {
-							fmt.Printf(" (Port: %d)", *dest.Port)
-						}
-						if dest.Weight != nil {
-							fmt.Printf(" (Weight: %d)", *dest.Weight)
-						}
-						fmt.Println()
-					}
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(routes.Resources)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(routes.Resources)
+			default:
+				if len(routes.Resources) == 0 {
+					fmt.Println("No routes found")
+					return nil
 				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("URL", "GUID", "Protocol", "Host", "Path", "Port", "Destinations", "Created", "Updated")
+
+				for _, route := range routes.Resources {
+					path := route.Path
+					if path == "" {
+						path = "/"
+					}
+
+					port := ""
+					if route.Port != nil {
+						port = strconv.Itoa(*route.Port)
+					}
+
+					destinations := ""
+					if len(route.Destinations) > 0 {
+						destCount := len(route.Destinations)
+						if destCount == 1 {
+							destinations = "1 destination"
+						} else {
+							destinations = fmt.Sprintf("%d destinations", destCount)
+						}
+					}
+
+					created := ""
+					if !route.CreatedAt.IsZero() {
+						created = route.CreatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					updated := ""
+					if !route.UpdatedAt.IsZero() {
+						updated = route.UpdatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					table.Append(route.URL, route.GUID, route.Protocol, route.Host, path, port, destinations, created, updated)
+				}
+
+				table.Render()
 			}
 
 			return nil

@@ -252,7 +252,7 @@ func saveConfig() error {
 			return err
 		}
 		configDir := filepath.Join(home, ".capi")
-		if err := os.MkdirAll(configDir, 0755); err != nil {
+		if err := os.MkdirAll(configDir, 0750); err != nil {
 			return err
 		}
 		configFile = filepath.Join(configDir, "config.yml")
@@ -269,7 +269,7 @@ func saveConfigStruct(config *Config) error {
 			return err
 		}
 		configDir := filepath.Join(home, ".capi")
-		if err := os.MkdirAll(configDir, 0755); err != nil {
+		if err := os.MkdirAll(configDir, 0750); err != nil {
 			return err
 		}
 		configFile = filepath.Join(configDir, "config.yml")

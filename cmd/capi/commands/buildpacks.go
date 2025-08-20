@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fivetwenty-io/capi-client/pkg/capi"
 	"github.com/olekukonko/tablewriter"
@@ -485,7 +486,11 @@ func newBuildpacksUploadCommand() *cobra.Command {
 			bpGUID = bp.GUID
 
 			// Read buildpack file
-			buildpackBits, err := os.Open(buildpackFile)
+			// Validate file path to prevent directory traversal
+			if strings.Contains(buildpackFile, "..") {
+				return fmt.Errorf("invalid file path: directory traversal not allowed")
+			}
+			buildpackBits, err := os.Open(buildpackFile) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
 			if err != nil {
 				return fmt.Errorf("failed to open buildpack file: %w", err)
 			}

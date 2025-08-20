@@ -260,7 +260,11 @@ func newSecurityGroupsCreateCommand() *cobra.Command {
 
 			// Load rules from file if specified
 			if rulesFile != "" {
-				rulesContent, err := os.ReadFile(rulesFile)
+				// Validate file path to prevent directory traversal
+				if strings.Contains(rulesFile, "..") {
+					return fmt.Errorf("invalid file path: directory traversal not allowed")
+				}
+				rulesContent, err := os.ReadFile(rulesFile) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
 				if err != nil {
 					return fmt.Errorf("failed to read rules file: %w", err)
 				}
@@ -359,7 +363,11 @@ func newSecurityGroupsUpdateCommand() *cobra.Command {
 
 			// Load rules from file if specified
 			if rulesFile != "" {
-				rulesContent, err := os.ReadFile(rulesFile)
+				// Validate file path to prevent directory traversal
+				if strings.Contains(rulesFile, "..") {
+					return fmt.Errorf("invalid file path: directory traversal not allowed")
+				}
+				rulesContent, err := os.ReadFile(rulesFile) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
 				if err != nil {
 					return fmt.Errorf("failed to read rules file: %w", err)
 				}

@@ -177,14 +177,14 @@ func newOrgsGetCommand() *cobra.Command {
 				fmt.Printf("  Created:    %s\n", org.CreatedAt.Format("2006-01-02 15:04:05"))
 				fmt.Printf("  Updated:    %s\n", org.UpdatedAt.Format("2006-01-02 15:04:05"))
 
-				if org.Metadata.Labels != nil && len(org.Metadata.Labels) > 0 {
+				if len(org.Metadata.Labels) > 0 {
 					fmt.Println("  Labels:")
 					for k, v := range org.Metadata.Labels {
 						fmt.Printf("    %s: %s\n", k, v)
 					}
 				}
 
-				if org.Metadata.Annotations != nil && len(org.Metadata.Annotations) > 0 {
+				if len(org.Metadata.Annotations) > 0 {
 					fmt.Println("  Annotations:")
 					for k, v := range org.Metadata.Annotations {
 						fmt.Printf("    %s: %s\n", k, v)

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -88,18 +90,65 @@ func newAppsListCommand() *cobra.Command {
 				return fmt.Errorf("failed to list applications: %w", err)
 			}
 
-			if len(apps.Resources) == 0 {
-				fmt.Println("No applications found")
-				return nil
-			}
-
-			fmt.Println("Applications:")
-			for _, app := range apps.Resources {
-				lifecycle := "buildpack"
-				if app.Lifecycle.Type == "docker" {
-					lifecycle = "docker"
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(apps.Resources)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(apps.Resources)
+			default:
+				if len(apps.Resources) == 0 {
+					fmt.Println("No applications found")
+					return nil
 				}
-				fmt.Printf("  %s (%s) - %s [%s]\n", app.Name, app.GUID, app.State, lifecycle)
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Name", "GUID", "State", "Lifecycle", "Buildpacks", "Stack", "Created", "Updated")
+
+				for _, app := range apps.Resources {
+					lifecycle := "buildpack"
+					if app.Lifecycle.Type == "docker" {
+						lifecycle = "docker"
+					}
+
+					buildpacks := ""
+					if app.Lifecycle.Data != nil {
+						if bps, ok := app.Lifecycle.Data["buildpacks"].([]interface{}); ok {
+							var bpStrs []string
+							for _, bp := range bps {
+								if bpStr, ok := bp.(string); ok {
+									bpStrs = append(bpStrs, bpStr)
+								}
+							}
+							buildpacks = strings.Join(bpStrs, ", ")
+						}
+					}
+
+					stack := ""
+					if app.Lifecycle.Data != nil {
+						if s, ok := app.Lifecycle.Data["stack"].(string); ok {
+							stack = s
+						}
+					}
+
+					created := ""
+					if !app.CreatedAt.IsZero() {
+						created = app.CreatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					updated := ""
+					if !app.UpdatedAt.IsZero() {
+						updated = app.UpdatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					table.Append(app.Name, app.GUID, app.State, lifecycle, buildpacks, stack, created, updated)
+				}
+
+				table.Render()
 			}
 
 			return nil
@@ -999,7 +1048,11 @@ func newAppsManifestApplyCommand() *cobra.Command {
 			}
 
 			// Read manifest file
-			manifestContent, err := os.ReadFile(manifestPath)
+			// Validate file path to prevent directory traversal
+			if strings.Contains(manifestPath, "..") {
+				return fmt.Errorf("invalid file path: directory traversal not allowed")
+			}
+			manifestContent, err := os.ReadFile(manifestPath) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
 			if err != nil {
 				return fmt.Errorf("failed to read manifest file '%s': %w", manifestPath, err)
 			}
@@ -1084,7 +1137,11 @@ func newAppsManifestDiffCommand() *cobra.Command {
 			}
 
 			// Read manifest file
-			manifestContent, err := os.ReadFile(manifestPath)
+			// Validate file path to prevent directory traversal
+			if strings.Contains(manifestPath, "..") {
+				return fmt.Errorf("invalid file path: directory traversal not allowed")
+			}
+			manifestContent, err := os.ReadFile(manifestPath) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
 			if err != nil {
 				return fmt.Errorf("failed to read manifest file '%s': %w", manifestPath, err)
 			}

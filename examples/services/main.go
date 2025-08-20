@@ -98,7 +98,7 @@ func listServiceOfferingsAndPlans(client capi.Client, ctx context.Context) {
 			fmt.Printf("         Free: %v\n", plan.Free)
 			fmt.Printf("         Available: %v\n", plan.Available)
 
-			if plan.Costs != nil && len(plan.Costs) > 0 {
+			if len(plan.Costs) > 0 {
 				fmt.Println("         Costs:")
 				for _, cost := range plan.Costs {
 					fmt.Printf("           %s: %.2f %s\n", cost.Unit, cost.Amount, cost.Currency)
