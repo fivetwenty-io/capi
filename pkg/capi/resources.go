@@ -817,11 +817,114 @@ type ServiceOfferingRelationships struct {
 type ServiceOfferingUpdateRequest struct {
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
-type ServicePlan struct{ Resource }
-type ServicePlanUpdateRequest struct{}
-type ServicePlanVisibility struct{}
-type ServicePlanVisibilityUpdateRequest struct{}
-type ServicePlanVisibilityApplyRequest struct{}
+
+// ServicePlan represents a service plan
+type ServicePlan struct {
+	Resource
+	Name            string                   `json:"name"`
+	Description     string                   `json:"description"`
+	Available       bool                     `json:"available"`
+	VisibilityType  string                   `json:"visibility_type"`
+	Free            bool                     `json:"free"`
+	Costs           []ServicePlanCost        `json:"costs"`
+	MaintenanceInfo *ServicePlanMaintenance  `json:"maintenance_info,omitempty"`
+	BrokerCatalog   ServicePlanCatalog       `json:"broker_catalog"`
+	Schemas         ServicePlanSchemas       `json:"schemas"`
+	Relationships   ServicePlanRelationships `json:"relationships"`
+	Metadata        *Metadata                `json:"metadata,omitempty"`
+}
+
+// ServicePlanCost represents the cost information for a service plan
+type ServicePlanCost struct {
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
+	Unit     string  `json:"unit"`
+}
+
+// ServicePlanMaintenance represents maintenance information for a service plan
+type ServicePlanMaintenance struct {
+	Version     string `json:"version"`
+	Description string `json:"description"`
+}
+
+// ServicePlanCatalog represents catalog information for a service plan
+type ServicePlanCatalog struct {
+	ID                     string                     `json:"id"`
+	Metadata               map[string]interface{}     `json:"metadata,omitempty"`
+	MaximumPollingDuration *int                       `json:"maximum_polling_duration,omitempty"`
+	Features               ServicePlanCatalogFeatures `json:"features"`
+}
+
+// ServicePlanCatalogFeatures represents features of a service plan catalog
+type ServicePlanCatalogFeatures struct {
+	PlanUpdateable bool `json:"plan_updateable"`
+	Bindable       bool `json:"bindable"`
+}
+
+// ServicePlanSchemas represents the schemas for a service plan
+type ServicePlanSchemas struct {
+	ServiceInstance ServiceInstanceSchema `json:"service_instance"`
+	ServiceBinding  ServiceBindingSchema  `json:"service_binding"`
+}
+
+// ServiceInstanceSchema represents the schema for service instance operations
+type ServiceInstanceSchema struct {
+	Create SchemaDefinition `json:"create"`
+	Update SchemaDefinition `json:"update"`
+}
+
+// ServiceBindingSchema represents the schema for service binding operations
+type ServiceBindingSchema struct {
+	Create SchemaDefinition `json:"create"`
+}
+
+// SchemaDefinition represents a schema definition
+type SchemaDefinition struct {
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+}
+
+// ServicePlanRelationships represents service plan relationships
+type ServicePlanRelationships struct {
+	ServiceOffering Relationship  `json:"service_offering"`
+	Space           *Relationship `json:"space,omitempty"`
+}
+
+// ServicePlanUpdateRequest represents a request to update a service plan
+type ServicePlanUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// ServicePlanVisibility represents service plan visibility
+type ServicePlanVisibility struct {
+	Type          string                      `json:"type"`
+	Organizations []ServicePlanVisibilityOrg  `json:"organizations,omitempty"`
+	Space         *ServicePlanVisibilitySpace `json:"space,omitempty"`
+}
+
+// ServicePlanVisibilityOrg represents an organization in service plan visibility
+type ServicePlanVisibilityOrg struct {
+	GUID string `json:"guid"`
+	Name string `json:"name,omitempty"`
+}
+
+// ServicePlanVisibilitySpace represents a space in service plan visibility
+type ServicePlanVisibilitySpace struct {
+	GUID string `json:"guid"`
+	Name string `json:"name,omitempty"`
+}
+
+// ServicePlanVisibilityUpdateRequest represents a request to update service plan visibility
+type ServicePlanVisibilityUpdateRequest struct {
+	Type          string   `json:"type"`
+	Organizations []string `json:"organizations,omitempty"`
+}
+
+// ServicePlanVisibilityApplyRequest represents a request to apply service plan visibility
+type ServicePlanVisibilityApplyRequest struct {
+	Type          string   `json:"type"`
+	Organizations []string `json:"organizations,omitempty"`
+}
+
 type ServiceInstance struct{ Resource }
 type ServiceInstanceCreateRequest struct{}
 type ServiceInstanceUpdateRequest struct{}
