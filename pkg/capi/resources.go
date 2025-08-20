@@ -460,9 +460,42 @@ type BuildUpdateRequest struct {
 	Metadata *Metadata `json:"metadata,omitempty"`
 	State    *string   `json:"state,omitempty"`
 }
-type Buildpack struct{ Resource }
-type BuildpackCreateRequest struct{}
-type BuildpackUpdateRequest struct{}
+
+// Buildpack represents a Cloud Foundry buildpack
+type Buildpack struct {
+	Resource
+	Name      string    `json:"name"`
+	State     string    `json:"state"`
+	Filename  *string   `json:"filename"`
+	Stack     *string   `json:"stack"`
+	Position  int       `json:"position"`
+	Lifecycle string    `json:"lifecycle"`
+	Enabled   bool      `json:"enabled"`
+	Locked    bool      `json:"locked"`
+	Metadata  *Metadata `json:"metadata,omitempty"`
+	Links     Links     `json:"links,omitempty"`
+}
+
+// BuildpackCreateRequest represents a request to create a buildpack
+type BuildpackCreateRequest struct {
+	Name      string    `json:"name"`
+	Stack     *string   `json:"stack,omitempty"`
+	Position  *int      `json:"position,omitempty"`
+	Lifecycle *string   `json:"lifecycle,omitempty"`
+	Enabled   *bool     `json:"enabled,omitempty"`
+	Locked    *bool     `json:"locked,omitempty"`
+	Metadata  *Metadata `json:"metadata,omitempty"`
+}
+
+// BuildpackUpdateRequest represents a request to update a buildpack
+type BuildpackUpdateRequest struct {
+	Name     *string   `json:"name,omitempty"`
+	Stack    *string   `json:"stack,omitempty"`
+	Position *int      `json:"position,omitempty"`
+	Enabled  *bool     `json:"enabled,omitempty"`
+	Locked   *bool     `json:"locked,omitempty"`
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
 
 // Deployment represents a Cloud Foundry deployment
 type Deployment struct {

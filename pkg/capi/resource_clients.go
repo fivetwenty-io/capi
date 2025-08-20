@@ -2,6 +2,7 @@ package capi
 
 import (
 	"context"
+	"io"
 )
 
 // AppsClient defines operations for apps
@@ -196,6 +197,16 @@ type ServiceRouteBindingsClient interface {
 	GetParameters(ctx context.Context, guid string) (*ServiceRouteBindingParameters, error)
 }
 
+// BuildpacksClient provides operations for managing buildpacks
+type BuildpacksClient interface {
+	Create(ctx context.Context, request *BuildpackCreateRequest) (*Buildpack, error)
+	Get(ctx context.Context, guid string) (*Buildpack, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[Buildpack], error)
+	Update(ctx context.Context, guid string, request *BuildpackUpdateRequest) (*Buildpack, error)
+	Delete(ctx context.Context, guid string) (*Job, error)
+	Upload(ctx context.Context, guid string, bits io.Reader) (*Buildpack, error)
+}
+
 // Additional client interfaces for other resources...
 type BuildsClient interface {
 	Create(ctx context.Context, request *BuildCreateRequest) (*Build, error)
@@ -203,15 +214,6 @@ type BuildsClient interface {
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Build], error)
 	ListForApp(ctx context.Context, appGUID string, params *QueryParams) (*ListResponse[Build], error)
 	Update(ctx context.Context, guid string, request *BuildUpdateRequest) (*Build, error)
-}
-
-type BuildpacksClient interface {
-	Create(ctx context.Context, request *BuildpackCreateRequest) (*Buildpack, error)
-	Get(ctx context.Context, guid string) (*Buildpack, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Buildpack], error)
-	Update(ctx context.Context, guid string, request *BuildpackUpdateRequest) (*Buildpack, error)
-	Delete(ctx context.Context, guid string) (*Job, error)
-	Upload(ctx context.Context, guid string, bits []byte) (*Job, error)
 }
 
 type DeploymentsClient interface {
