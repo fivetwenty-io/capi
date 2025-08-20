@@ -150,6 +150,7 @@ func (c *Client) initializeResourceClients() {
 	c.securityGroups = NewSecurityGroupsClient(c.httpClient)
 	c.isolationSegments = NewIsolationSegmentsClient(c.httpClient)
 	c.featureFlags = NewFeatureFlagsClient(c.httpClient)
+	c.jobs = NewJobsClient(c.httpClient)
 	// Other resource clients will be added as we implement them
 }
 
