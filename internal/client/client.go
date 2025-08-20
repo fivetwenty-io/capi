@@ -59,8 +59,12 @@ func New(config *capi.Config) (*Client, error) {
 		tokenManager = &staticTokenManager{token: config.AccessToken}
 	} else if config.ClientID != "" && config.ClientSecret != "" {
 		// Use OAuth2 with client credentials or password
+		tokenURL := config.TokenURL
+		if tokenURL == "" {
+			tokenURL = config.APIEndpoint + "/oauth/token" // Fallback, but should be discovered
+		}
 		oauthConfig := &auth.OAuth2Config{
-			TokenURL:     config.APIEndpoint + "/oauth/token", // This might need adjustment based on UAA URL
+			TokenURL:     tokenURL,
 			ClientID:     config.ClientID,
 			ClientSecret: config.ClientSecret,
 			Username:     config.Username,
@@ -70,8 +74,12 @@ func New(config *capi.Config) (*Client, error) {
 		tokenManager = auth.NewOAuth2TokenManager(oauthConfig)
 	} else if config.Username != "" && config.Password != "" {
 		// Use password grant with default client
+		tokenURL := config.TokenURL
+		if tokenURL == "" {
+			tokenURL = config.APIEndpoint + "/oauth/token" // Fallback, but should be discovered
+		}
 		oauthConfig := &auth.OAuth2Config{
-			TokenURL:     config.APIEndpoint + "/oauth/token",
+			TokenURL:     tokenURL,
 			ClientID:     "cf", // Default CF CLI client ID
 			ClientSecret: "",
 			Username:     config.Username,

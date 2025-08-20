@@ -64,6 +64,7 @@ type Config struct {
 	Password     string
 	RefreshToken string
 	AccessToken  string
+	TokenURL     string // OAuth2 token endpoint (auto-discovered if not provided)
 
 	// Optional configurations
 	HTTPTimeout   time.Duration
