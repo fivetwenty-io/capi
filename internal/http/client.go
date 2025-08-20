@@ -264,6 +264,15 @@ func (c *Client) Delete(ctx context.Context, path string) (*Response, error) {
 	})
 }
 
+// DeleteWithQuery performs a DELETE request with query parameters
+func (c *Client) DeleteWithQuery(ctx context.Context, path string, queryParams url.Values) (*Response, error) {
+	return c.Do(ctx, &Request{
+		Method: "DELETE",
+		Path:   path,
+		Query:  queryParams,
+	})
+}
+
 // PostRaw performs a POST request with raw body data and content type
 func (c *Client) PostRaw(ctx context.Context, path string, body []byte, contentType string) (*Response, error) {
 	// Build full URL

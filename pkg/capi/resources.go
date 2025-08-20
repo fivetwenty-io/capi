@@ -925,8 +925,104 @@ type ServicePlanVisibilityApplyRequest struct {
 	Organizations []string `json:"organizations,omitempty"`
 }
 
-type ServiceInstance struct{ Resource }
-type ServiceInstanceCreateRequest struct{}
-type ServiceInstanceUpdateRequest struct{}
-type ServiceInstancePermissions struct{}
-type ServiceInstanceUsageSummary struct{}
+// ServiceInstance represents a service instance
+type ServiceInstance struct {
+	Resource
+	Name             string                        `json:"name"`
+	Type             string                        `json:"type"` // "managed" or "user-provided"
+	Tags             []string                      `json:"tags"`
+	MaintenanceInfo  *ServiceInstanceMaintenance   `json:"maintenance_info,omitempty"`
+	UpgradeAvailable bool                          `json:"upgrade_available"`
+	DashboardURL     *string                       `json:"dashboard_url,omitempty"`
+	LastOperation    *ServiceInstanceLastOperation `json:"last_operation"`
+	SyslogDrainURL   *string                       `json:"syslog_drain_url,omitempty"`  // For user-provided
+	RouteServiceURL  *string                       `json:"route_service_url,omitempty"` // For user-provided
+	Relationships    ServiceInstanceRelationships  `json:"relationships"`
+	Metadata         *Metadata                     `json:"metadata,omitempty"`
+}
+
+// ServiceInstanceMaintenance represents maintenance information for a service instance
+type ServiceInstanceMaintenance struct {
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
+}
+
+// ServiceInstanceLastOperation represents the last operation performed on a service instance
+type ServiceInstanceLastOperation struct {
+	Type        string     `json:"type"`  // "create", "update", "delete"
+	State       string     `json:"state"` // "initial", "in progress", "succeeded", "failed"
+	Description string     `json:"description"`
+	CreatedAt   *time.Time `json:"created_at"`
+	UpdatedAt   *time.Time `json:"updated_at"`
+}
+
+// ServiceInstanceRelationships represents service instance relationships
+type ServiceInstanceRelationships struct {
+	Space       Relationship  `json:"space"`
+	ServicePlan *Relationship `json:"service_plan,omitempty"` // For managed instances
+}
+
+// ServiceInstanceCreateRequest represents a request to create a service instance
+type ServiceInstanceCreateRequest struct {
+	Type            string                       `json:"type"` // "managed" or "user-provided"
+	Name            string                       `json:"name"`
+	Tags            []string                     `json:"tags,omitempty"`
+	Parameters      map[string]interface{}       `json:"parameters,omitempty"`        // For managed
+	Credentials     map[string]interface{}       `json:"credentials,omitempty"`       // For user-provided
+	SyslogDrainURL  *string                      `json:"syslog_drain_url,omitempty"`  // For user-provided
+	RouteServiceURL *string                      `json:"route_service_url,omitempty"` // For user-provided
+	Relationships   ServiceInstanceRelationships `json:"relationships"`
+	Metadata        *Metadata                    `json:"metadata,omitempty"`
+}
+
+// ServiceInstanceUpdateRequest represents a request to update a service instance
+type ServiceInstanceUpdateRequest struct {
+	Name            *string                       `json:"name,omitempty"`
+	Tags            []string                      `json:"tags,omitempty"`
+	Parameters      map[string]interface{}        `json:"parameters,omitempty"`        // For managed
+	Credentials     map[string]interface{}        `json:"credentials,omitempty"`       // For user-provided
+	SyslogDrainURL  *string                       `json:"syslog_drain_url,omitempty"`  // For user-provided
+	RouteServiceURL *string                       `json:"route_service_url,omitempty"` // For user-provided
+	MaintenanceInfo *ServiceInstanceMaintenance   `json:"maintenance_info,omitempty"`  // For managed
+	Metadata        *Metadata                     `json:"metadata,omitempty"`
+	Relationships   *ServiceInstanceRelationships `json:"relationships,omitempty"`
+}
+
+// ServiceInstanceParameters represents parameters for a managed service instance
+type ServiceInstanceParameters struct {
+	Parameters map[string]interface{} `json:"parameters"`
+}
+
+// ServiceInstanceCredentials represents credentials for a user-provided service instance
+type ServiceInstanceCredentials struct {
+	Credentials map[string]interface{} `json:"credentials"`
+}
+
+// ServiceInstanceSharedSpacesRelationships represents shared spaces relationships
+type ServiceInstanceSharedSpacesRelationships struct {
+	Data  []Relationship `json:"data"`
+	Links Links          `json:"links,omitempty"`
+}
+
+// ServiceInstanceShareRequest represents a request to share a service instance
+type ServiceInstanceShareRequest struct {
+	Data []Relationship `json:"data"`
+}
+
+// ServiceInstanceUsageSummary represents usage summary for service instances
+type ServiceInstanceUsageSummary struct {
+	UsageSummary ServiceInstanceUsageData `json:"usage_summary"`
+	Links        Links                    `json:"links,omitempty"`
+}
+
+// ServiceInstanceUsageData represents usage data for service instances
+type ServiceInstanceUsageData struct {
+	StartedInstances int `json:"started_instances"`
+	MemoryInMB       int `json:"memory_in_mb"`
+}
+
+// ServiceInstancePermissions represents permissions for a service instance
+type ServiceInstancePermissions struct {
+	Read   bool `json:"read"`
+	Manage bool `json:"manage"`
+}

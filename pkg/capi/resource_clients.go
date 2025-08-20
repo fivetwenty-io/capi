@@ -157,22 +157,19 @@ type ServicePlansClient interface {
 
 // ServiceInstancesClient defines operations for service instances
 type ServiceInstancesClient interface {
-	Create(ctx context.Context, request *ServiceInstanceCreateRequest) (*Job, error)
+	Create(ctx context.Context, request *ServiceInstanceCreateRequest) (interface{}, error) // Returns *ServiceInstance for user-provided, *Job for managed
 	Get(ctx context.Context, guid string) (*ServiceInstance, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceInstance], error)
-	Update(ctx context.Context, guid string, request *ServiceInstanceUpdateRequest) (*Job, error)
+	Update(ctx context.Context, guid string, request *ServiceInstanceUpdateRequest) (interface{}, error) // Returns *ServiceInstance for user-provided, *Job for managed
 	Delete(ctx context.Context, guid string) (*Job, error)
 
-	// Credentials and parameters
-	GetCredentials(ctx context.Context, guid string) (map[string]interface{}, error)
-	GetParameters(ctx context.Context, guid string) (map[string]interface{}, error)
-	GetPermissions(ctx context.Context, guid string) (*ServiceInstancePermissions, error)
+	// Parameters for managed instances
+	GetParameters(ctx context.Context, guid string) (*ServiceInstanceParameters, error)
 
-	// Sharing
-	ListSharedSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
-	ShareWithSpace(ctx context.Context, guid string, spaceGUIDs []string) (*ToManyRelationship, error)
+	// Sharing operations
+	ListSharedSpaces(ctx context.Context, guid string) (*ServiceInstanceSharedSpacesRelationships, error)
+	ShareWithSpaces(ctx context.Context, guid string, request *ServiceInstanceShareRequest) (*ServiceInstanceSharedSpacesRelationships, error)
 	UnshareFromSpace(ctx context.Context, guid string, spaceGUID string) error
-	GetUsageSummaryInSharedSpaces(ctx context.Context, guid string) (*ServiceInstanceUsageSummary, error)
 }
 
 // Additional client interfaces for other resources...
