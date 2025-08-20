@@ -753,9 +753,32 @@ type TaskTemplateProcess struct {
 type TaskUpdateRequest struct {
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
-type Stack struct{ Resource }
-type StackCreateRequest struct{}
-type StackUpdateRequest struct{}
+
+// Stack represents a Cloud Foundry stack (a pre-built rootfs and associated executables)
+type Stack struct {
+	Resource
+	Name             string    `json:"name"`
+	Description      string    `json:"description"`
+	BuildRootfsImage string    `json:"build_rootfs_image"`
+	RunRootfsImage   string    `json:"run_rootfs_image"`
+	Default          bool      `json:"default"`
+	Metadata         *Metadata `json:"metadata,omitempty"`
+	Links            Links     `json:"links,omitempty"`
+}
+
+// StackCreateRequest is the request for creating a stack
+type StackCreateRequest struct {
+	Name             string    `json:"name"`
+	Description      string    `json:"description,omitempty"`
+	BuildRootfsImage string    `json:"build_rootfs_image,omitempty"`
+	RunRootfsImage   string    `json:"run_rootfs_image,omitempty"`
+	Metadata         *Metadata `json:"metadata,omitempty"`
+}
+
+// StackUpdateRequest is the request for updating a stack
+type StackUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
 type SecurityGroup struct{ Resource }
 type SecurityGroupCreateRequest struct{}
 type SecurityGroupUpdateRequest struct{}
