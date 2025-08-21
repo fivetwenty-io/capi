@@ -382,7 +382,8 @@ func saveConfigStruct(config *Config) error {
 		if _, err := os.Stat(backupFile); os.IsNotExist(err) {
 			// Read current config and save as backup
 			// configFile is securely constructed from user home dir and is not user-controllable
-			if currentData, err := os.ReadFile(configFile); err == nil { // #nosec G304
+			// #nosec G304
+			if currentData, err := os.ReadFile(configFile); err == nil {
 				_ = os.WriteFile(backupFile, currentData, 0600)
 			}
 		}
@@ -714,15 +715,23 @@ func displayConfigTable(config *Config) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Property", "Value")
 
-	table.Append([]string{"Output", config.Output})
-	table.Append([]string{"No Color", fmt.Sprintf("%v", config.NoColor)})
+	if err := table.Append([]string{"Output", config.Output}); err != nil {
+		return err
+	}
+	if err := table.Append([]string{"No Color", fmt.Sprintf("%v", config.NoColor)}); err != nil {
+		return err
+	}
 
 	if config.CurrentAPI != "" {
-		table.Append([]string{"Current API", config.CurrentAPI})
+		if err := table.Append([]string{"Current API", config.CurrentAPI}); err != nil {
+			return err
+		}
 	}
 
 	fmt.Println("Global Configuration:")
-	table.Render()
+	if err := table.Render(); err != nil {
+		return err
+	}
 
 	// APIs configuration table
 	if len(config.APIs) > 0 {
@@ -756,10 +765,14 @@ func displayConfigTable(config *Config) error {
 				uaaEndpoint = "-"
 			}
 
-			apiTable.Append([]string{domain, apiConfig.Endpoint, username, organization, space, current, uaaEndpoint})
+			if err := apiTable.Append([]string{domain, apiConfig.Endpoint, username, organization, space, current, uaaEndpoint}); err != nil {
+				return err
+			}
 		}
 
-		apiTable.Render()
+		if err := apiTable.Render(); err != nil {
+			return err
+		}
 	} else {
 		fmt.Println("\nNo APIs configured. Use 'capi apis add' to add one.")
 	}
@@ -770,18 +783,28 @@ func displayConfigTable(config *Config) error {
 		legacyTable := tablewriter.NewWriter(os.Stdout)
 		legacyTable.Header("Property", "Value")
 
-		legacyTable.Append([]string{"API", config.API})
+		if err := legacyTable.Append([]string{"API", config.API}); err != nil {
+			return err
+		}
 		if config.Username != "" {
-			legacyTable.Append([]string{"Username", config.Username})
+			if err := legacyTable.Append([]string{"Username", config.Username}); err != nil {
+				return err
+			}
 		}
 		if config.Organization != "" {
-			legacyTable.Append([]string{"Organization", config.Organization})
+			if err := legacyTable.Append([]string{"Organization", config.Organization}); err != nil {
+				return err
+			}
 		}
 		if config.Space != "" {
-			legacyTable.Append([]string{"Space", config.Space})
+			if err := legacyTable.Append([]string{"Space", config.Space}); err != nil {
+				return err
+			}
 		}
 
-		legacyTable.Render()
+		if err := legacyTable.Render(); err != nil {
+			return err
+		}
 	}
 
 	// Legacy targets table
@@ -806,10 +829,14 @@ func displayConfigTable(config *Config) error {
 				space = "-"
 			}
 
-			targetsTable.Append([]string{name, target.API, username, organization, space})
+			if err := targetsTable.Append([]string{name, target.API, username, organization, space}); err != nil {
+				return err
+			}
 		}
 
-		targetsTable.Render()
+		if err := targetsTable.Render(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -827,58 +854,86 @@ func displayAPISpecificConfigTable(config *Config, apiDomain string, apiConfig *
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Property", "Value")
 
-	table.Append([]string{"Endpoint", apiConfig.Endpoint})
+	if err := table.Append([]string{"Endpoint", apiConfig.Endpoint}); err != nil {
+		return err
+	}
 
 	if apiConfig.Username != "" {
-		table.Append([]string{"Username", apiConfig.Username})
+		if err := table.Append([]string{"Username", apiConfig.Username}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.Organization != "" {
-		table.Append([]string{"Organization", apiConfig.Organization})
+		if err := table.Append([]string{"Organization", apiConfig.Organization}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.OrganizationGUID != "" {
-		table.Append([]string{"Org GUID", apiConfig.OrganizationGUID})
+		if err := table.Append([]string{"Org GUID", apiConfig.OrganizationGUID}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.Space != "" {
-		table.Append([]string{"Space", apiConfig.Space})
+		if err := table.Append([]string{"Space", apiConfig.Space}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.SpaceGUID != "" {
-		table.Append([]string{"Space GUID", apiConfig.SpaceGUID})
+		if err := table.Append([]string{"Space GUID", apiConfig.SpaceGUID}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.SkipSSLValidation {
-		table.Append([]string{"Skip SSL", fmt.Sprintf("%v", apiConfig.SkipSSLValidation)})
+		if err := table.Append([]string{"Skip SSL", fmt.Sprintf("%v", apiConfig.SkipSSLValidation)}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.UAAEndpoint != "" {
-		table.Append([]string{"UAA Endpoint", apiConfig.UAAEndpoint})
+		if err := table.Append([]string{"UAA Endpoint", apiConfig.UAAEndpoint}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.UAAClientID != "" {
-		table.Append([]string{"UAA Client ID", apiConfig.UAAClientID})
+		if err := table.Append([]string{"UAA Client ID", apiConfig.UAAClientID}); err != nil {
+			return err
+		}
 	}
 
 	// Note: tokens are not displayed for security
 	if apiConfig.Token != "" {
-		table.Append([]string{"Token", "[REDACTED]"})
+		if err := table.Append([]string{"Token", "[REDACTED]"}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.RefreshToken != "" {
-		table.Append([]string{"Refresh Token", "[REDACTED]"})
+		if err := table.Append([]string{"Refresh Token", "[REDACTED]"}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.UAAToken != "" {
-		table.Append([]string{"UAA Token", "[REDACTED]"})
+		if err := table.Append([]string{"UAA Token", "[REDACTED]"}); err != nil {
+			return err
+		}
 	}
 
 	if apiConfig.UAARefreshToken != "" {
-		table.Append([]string{"UAA Refresh Token", "[REDACTED]"})
+		if err := table.Append([]string{"UAA Refresh Token", "[REDACTED]"}); err != nil {
+			return err
+		}
 	}
 
-	table.Render()
+	if err := table.Render(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -913,18 +968,28 @@ func outputConfigUpdateResult(action, key, value, apiDomain string) error {
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header("Property", "Value")
 
-		table.Append([]string{"Action", action})
-		table.Append([]string{"Key", key})
+		if err := table.Append([]string{"Action", action}); err != nil {
+			return err
+		}
+		if err := table.Append([]string{"Key", key}); err != nil {
+			return err
+		}
 
 		if value != "" {
-			table.Append([]string{"Value", value})
+			if err := table.Append([]string{"Value", value}); err != nil {
+				return err
+			}
 		}
 
 		if apiDomain != "" {
-			table.Append([]string{"API Domain", apiDomain})
+			if err := table.Append([]string{"API Domain", apiDomain}); err != nil {
+				return err
+			}
 		}
 
-		table.Render()
+		if err := table.Render(); err != nil {
+			return err
+		}
 		return nil
 	}
 }
