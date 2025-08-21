@@ -39,7 +39,7 @@ func newRoutesListCommand() *cobra.Command {
 		Short: "List routes",
 		Long:  "List all routes the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -174,7 +174,7 @@ func newRoutesCreateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			domainName := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -286,7 +286,7 @@ func newRoutesDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			routeIdentifier := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

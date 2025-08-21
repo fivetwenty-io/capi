@@ -72,7 +72,7 @@ func newBuildpacksListCommand() *cobra.Command {
 		Short: "List buildpacks",
 		Long:  "List all buildpacks",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -184,7 +184,7 @@ func newBuildpacksGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -261,7 +261,7 @@ func newBuildpacksCreateCommand() *cobra.Command {
 				return fmt.Errorf("buildpack name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -334,7 +334,7 @@ func newBuildpacksUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -424,7 +424,7 @@ func newBuildpacksDeleteCommand() *cobra.Command {
 				}
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -486,7 +486,7 @@ func newBuildpacksUploadCommand() *cobra.Command {
 			nameOrGUID := args[0]
 			buildpackFile = args[1]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

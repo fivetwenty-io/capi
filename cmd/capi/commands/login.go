@@ -33,20 +33,42 @@ func NewLoginCommand() *cobra.Command {
 		Long:  "Authenticate with a Cloud Foundry API endpoint",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get API endpoint
+			originalInput := apiEndpoint
 			if apiEndpoint == "" {
 				apiEndpoint = viper.GetString("api")
+				originalInput = apiEndpoint
 			}
+
+			// If still no API endpoint, try to use current API from config
+			if apiEndpoint == "" {
+				config := loadConfig()
+				if config.CurrentAPI != "" {
+					if _, exists := config.APIs[config.CurrentAPI]; exists {
+						apiEndpoint = config.CurrentAPI // Use the short name, it will be resolved below
+						originalInput = config.CurrentAPI
+					}
+				}
+			}
+
 			if apiEndpoint == "" {
 				reader := bufio.NewReader(os.Stdin)
-				fmt.Print("API endpoint: ")
+				fmt.Print("API endpoint (or short name): ")
 				apiEndpoint, _ = reader.ReadString('\n')
 				apiEndpoint = strings.TrimSpace(apiEndpoint)
+				originalInput = apiEndpoint
 			}
 
 			// Validate API endpoint
 			if apiEndpoint == "" {
 				return fmt.Errorf("API endpoint is required")
 			}
+
+			// Resolve short name to endpoint if applicable
+			resolvedEndpoint, err := ResolveAPIEndpoint(apiEndpoint)
+			if err != nil {
+				return err
+			}
+			apiEndpoint = resolvedEndpoint
 
 			// Get skip SSL validation setting
 			skipSSL := viper.GetBool("skip_ssl_validation")
@@ -108,8 +130,17 @@ func NewLoginCommand() *cobra.Command {
 				return fmt.Errorf("invalid API endpoint: %w", err)
 			}
 
-			// Extract domain for use as key
-			domain := extractDomainFromEndpoint(normalizedEndpoint)
+			// Determine the key to use for storing the API config
+			// If the original input was a short name, preserve it
+			var configKey string
+			currentConfig := loadConfig()
+			if _, exists := currentConfig.APIs[originalInput]; exists {
+				// The original input was a short name that exists in config
+				configKey = originalInput
+			} else {
+				// Extract domain for use as key (for new APIs or direct URLs)
+				configKey = extractDomainFromEndpoint(normalizedEndpoint)
+			}
 
 			// Load current configuration
 			configStruct := loadConfig()
@@ -120,12 +151,12 @@ func NewLoginCommand() *cobra.Command {
 			}
 
 			// Get or create API config
-			apiConfig, exists := configStruct.APIs[domain]
+			apiConfig, exists := configStruct.APIs[configKey]
 			if !exists {
 				apiConfig = &APIConfig{
 					Endpoint: normalizedEndpoint,
 				}
-				configStruct.APIs[domain] = apiConfig
+				configStruct.APIs[configKey] = apiConfig
 			}
 
 			// Store authentication information (tokens only, not passwords)
@@ -143,7 +174,7 @@ func NewLoginCommand() *cobra.Command {
 
 			// Set as current API if this is the first one or no current API is set
 			if configStruct.CurrentAPI == "" || len(configStruct.APIs) == 1 {
-				configStruct.CurrentAPI = domain
+				configStruct.CurrentAPI = configKey
 			}
 
 			// Save configuration
@@ -155,7 +186,7 @@ func NewLoginCommand() *cobra.Command {
 			isFirstAPI := len(configStruct.APIs) == 1
 			fmt.Printf("Successfully logged in to %s\n", normalizedEndpoint)
 			if isFirstAPI {
-				fmt.Printf("API '%s' set as current target\n", domain)
+				fmt.Printf("API '%s' set as current target\n", configKey)
 			}
 			fmt.Printf("API version: %d\n", info.Version)
 
@@ -178,7 +209,7 @@ func NewLoginCommand() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().StringVarP(&apiEndpoint, "api", "a", "", "API endpoint URL")
+	cmd.Flags().StringVarP(&apiEndpoint, "api", "a", "", "API endpoint URL or short name from config")
 	cmd.Flags().StringVarP(&username, "username", "u", "", "username for authentication")
 	cmd.Flags().StringVarP(&password, "password", "p", "", "password for authentication")
 	cmd.Flags().StringVar(&clientID, "client-id", "", "OAuth2 client ID")

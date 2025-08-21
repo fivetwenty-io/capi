@@ -47,7 +47,7 @@ func newDomainsListCommand() *cobra.Command {
 		Short: "List domains",
 		Long:  "List all domains the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -161,7 +161,7 @@ func newDomainsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -251,7 +251,7 @@ func newDomainsCreateCommand() *cobra.Command {
 				return fmt.Errorf("domain name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -331,7 +331,7 @@ func newDomainsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -402,7 +402,7 @@ func newDomainsDeleteCommand() *cobra.Command {
 				}
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -465,7 +465,7 @@ func newDomainsShareCommand() *cobra.Command {
 				return fmt.Errorf("at least one organization must be specified")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -538,7 +538,7 @@ func newDomainsUnshareCommand() *cobra.Command {
 				return fmt.Errorf("organization name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

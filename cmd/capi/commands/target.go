@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/fivetwenty-io/capi-client/pkg/capi"
-	"github.com/fivetwenty-io/capi-client/pkg/cfclient"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -41,7 +40,7 @@ func NewTargetCommand() *cobra.Command {
 			}
 
 			// Create client
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -195,30 +194,4 @@ func showTarget() error {
 	}
 
 	return nil
-}
-
-func createClientWithAPI(apiFlag string) (capi.Client, error) {
-	// Get API config based on flag or current API
-	apiConfig, err := getAPIConfigByFlag(apiFlag)
-	if err != nil {
-		return nil, err
-	}
-
-	if apiConfig.Endpoint == "" {
-		return nil, fmt.Errorf("no API endpoint configured, use 'capi apis add' first")
-	}
-
-	config := &capi.Config{
-		APIEndpoint:   apiConfig.Endpoint,
-		AccessToken:   apiConfig.Token,
-		SkipTLSVerify: apiConfig.SkipSSLValidation,
-		Username:      apiConfig.Username,
-	}
-
-	// If we have no token and no username, require authentication
-	if config.AccessToken == "" && config.Username == "" {
-		return nil, fmt.Errorf("not authenticated, use 'capi login' first")
-	}
-
-	return cfclient.New(config)
 }

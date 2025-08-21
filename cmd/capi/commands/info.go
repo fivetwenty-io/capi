@@ -20,7 +20,7 @@ func NewInfoCommand() *cobra.Command {
 		Short: "Display API endpoint information",
 		Long:  "Display information about the Cloud Foundry API endpoint",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

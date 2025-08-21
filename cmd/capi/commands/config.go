@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi-client/pkg/cfclient"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -518,15 +520,82 @@ func getAPIConfigByFlag(apiFlag string) (*APIConfig, error) {
 
 	// If --api flag is provided, use that specific API
 	if apiFlag != "" {
-		apiConfig, exists := config.APIs[apiFlag]
-		if !exists {
-			return nil, fmt.Errorf("API '%s' not found in configuration, use 'capi apis list' to see available APIs", apiFlag)
+		// First try to resolve it as a short name or endpoint
+		resolvedEndpoint, err := ResolveAPIEndpoint(apiFlag)
+		if err != nil {
+			return nil, err
 		}
-		return apiConfig, nil
+
+		// Check if the original apiFlag is a short name in our config
+		if apiConfig, exists := config.APIs[apiFlag]; exists {
+			return apiConfig, nil
+		}
+
+		// Otherwise look for it by resolved endpoint
+		for _, apiConfig := range config.APIs {
+			if apiConfig.Endpoint == resolvedEndpoint {
+				return apiConfig, nil
+			}
+		}
+
+		return nil, fmt.Errorf("API '%s' not found in configuration, use 'capi apis list' to see available APIs", apiFlag)
 	}
 
 	// Otherwise use current API
 	return getCurrentAPIConfig()
+}
+
+// ResolveAPIEndpoint resolves a short name or returns the endpoint if it's already a URL
+func ResolveAPIEndpoint(apiNameOrEndpoint string) (string, error) {
+	if apiNameOrEndpoint == "" {
+		return "", fmt.Errorf("API name or endpoint is required")
+	}
+
+	config := loadConfig()
+
+	// Check if it's a short name in the APIs map
+	if apiConfig, exists := config.APIs[apiNameOrEndpoint]; exists {
+		return apiConfig.Endpoint, nil
+	}
+
+	// If not found in config, treat as direct endpoint URL
+	return apiNameOrEndpoint, nil
+}
+
+// CreateClientWithAPI creates a CAPI client using the specified API or current API
+func CreateClientWithAPI(apiFlag string) (capi.Client, error) {
+	// Get API config based on flag or current API
+	apiConfig, err := getAPIConfigByFlag(apiFlag)
+	if err != nil {
+		return nil, err
+	}
+
+	if apiConfig.Endpoint == "" {
+		return nil, fmt.Errorf("no API endpoint configured, use 'capi apis add' first")
+	}
+
+	// Set the API config values in viper so other commands can access them
+	viper.Set("api", apiConfig.Endpoint)
+	viper.Set("organization", apiConfig.Organization)
+	viper.Set("organization_guid", apiConfig.OrganizationGUID)
+	viper.Set("space", apiConfig.Space)
+	viper.Set("space_guid", apiConfig.SpaceGUID)
+	viper.Set("username", apiConfig.Username)
+	viper.Set("uaa_endpoint", apiConfig.UAAEndpoint)
+
+	config := &capi.Config{
+		APIEndpoint:   apiConfig.Endpoint,
+		AccessToken:   apiConfig.Token,
+		SkipTLSVerify: apiConfig.SkipSSLValidation,
+		Username:      apiConfig.Username,
+	}
+
+	// If we have no token and no username, require authentication
+	if config.AccessToken == "" && config.Username == "" {
+		return nil, fmt.Errorf("not authenticated, use 'capi login' first")
+	}
+
+	return cfclient.New(config)
 }
 
 // setGlobalConfig sets a global configuration value

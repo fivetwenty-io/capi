@@ -53,7 +53,7 @@ func newServicesListCommand() *cobra.Command {
 		Short: "List service instances",
 		Long:  "List all service instances the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -184,7 +184,7 @@ func newServicesGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -312,7 +312,7 @@ func newServicesCreateCommand() *cobra.Command {
 				return fmt.Errorf("service instance name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -462,7 +462,7 @@ func newServicesUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -612,7 +612,7 @@ func newServicesDeleteCommand() *cobra.Command {
 				}
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -684,7 +684,7 @@ func newServicesBindCommand() *cobra.Command {
 			serviceNameOrGUID := args[0]
 			appNameOrGUID := args[1]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -810,7 +810,7 @@ func newServicesUnbindCommand() *cobra.Command {
 				}
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -911,7 +911,7 @@ func newServicesRenameCommand() *cobra.Command {
 			nameOrGUID := args[0]
 			newName := args[1]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -987,7 +987,7 @@ func newServicesShareCommand() *cobra.Command {
 				return fmt.Errorf("at least one space must be specified")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1080,7 +1080,7 @@ func newServicesUnshareCommand() *cobra.Command {
 				return fmt.Errorf("space name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1162,7 +1162,7 @@ func newServicesListBindingsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1297,7 +1297,7 @@ func newServicesBrokersListCommand() *cobra.Command {
 		Short: "List service brokers",
 		Long:  "List all service brokers",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1364,7 +1364,7 @@ func newServicesBrokersGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1439,7 +1439,7 @@ func newServicesOfferingsListCommand() *cobra.Command {
 		Short: "List service offerings",
 		Long:  "List all service offerings",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1522,7 +1522,7 @@ func newServicesOfferingsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1581,7 +1581,7 @@ func newServicesPlansListCommand() *cobra.Command {
 		Short: "List service plans",
 		Long:  "List all service plans",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1660,7 +1660,7 @@ func newServicesPlansGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

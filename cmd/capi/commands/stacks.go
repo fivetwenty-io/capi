@@ -44,7 +44,7 @@ func newStacksListCommand() *cobra.Command {
 		Short: "List stacks",
 		Long:  "List all stacks available in the platform",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -147,7 +147,7 @@ func newStacksGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stackGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -200,7 +200,7 @@ func newStacksCreateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stackName := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -257,7 +257,7 @@ func newStacksUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stackGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -309,7 +309,7 @@ func newStacksDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stackGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -342,7 +342,7 @@ func newStacksListAppsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stackGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

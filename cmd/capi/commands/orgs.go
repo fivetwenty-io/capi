@@ -48,7 +48,7 @@ func newOrgsListCommand() *cobra.Command {
 		Short: "List organizations",
 		Long:  "List all organizations the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -131,7 +131,7 @@ func newOrgsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -212,7 +212,7 @@ func newOrgsCreateCommand() *cobra.Command {
 				return fmt.Errorf("organization name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -261,7 +261,7 @@ func newOrgsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -344,7 +344,7 @@ func newOrgsDeleteCommand() *cobra.Command {
 				}
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -424,7 +424,7 @@ func newOrgsListUsersCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			orgNameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -549,7 +549,7 @@ func newOrgsAddUserCommand() *cobra.Command {
 				role = "organization_user"
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -636,7 +636,7 @@ func newOrgsRemoveUserCommand() *cobra.Command {
 			orgNameOrGUID := args[0]
 			userNameOrGUID := args[1]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -734,7 +734,7 @@ func newOrgsListSpacesCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			orgNameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

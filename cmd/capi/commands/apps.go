@@ -79,7 +79,7 @@ func newAppsListCommand() *cobra.Command {
 		Short: "List applications",
 		Long:  "List all applications the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -196,7 +196,7 @@ func newAppsStartCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -231,7 +231,7 @@ func newAppsStopCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -265,7 +265,7 @@ func newAppsRestartCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -299,7 +299,7 @@ func newAppsRestageCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -368,7 +368,7 @@ func newAppsScaleCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -501,7 +501,7 @@ func newAppsEnvCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -683,7 +683,7 @@ func newAppsSetEnvCommand() *cobra.Command {
 			envVarName := args[1]
 			envVarValue := args[2]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -733,7 +733,7 @@ func newAppsUnsetEnvCommand() *cobra.Command {
 			nameOrGUID := args[0]
 			envVarName := args[1]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -787,7 +787,7 @@ func newAppsLogsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -866,7 +866,7 @@ func newAppsSSHCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -950,7 +950,7 @@ func newAppsProcessesCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1143,7 +1143,7 @@ func newAppsManifestGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1228,7 +1228,7 @@ func newAppsManifestApplyCommand() *cobra.Command {
 				manifestPath = "manifest.yml"
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1317,7 +1317,7 @@ func newAppsManifestDiffCommand() *cobra.Command {
 				manifestPath = "manifest.yml"
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1396,7 +1396,7 @@ func newAppsStatsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1587,7 +1587,7 @@ func newAppsEventsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1705,7 +1705,7 @@ func newAppsHealthCheckCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

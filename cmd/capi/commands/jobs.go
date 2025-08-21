@@ -38,7 +38,7 @@ func newJobsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			jobGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -108,7 +108,7 @@ func newJobsPollCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			jobGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

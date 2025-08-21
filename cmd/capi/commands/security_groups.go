@@ -77,7 +77,7 @@ func newSecurityGroupsListCommand() *cobra.Command {
 		Short: "List security groups",
 		Long:  "List all security groups",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -177,7 +177,7 @@ func newSecurityGroupsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -266,7 +266,7 @@ func newSecurityGroupsCreateCommand() *cobra.Command {
 				return fmt.Errorf("security group name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -342,7 +342,7 @@ func newSecurityGroupsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -447,7 +447,7 @@ func newSecurityGroupsDeleteCommand() *cobra.Command {
 				}
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -518,7 +518,7 @@ func newSecurityGroupsBindCommand() *cobra.Command {
 				return fmt.Errorf("must specify --running or --staging (or both)")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -617,7 +617,7 @@ func newSecurityGroupsUnbindCommand() *cobra.Command {
 				return fmt.Errorf("must specify --running or --staging (or both)")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -696,7 +696,7 @@ func newSecurityGroupsRunningCommand() *cobra.Command {
 		Short: "List running security groups",
 		Long:  "List all security groups that are globally enabled for running applications",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -731,7 +731,7 @@ func newSecurityGroupsStagingCommand() *cobra.Command {
 		Short: "List staging security groups",
 		Long:  "List all security groups that are globally enabled for staging applications",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

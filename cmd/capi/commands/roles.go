@@ -45,7 +45,7 @@ func newRolesListCommand() *cobra.Command {
 		Short: "List roles",
 		Long:  "List all roles the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -154,7 +154,7 @@ func newRolesGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			roleGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -217,7 +217,7 @@ func newRolesCreateCommand() *cobra.Command {
 				return fmt.Errorf("user GUID is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -298,7 +298,7 @@ func newRolesDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			roleGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

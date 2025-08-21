@@ -50,7 +50,7 @@ func newSpacesListCommand() *cobra.Command {
 		Short: "List spaces",
 		Long:  "List all spaces the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -157,7 +157,7 @@ func newSpacesGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -240,7 +240,7 @@ func newSpacesCreateCommand() *cobra.Command {
 				return fmt.Errorf("space name is required")
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -312,7 +312,7 @@ func newSpacesUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -390,7 +390,7 @@ func newSpacesDeleteCommand() *cobra.Command {
 				}
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -469,7 +469,7 @@ func newSpacesListUsersCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			spaceNameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -595,7 +595,7 @@ func newSpacesSetRoleCommand() *cobra.Command {
 				role = "space_developer"
 			}
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -682,7 +682,7 @@ func newSpacesUnsetRoleCommand() *cobra.Command {
 			spaceNameOrGUID := args[0]
 			userNameOrGUID := args[1]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -780,7 +780,7 @@ func newSpacesListAppsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			spaceNameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -890,7 +890,7 @@ func newSpacesListServicesCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			spaceNameOrGUID := args[0]
 
-			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
