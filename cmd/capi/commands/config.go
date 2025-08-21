@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -117,76 +118,8 @@ func newConfigShowCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(config)
 			default:
-				fmt.Println("Current Configuration:")
-				fmt.Printf("  Output:             %s\n", config.Output)
-				fmt.Printf("  No Color:           %v\n", config.NoColor)
-
-				if config.CurrentAPI != "" {
-					fmt.Printf("  Current API:        %s\n", config.CurrentAPI)
-				}
-
-				if len(config.APIs) > 0 {
-					fmt.Println("\nConfigured APIs:")
-					for domain, apiConfig := range config.APIs {
-						current := ""
-						if domain == config.CurrentAPI {
-							current = " (current)"
-						}
-						fmt.Printf("  %s%s:\n", domain, current)
-						fmt.Printf("    Endpoint:         %s\n", apiConfig.Endpoint)
-						if apiConfig.Username != "" {
-							fmt.Printf("    Username:         %s\n", apiConfig.Username)
-						}
-						if apiConfig.Organization != "" {
-							fmt.Printf("    Organization:     %s\n", apiConfig.Organization)
-						}
-						if apiConfig.Space != "" {
-							fmt.Printf("    Space:            %s\n", apiConfig.Space)
-						}
-						if apiConfig.SkipSSLValidation {
-							fmt.Printf("    Skip SSL:         %v\n", apiConfig.SkipSSLValidation)
-						}
-						if apiConfig.UAAEndpoint != "" {
-							fmt.Printf("    UAA Endpoint:     %s\n", apiConfig.UAAEndpoint)
-						}
-					}
-				} else {
-					fmt.Println("\nNo APIs configured. Use 'capi apis add' to add one.")
-				}
-
-				// Show legacy configuration if it exists (for migration purposes)
-				if config.API != "" {
-					fmt.Println("\nLegacy Configuration (will be migrated):")
-					fmt.Printf("  API:                %s\n", config.API)
-					if config.Username != "" {
-						fmt.Printf("  Username:           %s\n", config.Username)
-					}
-					if config.Organization != "" {
-						fmt.Printf("  Organization:       %s\n", config.Organization)
-					}
-					if config.Space != "" {
-						fmt.Printf("  Space:              %s\n", config.Space)
-					}
-				}
-
-				if len(config.Targets) > 0 {
-					fmt.Println("\nLegacy Targets (deprecated):")
-					for name, target := range config.Targets {
-						fmt.Printf("  %s:\n", name)
-						fmt.Printf("    API:              %s\n", target.API)
-						if target.Username != "" {
-							fmt.Printf("    Username:         %s\n", target.Username)
-						}
-						if target.Organization != "" {
-							fmt.Printf("    Organization:     %s\n", target.Organization)
-						}
-						if target.Space != "" {
-							fmt.Printf("    Space:            %s\n", target.Space)
-						}
-					}
-				}
+				return displayConfigTable(config)
 			}
-			return nil
 		},
 	}
 
@@ -277,8 +210,7 @@ func newConfigClearCommand() *cobra.Command {
 				return fmt.Errorf("failed to remove config file: %w", err)
 			}
 
-			fmt.Println("All configuration cleared")
-			return nil
+			return outputConfigUpdateResult("Cleared", "all configuration", "", "")
 		},
 	}
 
@@ -615,8 +547,7 @@ func setGlobalConfig(config *Config, key, value string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Set global %s = %s\n", key, value)
-	return nil
+	return outputConfigUpdateResult("Set global", key, value, "")
 }
 
 // setAPISpecificConfig sets configuration for a specific API
@@ -660,8 +591,7 @@ func setAPISpecificConfig(config *Config, apiDomain, key, value string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Set %s.%s = %s\n", apiDomain, key, value)
-	return nil
+	return outputConfigUpdateResult("Set", key, value, apiDomain)
 }
 
 // unsetGlobalConfig unsets a global configuration value
@@ -679,8 +609,7 @@ func unsetGlobalConfig(config *Config, key string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Unset global %s\n", key)
-	return nil
+	return outputConfigUpdateResult("Unset global", key, "", "")
 }
 
 // unsetAPISpecificConfig unsets configuration for a specific API
@@ -723,8 +652,7 @@ func unsetAPISpecificConfig(config *Config, apiDomain, key string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Unset %s.%s\n", apiDomain, key)
-	return nil
+	return outputConfigUpdateResult("Unset", key, "", apiDomain)
 }
 
 // showAPISpecificConfig shows configuration for a specific API
@@ -744,46 +672,8 @@ func showAPISpecificConfig(config *Config, apiDomain string) error {
 		encoder := yaml.NewEncoder(os.Stdout)
 		return encoder.Encode(apiConfig)
 	default:
-		current := ""
-		if apiDomain == config.CurrentAPI {
-			current = " (current)"
-		}
-		fmt.Printf("Configuration for API '%s'%s:\n", apiDomain, current)
-		fmt.Printf("  Endpoint:         %s\n", apiConfig.Endpoint)
-		if apiConfig.Username != "" {
-			fmt.Printf("  Username:         %s\n", apiConfig.Username)
-		}
-		if apiConfig.Organization != "" {
-			fmt.Printf("  Organization:     %s\n", apiConfig.Organization)
-		}
-		if apiConfig.OrganizationGUID != "" {
-			fmt.Printf("  Org GUID:         %s\n", apiConfig.OrganizationGUID)
-		}
-		if apiConfig.Space != "" {
-			fmt.Printf("  Space:            %s\n", apiConfig.Space)
-		}
-		if apiConfig.SpaceGUID != "" {
-			fmt.Printf("  Space GUID:       %s\n", apiConfig.SpaceGUID)
-		}
-		if apiConfig.SkipSSLValidation {
-			fmt.Printf("  Skip SSL:         %v\n", apiConfig.SkipSSLValidation)
-		}
-		if apiConfig.UAAEndpoint != "" {
-			fmt.Printf("  UAA Endpoint:     %s\n", apiConfig.UAAEndpoint)
-		}
-		if apiConfig.UAAClientID != "" {
-			fmt.Printf("  UAA Client ID:    %s\n", apiConfig.UAAClientID)
-		}
-		// Note: tokens are not displayed for security
-		if apiConfig.Token != "" {
-			fmt.Printf("  Token:            [REDACTED]\n")
-		}
-		if apiConfig.RefreshToken != "" {
-			fmt.Printf("  Refresh Token:    [REDACTED]\n")
-		}
+		return displayAPISpecificConfigTable(config, apiDomain, apiConfig)
 	}
-
-	return nil
 }
 
 // clearAPISpecificConfig clears configuration for a specific API
@@ -815,6 +705,226 @@ func clearAPISpecificConfig(config *Config, apiDomain string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Cleared configuration for API '%s'\n", apiDomain)
+	return outputConfigUpdateResult("Cleared configuration for API", apiDomain, "", "")
+}
+
+// displayConfigTable displays configuration in a table format
+func displayConfigTable(config *Config) error {
+	// Global configuration table
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	table.Append([]string{"Output", config.Output})
+	table.Append([]string{"No Color", fmt.Sprintf("%v", config.NoColor)})
+
+	if config.CurrentAPI != "" {
+		table.Append([]string{"Current API", config.CurrentAPI})
+	}
+
+	fmt.Println("Global Configuration:")
+	table.Render()
+
+	// APIs configuration table
+	if len(config.APIs) > 0 {
+		fmt.Println("\nConfigured APIs:")
+		apiTable := tablewriter.NewWriter(os.Stdout)
+		apiTable.Header("Domain", "Endpoint", "Username", "Organization", "Space", "Current", "UAA Endpoint")
+
+		for domain, apiConfig := range config.APIs {
+			current := ""
+			if domain == config.CurrentAPI {
+				current = "✓"
+			}
+
+			username := apiConfig.Username
+			if username == "" {
+				username = "-"
+			}
+
+			organization := apiConfig.Organization
+			if organization == "" {
+				organization = "-"
+			}
+
+			space := apiConfig.Space
+			if space == "" {
+				space = "-"
+			}
+
+			uaaEndpoint := apiConfig.UAAEndpoint
+			if uaaEndpoint == "" {
+				uaaEndpoint = "-"
+			}
+
+			apiTable.Append([]string{domain, apiConfig.Endpoint, username, organization, space, current, uaaEndpoint})
+		}
+
+		apiTable.Render()
+	} else {
+		fmt.Println("\nNo APIs configured. Use 'capi apis add' to add one.")
+	}
+
+	// Legacy configuration table (for migration purposes)
+	if config.API != "" {
+		fmt.Println("\nLegacy Configuration (will be migrated):")
+		legacyTable := tablewriter.NewWriter(os.Stdout)
+		legacyTable.Header("Property", "Value")
+
+		legacyTable.Append([]string{"API", config.API})
+		if config.Username != "" {
+			legacyTable.Append([]string{"Username", config.Username})
+		}
+		if config.Organization != "" {
+			legacyTable.Append([]string{"Organization", config.Organization})
+		}
+		if config.Space != "" {
+			legacyTable.Append([]string{"Space", config.Space})
+		}
+
+		legacyTable.Render()
+	}
+
+	// Legacy targets table
+	if len(config.Targets) > 0 {
+		fmt.Println("\nLegacy Targets (deprecated):")
+		targetsTable := tablewriter.NewWriter(os.Stdout)
+		targetsTable.Header("Name", "API", "Username", "Organization", "Space")
+
+		for name, target := range config.Targets {
+			username := target.Username
+			if username == "" {
+				username = "-"
+			}
+
+			organization := target.Organization
+			if organization == "" {
+				organization = "-"
+			}
+
+			space := target.Space
+			if space == "" {
+				space = "-"
+			}
+
+			targetsTable.Append([]string{name, target.API, username, organization, space})
+		}
+
+		targetsTable.Render()
+	}
+
 	return nil
+}
+
+// displayAPISpecificConfigTable displays configuration for a specific API in table format
+func displayAPISpecificConfigTable(config *Config, apiDomain string, apiConfig *APIConfig) error {
+	current := ""
+	if apiDomain == config.CurrentAPI {
+		current = " (current)"
+	}
+
+	fmt.Printf("Configuration for API '%s'%s:\n", apiDomain, current)
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	table.Append([]string{"Endpoint", apiConfig.Endpoint})
+
+	if apiConfig.Username != "" {
+		table.Append([]string{"Username", apiConfig.Username})
+	}
+
+	if apiConfig.Organization != "" {
+		table.Append([]string{"Organization", apiConfig.Organization})
+	}
+
+	if apiConfig.OrganizationGUID != "" {
+		table.Append([]string{"Org GUID", apiConfig.OrganizationGUID})
+	}
+
+	if apiConfig.Space != "" {
+		table.Append([]string{"Space", apiConfig.Space})
+	}
+
+	if apiConfig.SpaceGUID != "" {
+		table.Append([]string{"Space GUID", apiConfig.SpaceGUID})
+	}
+
+	if apiConfig.SkipSSLValidation {
+		table.Append([]string{"Skip SSL", fmt.Sprintf("%v", apiConfig.SkipSSLValidation)})
+	}
+
+	if apiConfig.UAAEndpoint != "" {
+		table.Append([]string{"UAA Endpoint", apiConfig.UAAEndpoint})
+	}
+
+	if apiConfig.UAAClientID != "" {
+		table.Append([]string{"UAA Client ID", apiConfig.UAAClientID})
+	}
+
+	// Note: tokens are not displayed for security
+	if apiConfig.Token != "" {
+		table.Append([]string{"Token", "[REDACTED]"})
+	}
+
+	if apiConfig.RefreshToken != "" {
+		table.Append([]string{"Refresh Token", "[REDACTED]"})
+	}
+
+	if apiConfig.UAAToken != "" {
+		table.Append([]string{"UAA Token", "[REDACTED]"})
+	}
+
+	if apiConfig.UAARefreshToken != "" {
+		table.Append([]string{"UAA Refresh Token", "[REDACTED]"})
+	}
+
+	table.Render()
+
+	return nil
+}
+
+// outputConfigUpdateResult outputs configuration update results in the requested format
+func outputConfigUpdateResult(action, key, value, apiDomain string) error {
+	output := viper.GetString("output")
+
+	result := map[string]string{
+		"action": action,
+		"key":    key,
+	}
+
+	if value != "" {
+		result["value"] = value
+	}
+
+	if apiDomain != "" {
+		result["api_domain"] = apiDomain
+	}
+
+	switch output {
+	case "json":
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	case "yaml":
+		encoder := yaml.NewEncoder(os.Stdout)
+		return encoder.Encode(result)
+	default:
+		// Table format for update results
+		table := tablewriter.NewWriter(os.Stdout)
+		table.Header("Property", "Value")
+
+		table.Append([]string{"Action", action})
+		table.Append([]string{"Key", key})
+
+		if value != "" {
+			table.Append([]string{"Value", value})
+		}
+
+		if apiDomain != "" {
+			table.Append([]string{"API Domain", apiDomain})
+		}
+
+		table.Render()
+		return nil
+	}
 }
