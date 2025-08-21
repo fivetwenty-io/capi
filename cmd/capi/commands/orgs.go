@@ -48,7 +48,7 @@ func newOrgsListCommand() *cobra.Command {
 		Short: "List organizations",
 		Long:  "List all organizations the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -100,12 +100,12 @@ func newOrgsListCommand() *cobra.Command {
 					if org.Suspended {
 						status = "suspended"
 					}
-					table.Append(org.Name, org.GUID, status,
+					_ = table.Append(org.Name, org.GUID, status,
 						org.CreatedAt.Format("2006-01-02"),
 						org.UpdatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && orgs.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", orgs.Pagination.TotalPages)
@@ -131,7 +131,7 @@ func newOrgsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -212,7 +212,7 @@ func newOrgsCreateCommand() *cobra.Command {
 				return fmt.Errorf("organization name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -241,7 +241,7 @@ func newOrgsCreateCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&name, "name", "n", "", "organization name (required)")
 	cmd.Flags().StringToStringVar(&labels, "labels", nil, "labels to apply (key=value)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
@@ -261,7 +261,7 @@ func newOrgsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -337,14 +337,14 @@ func newOrgsDeleteCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Really delete organization '%s'? (y/N): ", nameOrGUID)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled")
 					return nil
 				}
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -424,7 +424,7 @@ func newOrgsListUsersCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			orgNameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -512,11 +512,11 @@ func newOrgsListUsersCommand() *cobra.Command {
 						rolesStr = strings.Join(roleNames, ", ")
 					}
 
-					table.Append(user.Username, user.GUID, rolesStr,
+					_ = table.Append(user.Username, user.GUID, rolesStr,
 						user.CreatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && users.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", users.Pagination.TotalPages)
@@ -549,7 +549,7 @@ func newOrgsAddUserCommand() *cobra.Command {
 				role = "organization_user"
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -636,7 +636,7 @@ func newOrgsRemoveUserCommand() *cobra.Command {
 			orgNameOrGUID := args[0]
 			userNameOrGUID := args[1]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -734,7 +734,7 @@ func newOrgsListSpacesCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			orgNameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -808,12 +808,12 @@ func newOrgsListSpacesCommand() *cobra.Command {
 				table.Header("Name", "GUID", "Created", "Updated")
 
 				for _, space := range allSpaces {
-					table.Append(space.Name, space.GUID,
+					_ = table.Append(space.Name, space.GUID,
 						space.CreatedAt.Format("2006-01-02"),
 						space.UpdatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && spaces.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", spaces.Pagination.TotalPages)

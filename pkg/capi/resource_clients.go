@@ -31,6 +31,10 @@ type AppsClient interface {
 	GetPermissions(ctx context.Context, guid string) (*AppPermissions, error)
 	ClearBuildpackCache(ctx context.Context, guid string) error
 	GetManifest(ctx context.Context, guid string) (string, error)
+
+	// Logs operations
+	GetRecentLogs(ctx context.Context, guid string, lines int) (*AppLogs, error)
+	StreamLogs(ctx context.Context, guid string) (<-chan LogMessage, error)
 }
 
 // OrganizationsClient defines operations for organizations

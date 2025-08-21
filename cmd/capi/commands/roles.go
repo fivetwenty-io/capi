@@ -45,7 +45,7 @@ func newRolesListCommand() *cobra.Command {
 		Short: "List roles",
 		Long:  "List all roles the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -117,7 +117,7 @@ func newRolesListCommand() *cobra.Command {
 						spaceGUID = role.Relationships.Space.Data.GUID
 					}
 
-					table.Append([]string{
+					_ = table.Append([]string{
 						role.GUID,
 						role.Type,
 						role.Relationships.User.Data.GUID,
@@ -128,7 +128,7 @@ func newRolesListCommand() *cobra.Command {
 					})
 				}
 
-				table.Render()
+				_ = table.Render()
 			}
 
 			return nil
@@ -154,7 +154,7 @@ func newRolesGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			roleGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -217,7 +217,7 @@ func newRolesCreateCommand() *cobra.Command {
 				return fmt.Errorf("user GUID is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -284,7 +284,7 @@ func newRolesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&userGUID, "user", "", "user GUID (required)")
 	cmd.Flags().StringVar(&orgGUID, "org", "", "organization GUID")
 	cmd.Flags().StringVar(&spaceGUID, "space", "", "space GUID")
-	cmd.MarkFlagRequired("user")
+	_ = cmd.MarkFlagRequired("user")
 
 	return cmd
 }
@@ -298,7 +298,7 @@ func newRolesDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			roleGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

@@ -361,6 +361,47 @@ capi apps scale my-app --instances 3 --memory 512M
 capi apps delete my-app
 ```
 
+### UAA User Management
+
+The CLI includes comprehensive UAA (User Account and Authentication) user management functionality:
+
+```bash
+# Set UAA endpoint
+capi uaa target https://uaa.your-cf-domain.com
+
+# Authenticate with client credentials
+capi uaa get-client-credentials-token --client-id admin --client-secret admin-secret
+
+# Authenticate with username/password
+capi uaa get-password-token --username admin --password admin-pass --client-id cf
+
+# Create a user
+capi uaa create-user john.doe --email john.doe@example.com --password SecurePass123!
+
+# List users with filtering
+capi uaa list-users --filter 'email co "example.com"'
+
+# Get user details
+capi uaa get-user john.doe
+
+# Create a group
+capi uaa create-group developers --description "Development team members"
+
+# Add user to group
+capi uaa add-member developers john.doe
+
+# Create OAuth client
+capi uaa create-client my-app --secret app-secret --authorized-grant-types client_credentials
+
+# Get current user info
+capi uaa userinfo
+
+# Direct UAA API access
+capi uaa curl /users --method GET
+```
+
+For comprehensive UAA documentation, see [docs/uaa-commands.md](./docs/uaa-commands.md).
+
 ### Output Formats
 
 The CLI supports multiple output formats:

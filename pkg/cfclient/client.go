@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -52,6 +53,12 @@ func needsAuth(config *capi.Config) bool {
 		(config.Username != "" || config.ClientID != "" || config.RefreshToken != "")
 }
 
+// isDevelopmentEnvironment checks if we're in a development environment
+func isDevelopmentEnvironment() bool {
+	devMode := os.Getenv("CAPI_DEV_MODE")
+	return devMode == "true" || devMode == "1"
+}
+
 // discoverUAAEndpoint discovers the UAA endpoint from the CF API root
 func discoverUAAEndpoint(apiEndpoint string, skipTLS bool) (string, error) {
 	// Create a simple HTTP client for discovery
@@ -59,10 +66,13 @@ func discoverUAAEndpoint(apiEndpoint string, skipTLS bool) (string, error) {
 		Timeout: 10 * time.Second,
 	}
 	if skipTLS {
-		// WARNING: Only use InsecureSkipVerify in development environments
-		// This disables TLS certificate verification which can expose to man-in-the-middle attacks
-		httpClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // G402: Intentionally allowing insecure TLS for dev environments
+		// Only allow insecure TLS in explicit development environments
+		if isDevelopmentEnvironment() {
+			httpClient.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // #nosec G402 -- Protected by development environment check above
+			}
+		} else {
+			return "", fmt.Errorf("skipTLS is only allowed in development environments (set CAPI_DEV_MODE=true)")
 		}
 	}
 

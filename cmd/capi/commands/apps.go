@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +15,32 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
+
+// validateFilePath validates that a file path is safe to read
+func validateFilePathApps(filePath string) error {
+	// Clean the path to resolve any path traversal attempts
+	cleanPath := filepath.Clean(filePath)
+
+	// Check for path traversal attempts
+	if filepath.IsAbs(filePath) {
+		// Allow absolute paths but ensure they're clean
+		if cleanPath != filePath {
+			return fmt.Errorf("invalid file path: potential path traversal attempt")
+		}
+	} else {
+		// For relative paths, ensure they don't escape the current directory
+		if len(cleanPath) > 0 && cleanPath[0] == '.' && len(cleanPath) > 1 && cleanPath[1] == '.' {
+			return fmt.Errorf("invalid file path: path traversal not allowed")
+		}
+	}
+
+	// Check if file exists and is readable
+	if _, err := os.Stat(cleanPath); err != nil {
+		return fmt.Errorf("file not accessible: %w", err)
+	}
+
+	return nil
+}
 
 // NewAppsCommand creates the apps command group
 func NewAppsCommand() *cobra.Command {
@@ -52,7 +79,7 @@ func newAppsListCommand() *cobra.Command {
 		Short: "List applications",
 		Long:  "List all applications the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -145,10 +172,10 @@ func newAppsListCommand() *cobra.Command {
 						updated = app.UpdatedAt.Format("2006-01-02 15:04:05")
 					}
 
-					table.Append(app.Name, app.GUID, app.State, lifecycle, buildpacks, stack, created, updated)
+					_ = table.Append(app.Name, app.GUID, app.State, lifecycle, buildpacks, stack, created, updated)
 				}
 
-				table.Render()
+				_ = table.Render()
 			}
 
 			return nil
@@ -169,7 +196,7 @@ func newAppsStartCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -204,7 +231,7 @@ func newAppsStopCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -238,7 +265,7 @@ func newAppsRestartCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -272,7 +299,7 @@ func newAppsRestageCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -341,7 +368,7 @@ func newAppsScaleCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -424,6 +451,47 @@ func newAppsScaleCommand() *cobra.Command {
 	return cmd
 }
 
+// flattenJSON recursively flattens a JSON object into a map with dot-separated keys
+func flattenJSON(obj interface{}, prefix string) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	switch v := obj.(type) {
+	case map[string]interface{}:
+		for key, value := range v {
+			fullKey := key
+			if prefix != "" {
+				fullKey = prefix + "." + key
+			}
+
+			// Recursively flatten nested objects
+			if nested := flattenJSON(value, fullKey); len(nested) > 0 {
+				for k, v := range nested {
+					result[k] = v
+				}
+			} else {
+				result[fullKey] = value
+			}
+		}
+	case []interface{}:
+		for i, item := range v {
+			fullKey := fmt.Sprintf("%s[%d]", prefix, i)
+			if nested := flattenJSON(item, fullKey); len(nested) > 0 {
+				for k, v := range nested {
+					result[k] = v
+				}
+			} else {
+				result[fullKey] = item
+			}
+		}
+	default:
+		if prefix != "" {
+			result[prefix] = v
+		}
+	}
+
+	return result
+}
+
 func newAppsEnvCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "env APP_NAME_OR_GUID",
@@ -433,7 +501,7 @@ func newAppsEnvCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -452,58 +520,151 @@ func newAppsEnvCommand() *cobra.Command {
 				return fmt.Errorf("failed to get environment variables: %w", err)
 			}
 
-			fmt.Printf("Environment variables for application '%s':\n\n", appName)
-
-			// Display user-provided environment variables
-			if len(env.EnvironmentVariables) > 0 {
-				fmt.Println("User-Provided Environment Variables:")
-				for key, value := range env.EnvironmentVariables {
-					fmt.Printf("  %s=%v\n", key, value)
-				}
-				fmt.Println()
+			// Collect environment variables for structured output
+			type EnvVar struct {
+				Name   string      `json:"name" yaml:"name"`
+				Value  interface{} `json:"value" yaml:"value"`
+				Source string      `json:"source" yaml:"source"`
 			}
 
-			// Display system environment variables
-			if len(env.SystemEnvJSON) > 0 {
-				fmt.Println("System Environment Variables:")
-				for key, value := range env.SystemEnvJSON {
-					fmt.Printf("  %s=%v\n", key, value)
-				}
-				fmt.Println()
+			var envVars []EnvVar
+			var vcapServices interface{}
+			var vcapApplication interface{}
+
+			// Collect user-provided environment variables
+			for key, value := range env.EnvironmentVariables {
+				envVars = append(envVars, EnvVar{
+					Name:   key,
+					Value:  value,
+					Source: "user-provided",
+				})
 			}
 
-			// Display staging environment variables
-			if len(env.StagingEnvJSON) > 0 {
-				fmt.Println("Staging Environment Variables:")
-				for key, value := range env.StagingEnvJSON {
-					fmt.Printf("  %s=%v\n", key, value)
+			// Collect system environment variables and extract VCAP_SERVICES
+			for key, value := range env.SystemEnvJSON {
+				if key == "VCAP_SERVICES" {
+					vcapServices = value
+				} else {
+					envVars = append(envVars, EnvVar{
+						Name:   key,
+						Value:  value,
+						Source: "system",
+					})
 				}
-				fmt.Println()
 			}
 
-			// Display running environment variables
-			if len(env.RunningEnvJSON) > 0 {
-				fmt.Println("Running Environment Variables:")
-				for key, value := range env.RunningEnvJSON {
-					fmt.Printf("  %s=%v\n", key, value)
-				}
-				fmt.Println()
+			// Collect staging environment variables
+			for key, value := range env.StagingEnvJSON {
+				envVars = append(envVars, EnvVar{
+					Name:   key,
+					Value:  value,
+					Source: "staging",
+				})
 			}
 
-			// Display application environment variables
-			if len(env.ApplicationEnvJSON) > 0 {
-				fmt.Println("Application Environment Variables:")
-				for key, value := range env.ApplicationEnvJSON {
-					fmt.Printf("  %s=%v\n", key, value)
-				}
-				fmt.Println()
+			// Collect running environment variables
+			for key, value := range env.RunningEnvJSON {
+				envVars = append(envVars, EnvVar{
+					Name:   key,
+					Value:  value,
+					Source: "running",
+				})
 			}
 
-			// If no environment variables found
-			if len(env.EnvironmentVariables) == 0 && len(env.SystemEnvJSON) == 0 &&
-				len(env.StagingEnvJSON) == 0 && len(env.RunningEnvJSON) == 0 &&
-				len(env.ApplicationEnvJSON) == 0 {
-				fmt.Println("No environment variables found.")
+			// Collect application environment variables and extract VCAP_APPLICATION
+			for key, value := range env.ApplicationEnvJSON {
+				if key == "VCAP_APPLICATION" {
+					vcapApplication = value
+				} else {
+					envVars = append(envVars, EnvVar{
+						Name:   key,
+						Value:  value,
+						Source: "application",
+					})
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				result := map[string]interface{}{
+					"environment_variables": envVars,
+					"vcap_services":         vcapServices,
+					"vcap_application":      vcapApplication,
+				}
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(result)
+			case "yaml":
+				result := map[string]interface{}{
+					"environment_variables": envVars,
+					"vcap_services":         vcapServices,
+					"vcap_application":      vcapApplication,
+				}
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(result)
+			default:
+				fmt.Printf("Environment variables for application '%s':\n\n", appName)
+
+				// Main environment variables table
+				if len(envVars) > 0 {
+					table := tablewriter.NewWriter(os.Stdout)
+					table.Header("Name", "Value", "Source")
+
+					for _, envVar := range envVars {
+						valueStr := fmt.Sprintf("%v", envVar.Value)
+						// Truncate long values for table display
+						if len(valueStr) > 80 {
+							valueStr = valueStr[:77] + "..."
+						}
+						_ = table.Append(envVar.Name, valueStr, envVar.Source)
+					}
+
+					_ = table.Render()
+					fmt.Println()
+				}
+
+				// VCAP_SERVICES table
+				if vcapServices != nil {
+					vcapServicesFlattened := flattenJSON(vcapServices, "")
+					if len(vcapServicesFlattened) > 0 {
+						fmt.Println("VCAP_SERVICES:")
+						fmt.Println()
+						servicesTable := tablewriter.NewWriter(os.Stdout)
+						servicesTable.Header("Key", "Value")
+
+						for key, value := range vcapServicesFlattened {
+							valueStr := fmt.Sprintf("%v", value)
+							_ = servicesTable.Append(key, valueStr)
+						}
+
+						_ = servicesTable.Render()
+						fmt.Println()
+					}
+				}
+
+				// VCAP_APPLICATION table
+				if vcapApplication != nil {
+					vcapApplicationFlattened := flattenJSON(vcapApplication, "")
+					if len(vcapApplicationFlattened) > 0 {
+						fmt.Println("VCAP_APPLICATION:")
+						fmt.Println()
+						appTable := tablewriter.NewWriter(os.Stdout)
+						appTable.Header("Key", "Value")
+
+						for key, value := range vcapApplicationFlattened {
+							valueStr := fmt.Sprintf("%v", value)
+							_ = appTable.Append(key, valueStr)
+						}
+
+						_ = appTable.Render()
+					}
+				}
+
+				if len(envVars) == 0 && vcapServices == nil && vcapApplication == nil {
+					fmt.Printf("No environment variables found for application '%s'\n", appName)
+				}
 			}
 
 			return nil
@@ -522,7 +683,7 @@ func newAppsSetEnvCommand() *cobra.Command {
 			envVarName := args[1]
 			envVarValue := args[2]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -572,7 +733,7 @@ func newAppsUnsetEnvCommand() *cobra.Command {
 			nameOrGUID := args[0]
 			envVarName := args[1]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -626,7 +787,7 @@ func newAppsLogsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -640,14 +801,19 @@ func newAppsLogsCommand() *cobra.Command {
 			}
 
 			if recent || !follow {
-				// Show recent logs (simulated for now)
-				fmt.Printf("Recent logs for application '%s':\n\n", appName)
-				fmt.Printf("[APP/PROC/WEB/0] OUT %s Sample log message from application\n", "2024-01-01T12:00:00.000Z")
-				fmt.Printf("[RTR/0] OUT %s GET / HTTP/1.1 200 - 1ms\n", "2024-01-01T12:00:01.000Z")
-				fmt.Printf("[APP/PROC/WEB/0] OUT %s Application started on port 8080\n", "2024-01-01T12:00:02.000Z")
+				// Get recent logs using the logs API
+				logs, err := client.Apps().GetRecentLogs(ctx, appGUID, numLines)
+				if err != nil {
+					return fmt.Errorf("failed to get recent logs: %w", err)
+				}
 
-				// Note: In a real implementation, this would query the Cloud Foundry
-				// logs API endpoint, which typically requires WebSocket or SSE connections
+				fmt.Printf("Recent logs for application '%s':\n\n", appName)
+				for _, logMsg := range logs.Messages {
+					timestamp := logMsg.Timestamp.Format("2006-01-02T15:04:05.000Z")
+					fmt.Printf("[%s/%s] %s %s %s\n",
+						logMsg.SourceType, logMsg.SourceID, logMsg.MessageType, timestamp, logMsg.Message)
+				}
+
 				fmt.Printf("\nNote: Logs streaming requires WebSocket/SSE connection to CF API.\n")
 				fmt.Printf("Application GUID: %s\n", appGUID)
 			}
@@ -656,9 +822,24 @@ func newAppsLogsCommand() *cobra.Command {
 				fmt.Printf("Streaming logs for application '%s'...\n", appName)
 				fmt.Println("Press Ctrl+C to stop streaming.")
 
-				// Note: Real implementation would establish a streaming connection
-				fmt.Printf("Note: Live log streaming requires WebSocket connection to CF logs endpoint.\n")
-				fmt.Printf("Endpoint would be: wss://doppler.api-domain/apps/%s/stream\n", appGUID)
+				// Create a context that can be cancelled with Ctrl+C
+				ctx, cancel := context.WithCancel(ctx)
+				defer cancel()
+
+				// Start streaming logs
+				logChan, err := client.Apps().StreamLogs(ctx, appGUID)
+				if err != nil {
+					return fmt.Errorf("failed to start log streaming: %w", err)
+				}
+
+				// Process streaming logs
+				for logMsg := range logChan {
+					timestamp := logMsg.Timestamp.Format("2006-01-02T15:04:05.000Z")
+					fmt.Printf("[%s/%s] %s %s %s\n",
+						logMsg.SourceType, logMsg.SourceID, logMsg.MessageType, timestamp, logMsg.Message)
+				}
+
+				fmt.Println("\nLog streaming stopped.")
 			}
 
 			return nil
@@ -685,7 +866,7 @@ func newAppsSSHCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -769,7 +950,7 @@ func newAppsProcessesCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -962,7 +1143,7 @@ func newAppsManifestGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -981,8 +1162,46 @@ func newAppsManifestGetCommand() *cobra.Command {
 				return fmt.Errorf("failed to get manifest: %w", err)
 			}
 
-			fmt.Printf("Manifest for application '%s':\n\n", appName)
-			fmt.Print(manifest)
+			// Prepare structured output
+			type ManifestInfo struct {
+				AppName      string `json:"app_name" yaml:"app_name"`
+				AppGUID      string `json:"app_guid" yaml:"app_guid"`
+				ManifestYAML string `json:"manifest_yaml" yaml:"manifest_yaml"`
+			}
+
+			manifestInfo := ManifestInfo{
+				AppName:      appName,
+				AppGUID:      appGUID,
+				ManifestYAML: manifest,
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(manifestInfo)
+			case "yaml":
+				// For YAML output, we'll output the manifest directly since it's already YAML
+				// But we'll include metadata as comments
+				fmt.Printf("# Application: %s\n", appName)
+				fmt.Printf("# GUID: %s\n", appGUID)
+				fmt.Printf("# Manifest:\n")
+				fmt.Print(manifest)
+				return nil
+			default:
+				// For table output, we'll show metadata in a table and then the manifest
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Application Name", appName)
+				_ = table.Append("Application GUID", appGUID)
+
+				fmt.Printf("Manifest information:\n\n")
+				_ = table.Render()
+				fmt.Printf("\nManifest content:\n\n")
+				fmt.Print(manifest)
+			}
 
 			return nil
 		},
@@ -1009,7 +1228,7 @@ func newAppsManifestApplyCommand() *cobra.Command {
 				manifestPath = "manifest.yml"
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1049,10 +1268,10 @@ func newAppsManifestApplyCommand() *cobra.Command {
 
 			// Read manifest file
 			// Validate file path to prevent directory traversal
-			if strings.Contains(manifestPath, "..") {
-				return fmt.Errorf("invalid file path: directory traversal not allowed")
+			if err := validateFilePathApps(manifestPath); err != nil {
+				return fmt.Errorf("invalid manifest file: %w", err)
 			}
-			manifestContent, err := os.ReadFile(manifestPath) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
+			manifestContent, err := os.ReadFile(filepath.Clean(manifestPath))
 			if err != nil {
 				return fmt.Errorf("failed to read manifest file '%s': %w", manifestPath, err)
 			}
@@ -1098,7 +1317,7 @@ func newAppsManifestDiffCommand() *cobra.Command {
 				manifestPath = "manifest.yml"
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1138,10 +1357,10 @@ func newAppsManifestDiffCommand() *cobra.Command {
 
 			// Read manifest file
 			// Validate file path to prevent directory traversal
-			if strings.Contains(manifestPath, "..") {
-				return fmt.Errorf("invalid file path: directory traversal not allowed")
+			if err := validateFilePathApps(manifestPath); err != nil {
+				return fmt.Errorf("invalid manifest file: %w", err)
 			}
-			manifestContent, err := os.ReadFile(manifestPath) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
+			manifestContent, err := os.ReadFile(filepath.Clean(manifestPath))
 			if err != nil {
 				return fmt.Errorf("failed to read manifest file '%s': %w", manifestPath, err)
 			}
@@ -1177,7 +1396,7 @@ func newAppsStatsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1198,56 +1417,158 @@ func newAppsStatsCommand() *cobra.Command {
 			}
 
 			if len(processes.Resources) == 0 {
-				fmt.Printf("No processes found for application '%s'\n", appName)
+				output := viper.GetString("output")
+				switch output {
+				case "json":
+					encoder := json.NewEncoder(os.Stdout)
+					encoder.SetIndent("", "  ")
+					return encoder.Encode([]interface{}{})
+				case "yaml":
+					encoder := yaml.NewEncoder(os.Stdout)
+					return encoder.Encode([]interface{}{})
+				default:
+					fmt.Printf("No processes found for application '%s'\n", appName)
+				}
 				return nil
 			}
 
-			fmt.Printf("Statistics for application '%s':\n\n", appName)
+			// Collect all statistics data
+			type InstanceStat struct {
+				ProcessType   string   `json:"process_type" yaml:"process_type"`
+				ProcessGUID   string   `json:"process_guid" yaml:"process_guid"`
+				Instances     int      `json:"instances" yaml:"instances"`
+				MemoryMB      int      `json:"memory_mb" yaml:"memory_mb"`
+				DiskMB        int      `json:"disk_mb" yaml:"disk_mb"`
+				Index         int      `json:"index" yaml:"index"`
+				State         string   `json:"state" yaml:"state"`
+				CPUPercent    *float64 `json:"cpu_percent,omitempty" yaml:"cpu_percent,omitempty"`
+				MemoryUsageMB *int     `json:"memory_usage_mb,omitempty" yaml:"memory_usage_mb,omitempty"`
+				DiskUsageMB   *int     `json:"disk_usage_mb,omitempty" yaml:"disk_usage_mb,omitempty"`
+				Host          string   `json:"host,omitempty" yaml:"host,omitempty"`
+				UptimeSeconds *int     `json:"uptime_seconds,omitempty" yaml:"uptime_seconds,omitempty"`
+				Ports         []string `json:"ports,omitempty" yaml:"ports,omitempty"`
+			}
+
+			var allStats []InstanceStat
 
 			for _, process := range processes.Resources {
-				fmt.Printf("Process: %s\n", process.Type)
-				fmt.Printf("  Instances: %d\n", process.Instances)
-				fmt.Printf("  Memory: %d MB\n", process.MemoryInMB)
-				fmt.Printf("  Disk: %d MB\n", process.DiskInMB)
-
 				// Get detailed stats for this process
 				stats, err := client.Processes().GetStats(ctx, process.GUID)
 				if err != nil {
-					fmt.Printf("  Error getting stats: %v\n", err)
+					// Add process info even if stats fail
+					allStats = append(allStats, InstanceStat{
+						ProcessType: process.Type,
+						ProcessGUID: process.GUID,
+						Instances:   process.Instances,
+						MemoryMB:    process.MemoryInMB,
+						DiskMB:      process.DiskInMB,
+						Index:       -1,
+						State:       "stats-error",
+					})
 					continue
 				}
 
 				if len(stats.Resources) == 0 {
-					fmt.Printf("  No instance statistics available\n")
+					allStats = append(allStats, InstanceStat{
+						ProcessType: process.Type,
+						ProcessGUID: process.GUID,
+						Instances:   process.Instances,
+						MemoryMB:    process.MemoryInMB,
+						DiskMB:      process.DiskInMB,
+						Index:       -1,
+						State:       "no-stats",
+					})
 				} else {
-					fmt.Printf("  Instance Statistics:\n")
 					for _, stat := range stats.Resources {
-						fmt.Printf("    Instance %d: %s", stat.Index, stat.State)
+						instanceStat := InstanceStat{
+							ProcessType: process.Type,
+							ProcessGUID: process.GUID,
+							Instances:   process.Instances,
+							MemoryMB:    process.MemoryInMB,
+							DiskMB:      process.DiskInMB,
+							Index:       stat.Index,
+							State:       stat.State,
+							Host:        stat.Host,
+						}
+
 						if stat.Usage != nil {
-							fmt.Printf(" (CPU: %.2f%%, Memory: %d MB, Disk: %d MB)",
-								stat.Usage.CPU*100, stat.Usage.Mem/(1024*1024), stat.Usage.Disk/(1024*1024))
+							cpuPercent := stat.Usage.CPU * 100
+							memUsageMB := int(stat.Usage.Mem / (1024 * 1024))
+							diskUsageMB := int(stat.Usage.Disk / (1024 * 1024))
+							instanceStat.CPUPercent = &cpuPercent
+							instanceStat.MemoryUsageMB = &memUsageMB
+							instanceStat.DiskUsageMB = &diskUsageMB
 						}
-						if stat.Host != "" {
-							fmt.Printf(" [Host: %s]", stat.Host)
-						}
-						fmt.Println()
+
 						if stat.Uptime > 0 {
-							uptime := time.Duration(stat.Uptime) * time.Second
-							fmt.Printf("      Uptime: %v\n", uptime)
+							uptimeSeconds := int(stat.Uptime)
+							instanceStat.UptimeSeconds = &uptimeSeconds
 						}
+
 						if len(stat.InstancePorts) > 0 {
-							fmt.Printf("      Ports: ")
-							for i, port := range stat.InstancePorts {
-								if i > 0 {
-									fmt.Printf(", ")
-								}
-								fmt.Printf("%d->%d", port.External, port.Internal)
+							var ports []string
+							for _, port := range stat.InstancePorts {
+								ports = append(ports, fmt.Sprintf("%d->%d", port.External, port.Internal))
 							}
-							fmt.Println()
+							instanceStat.Ports = ports
 						}
+
+						allStats = append(allStats, instanceStat)
 					}
 				}
-				fmt.Println()
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allStats)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(allStats)
+			default:
+				if len(allStats) == 0 {
+					fmt.Printf("No statistics found for application '%s'\n", appName)
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Process", "Index", "State", "CPU%", "Memory", "Disk", "Uptime", "Host")
+
+				for _, stat := range allStats {
+					index := fmt.Sprintf("%d", stat.Index)
+					if stat.Index == -1 {
+						index = "N/A"
+					}
+
+					cpuStr := "N/A"
+					if stat.CPUPercent != nil {
+						cpuStr = fmt.Sprintf("%.2f", *stat.CPUPercent)
+					}
+
+					memStr := "N/A"
+					if stat.MemoryUsageMB != nil {
+						memStr = fmt.Sprintf("%d MB", *stat.MemoryUsageMB)
+					}
+
+					diskStr := "N/A"
+					if stat.DiskUsageMB != nil {
+						diskStr = fmt.Sprintf("%d MB", *stat.DiskUsageMB)
+					}
+
+					uptimeStr := "N/A"
+					if stat.UptimeSeconds != nil {
+						uptime := time.Duration(*stat.UptimeSeconds) * time.Second
+						uptimeStr = uptime.String()
+					}
+
+					_ = table.Append(stat.ProcessType, index, stat.State, cpuStr, memStr, diskStr, uptimeStr, stat.Host)
+				}
+
+				fmt.Printf("Statistics for application '%s':\n\n", appName)
+				_ = table.Render()
 			}
 
 			return nil
@@ -1266,7 +1587,7 @@ func newAppsEventsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1279,33 +1600,87 @@ func newAppsEventsCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Recent events for application '%s':\n\n", appName)
-
 			// Note: Cloud Foundry API v3 doesn't directly expose application events
 			// Events are typically accessed through audit events or logs
 			// This is a placeholder implementation showing what events might look like
 
-			fmt.Printf("Event Type: app.start\n")
-			fmt.Printf("  Time: %s\n", time.Now().Add(-time.Hour).Format(time.RFC3339))
-			fmt.Printf("  Actor: user@example.com\n")
-			fmt.Printf("  Description: Application started\n")
-			fmt.Printf("  App GUID: %s\n\n", appGUID)
+			type AppEvent struct {
+				Type        string `json:"type" yaml:"type"`
+				Time        string `json:"time" yaml:"time"`
+				Actor       string `json:"actor" yaml:"actor"`
+				Description string `json:"description" yaml:"description"`
+				AppGUID     string `json:"app_guid" yaml:"app_guid"`
+				AppName     string `json:"app_name" yaml:"app_name"`
+			}
 
-			fmt.Printf("Event Type: app.scale\n")
-			fmt.Printf("  Time: %s\n", time.Now().Add(-30*time.Minute).Format(time.RFC3339))
-			fmt.Printf("  Actor: user@example.com\n")
-			fmt.Printf("  Description: Application scaled to 2 instances\n")
-			fmt.Printf("  App GUID: %s\n\n", appGUID)
+			// Create simulated events (in real implementation, this would query CF audit events API)
+			events := []AppEvent{
+				{
+					Type:        "app.start",
+					Time:        time.Now().Add(-time.Hour).Format(time.RFC3339),
+					Actor:       "user@example.com",
+					Description: "Application started",
+					AppGUID:     appGUID,
+					AppName:     appName,
+				},
+				{
+					Type:        "app.scale",
+					Time:        time.Now().Add(-30 * time.Minute).Format(time.RFC3339),
+					Actor:       "user@example.com",
+					Description: "Application scaled to 2 instances",
+					AppGUID:     appGUID,
+					AppName:     appName,
+				},
+				{
+					Type:        "app.restart",
+					Time:        time.Now().Add(-10 * time.Minute).Format(time.RFC3339),
+					Actor:       "system",
+					Description: "Application restarted",
+					AppGUID:     appGUID,
+					AppName:     appName,
+				},
+			}
 
-			fmt.Printf("Event Type: app.restart\n")
-			fmt.Printf("  Time: %s\n", time.Now().Add(-10*time.Minute).Format(time.RFC3339))
-			fmt.Printf("  Actor: system\n")
-			fmt.Printf("  Description: Application restarted\n")
-			fmt.Printf("  App GUID: %s\n\n", appGUID)
+			// Limit events if maxEvents is specified and positive
+			if maxEvents > 0 && maxEvents < len(events) {
+				events = events[:maxEvents]
+			}
 
-			fmt.Printf("Note: Events shown are simulated examples.\n")
-			fmt.Printf("Real implementation would query Cloud Foundry audit events API.\n")
-			fmt.Printf("Consider using 'cf events %s' from the CF CLI for actual events.\n", appName)
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(events)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(events)
+			default:
+				if len(events) == 0 {
+					fmt.Printf("No events found for application '%s'\n", appName)
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Type", "Time", "Actor", "Description")
+
+				for _, event := range events {
+					// Format time for table display
+					eventTime, err := time.Parse(time.RFC3339, event.Time)
+					if err == nil {
+						event.Time = eventTime.Format("2006-01-02 15:04:05")
+					}
+					_ = table.Append(event.Type, event.Time, event.Actor, event.Description)
+				}
+
+				fmt.Printf("Recent events for application '%s':\n\n", appName)
+				_ = table.Render()
+
+				fmt.Printf("\nNote: Events shown are simulated examples.\n")
+				fmt.Printf("Real implementation would query Cloud Foundry audit events API.\n")
+				fmt.Printf("Consider using 'cf events %s' from the CF CLI for actual events.\n", appName)
+			}
 
 			return nil
 		},
@@ -1330,7 +1705,7 @@ func newAppsHealthCheckCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1370,41 +1745,90 @@ func newAppsHealthCheckCommand() *cobra.Command {
 
 			// If no health check type specified, show current health check
 			if healthCheckType == "" {
-				fmt.Printf("Health check configuration for application '%s' process '%s':\n\n", appName, targetProcess.Type)
+				type HealthCheckInfo struct {
+					ProcessType       string  `json:"process_type" yaml:"process_type"`
+					ProcessGUID       string  `json:"process_guid" yaml:"process_guid"`
+					Type              string  `json:"type" yaml:"type"`
+					Timeout           *int    `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+					Endpoint          *string `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+					InvocationTimeout *int    `json:"invocation_timeout,omitempty" yaml:"invocation_timeout,omitempty"`
+					Interval          *int    `json:"interval,omitempty" yaml:"interval,omitempty"`
+					ReadinessType     *string `json:"readiness_type,omitempty" yaml:"readiness_type,omitempty"`
+					ReadinessEndpoint *string `json:"readiness_endpoint,omitempty" yaml:"readiness_endpoint,omitempty"`
+					ReadinessTimeout  *int    `json:"readiness_invocation_timeout,omitempty" yaml:"readiness_invocation_timeout,omitempty"`
+					ReadinessInterval *int    `json:"readiness_interval,omitempty" yaml:"readiness_interval,omitempty"`
+				}
+
+				healthCheckInfo := HealthCheckInfo{
+					ProcessType: targetProcess.Type,
+					ProcessGUID: targetProcess.GUID,
+					Type:        "none",
+				}
 
 				if targetProcess.HealthCheck != nil {
-					fmt.Printf("Health Check Type: %s\n", targetProcess.HealthCheck.Type)
+					healthCheckInfo.Type = targetProcess.HealthCheck.Type
 					if targetProcess.HealthCheck.Data != nil {
-						if targetProcess.HealthCheck.Data.Timeout != nil {
-							fmt.Printf("  Timeout: %d seconds\n", *targetProcess.HealthCheck.Data.Timeout)
-						}
-						if targetProcess.HealthCheck.Data.Endpoint != nil {
-							fmt.Printf("  Endpoint: %s\n", *targetProcess.HealthCheck.Data.Endpoint)
-						}
-						if targetProcess.HealthCheck.Data.InvocationTimeout != nil {
-							fmt.Printf("  Invocation Timeout: %d seconds\n", *targetProcess.HealthCheck.Data.InvocationTimeout)
-						}
-						if targetProcess.HealthCheck.Data.Interval != nil {
-							fmt.Printf("  Interval: %d seconds\n", *targetProcess.HealthCheck.Data.Interval)
-						}
+						healthCheckInfo.Timeout = targetProcess.HealthCheck.Data.Timeout
+						healthCheckInfo.Endpoint = targetProcess.HealthCheck.Data.Endpoint
+						healthCheckInfo.InvocationTimeout = targetProcess.HealthCheck.Data.InvocationTimeout
+						healthCheckInfo.Interval = targetProcess.HealthCheck.Data.Interval
 					}
-				} else {
-					fmt.Printf("Health Check Type: none\n")
 				}
 
 				if targetProcess.ReadinessHealthCheck != nil {
-					fmt.Printf("\nReadiness Health Check Type: %s\n", targetProcess.ReadinessHealthCheck.Type)
+					readinessType := targetProcess.ReadinessHealthCheck.Type
+					healthCheckInfo.ReadinessType = &readinessType
 					if targetProcess.ReadinessHealthCheck.Data != nil {
-						if targetProcess.ReadinessHealthCheck.Data.Endpoint != nil {
-							fmt.Printf("  Endpoint: %s\n", *targetProcess.ReadinessHealthCheck.Data.Endpoint)
+						healthCheckInfo.ReadinessEndpoint = targetProcess.ReadinessHealthCheck.Data.Endpoint
+						healthCheckInfo.ReadinessTimeout = targetProcess.ReadinessHealthCheck.Data.InvocationTimeout
+						healthCheckInfo.ReadinessInterval = targetProcess.ReadinessHealthCheck.Data.Interval
+					}
+				}
+
+				// Output results
+				output := viper.GetString("output")
+				switch output {
+				case "json":
+					encoder := json.NewEncoder(os.Stdout)
+					encoder.SetIndent("", "  ")
+					return encoder.Encode(healthCheckInfo)
+				case "yaml":
+					encoder := yaml.NewEncoder(os.Stdout)
+					return encoder.Encode(healthCheckInfo)
+				default:
+					table := tablewriter.NewWriter(os.Stdout)
+					table.Header("Property", "Value")
+
+					_ = table.Append("Process Type", healthCheckInfo.ProcessType)
+					_ = table.Append("Health Check Type", healthCheckInfo.Type)
+
+					if healthCheckInfo.Timeout != nil {
+						_ = table.Append("Timeout", fmt.Sprintf("%d seconds", *healthCheckInfo.Timeout))
+					}
+					if healthCheckInfo.Endpoint != nil {
+						_ = table.Append("Endpoint", *healthCheckInfo.Endpoint)
+					}
+					if healthCheckInfo.InvocationTimeout != nil {
+						_ = table.Append("Invocation Timeout", fmt.Sprintf("%d seconds", *healthCheckInfo.InvocationTimeout))
+					}
+					if healthCheckInfo.Interval != nil {
+						_ = table.Append("Interval", fmt.Sprintf("%d seconds", *healthCheckInfo.Interval))
+					}
+					if healthCheckInfo.ReadinessType != nil {
+						_ = table.Append("Readiness Type", *healthCheckInfo.ReadinessType)
+						if healthCheckInfo.ReadinessEndpoint != nil {
+							_ = table.Append("Readiness Endpoint", *healthCheckInfo.ReadinessEndpoint)
 						}
-						if targetProcess.ReadinessHealthCheck.Data.InvocationTimeout != nil {
-							fmt.Printf("  Invocation Timeout: %d seconds\n", *targetProcess.ReadinessHealthCheck.Data.InvocationTimeout)
+						if healthCheckInfo.ReadinessTimeout != nil {
+							_ = table.Append("Readiness Timeout", fmt.Sprintf("%d seconds", *healthCheckInfo.ReadinessTimeout))
 						}
-						if targetProcess.ReadinessHealthCheck.Data.Interval != nil {
-							fmt.Printf("  Interval: %d seconds\n", *targetProcess.ReadinessHealthCheck.Data.Interval)
+						if healthCheckInfo.ReadinessInterval != nil {
+							_ = table.Append("Readiness Interval", fmt.Sprintf("%d seconds", *healthCheckInfo.ReadinessInterval))
 						}
 					}
+
+					fmt.Printf("Health check configuration for application '%s' process '%s':\n\n", appName, targetProcess.Type)
+					_ = table.Render()
 				}
 				return nil
 			}

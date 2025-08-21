@@ -102,23 +102,61 @@ func NewLoginCommand() *cobra.Command {
 				return fmt.Errorf("failed to connect to API: %w", err)
 			}
 
-			// Save configuration
-			viper.Set("api", apiEndpoint)
-			viper.Set("username", username)
-			viper.Set("password", password) // In production, use a secure credential store
-			viper.Set("skip_ssl_validation", skipSSL)
-
-			// Save token if available (though it's managed internally)
-			if tokenGetter, ok := client.(interface{ GetToken() string }); ok {
-				viper.Set("token", tokenGetter.GetToken())
+			// Normalize endpoint
+			normalizedEndpoint, err := normalizeEndpoint(apiEndpoint)
+			if err != nil {
+				return fmt.Errorf("invalid API endpoint: %w", err)
 			}
 
-			if err := saveConfig(); err != nil {
+			// Extract domain for use as key
+			domain := extractDomainFromEndpoint(normalizedEndpoint)
+
+			// Load current configuration
+			configStruct := loadConfig()
+
+			// Initialize APIs map if needed
+			if configStruct.APIs == nil {
+				configStruct.APIs = make(map[string]*APIConfig)
+			}
+
+			// Get or create API config
+			apiConfig, exists := configStruct.APIs[domain]
+			if !exists {
+				apiConfig = &APIConfig{
+					Endpoint: normalizedEndpoint,
+				}
+				configStruct.APIs[domain] = apiConfig
+			}
+
+			// Store authentication information (tokens only, not passwords)
+			apiConfig.Username = username
+			apiConfig.SkipSSLValidation = skipSSL
+
+			// Save token if available
+			if tokenGetter, ok := client.(interface {
+				GetToken(context.Context) (string, error)
+			}); ok {
+				if token, err := tokenGetter.GetToken(ctx); err == nil && token != "" {
+					apiConfig.Token = token
+				}
+			}
+
+			// Set as current API if this is the first one or no current API is set
+			if configStruct.CurrentAPI == "" || len(configStruct.APIs) == 1 {
+				configStruct.CurrentAPI = domain
+			}
+
+			// Save configuration
+			if err := saveConfigStruct(configStruct); err != nil {
 				return fmt.Errorf("failed to save configuration: %w", err)
 			}
 
 			// Display success message
-			fmt.Printf("Successfully logged in to %s\n", apiEndpoint)
+			isFirstAPI := len(configStruct.APIs) == 1
+			fmt.Printf("Successfully logged in to %s\n", normalizedEndpoint)
+			if isFirstAPI {
+				fmt.Printf("API '%s' set as current target\n", domain)
+			}
 			fmt.Printf("API version: %d\n", info.Version)
 
 			// List organizations if available

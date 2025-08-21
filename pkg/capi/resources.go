@@ -1262,3 +1262,18 @@ type ServiceRouteBindingUpdateRequest struct {
 type ServiceRouteBindingParameters struct {
 	Parameters map[string]interface{} `json:"parameters,omitempty"`
 }
+
+// LogMessage represents a single log message
+type LogMessage struct {
+	Message     string    `json:"message"`
+	MessageType string    `json:"message_type"`
+	Timestamp   time.Time `json:"timestamp"`
+	AppID       string    `json:"app_id"`
+	SourceType  string    `json:"source_type"`
+	SourceID    string    `json:"source_id"`
+}
+
+// AppLogs represents a collection of log messages for an app
+type AppLogs struct {
+	Messages []LogMessage `json:"messages"`
+}

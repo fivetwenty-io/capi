@@ -47,7 +47,7 @@ func newDomainsListCommand() *cobra.Command {
 		Short: "List domains",
 		Long:  "List all domains the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -130,10 +130,10 @@ func newDomainsListCommand() *cobra.Command {
 						routerGroup = *domain.RouterGroup
 					}
 
-					table.Append(domain.Name, domainType, protocols, routerGroup, domain.CreatedAt.Format("2006-01-02"))
+					_ = table.Append(domain.Name, domainType, protocols, routerGroup, domain.CreatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && domains.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", domains.Pagination.TotalPages)
@@ -161,7 +161,7 @@ func newDomainsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -251,7 +251,7 @@ func newDomainsCreateCommand() *cobra.Command {
 				return fmt.Errorf("domain name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -315,7 +315,7 @@ func newDomainsCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&routerGroup, "router-group", "", "router group for TCP domains")
 	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name for private domains")
 	cmd.Flags().StringToStringVar(&labels, "labels", nil, "labels to apply (key=value)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
@@ -331,7 +331,7 @@ func newDomainsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -395,14 +395,14 @@ func newDomainsDeleteCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Really delete domain '%s'? (y/N): ", nameOrGUID)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled")
 					return nil
 				}
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -465,7 +465,7 @@ func newDomainsShareCommand() *cobra.Command {
 				return fmt.Errorf("at least one organization must be specified")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -518,7 +518,7 @@ func newDomainsShareCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringArrayVarP(&orgNames, "orgs", "o", nil, "organizations to share with (required)")
-	cmd.MarkFlagRequired("orgs")
+	_ = cmd.MarkFlagRequired("orgs")
 
 	return cmd
 }
@@ -538,7 +538,7 @@ func newDomainsUnshareCommand() *cobra.Command {
 				return fmt.Errorf("organization name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -588,7 +588,7 @@ func newDomainsUnshareCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization to unshare from (required)")
-	cmd.MarkFlagRequired("org")
+	_ = cmd.MarkFlagRequired("org")
 
 	return cmd
 }

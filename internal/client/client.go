@@ -13,9 +13,10 @@ import (
 
 // Client implements the capi.Client interface
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	logger     capi.Logger
+	httpClient   *http.Client
+	tokenManager auth.TokenManager
+	baseURL      string
+	logger       capi.Logger
 
 	// Resource clients
 	apps                      capi.AppsClient
@@ -54,8 +55,26 @@ func New(config *capi.Config) (*Client, error) {
 	// Create token manager based on available credentials
 	var tokenManager auth.TokenManager
 
-	if config.AccessToken != "" {
-		// Use provided access token
+	if config.AccessToken != "" && config.Username != "" && config.Password != "" {
+		// Use fallback token manager: try access token first, then username/password
+		tokenURL := config.TokenURL
+		if tokenURL == "" {
+			tokenURL = config.APIEndpoint + "/oauth/token" // Fallback, but should be discovered
+		}
+		oauthConfig := &auth.OAuth2Config{
+			TokenURL:     tokenURL,
+			ClientID:     "cf", // Default CF CLI client ID
+			ClientSecret: "",
+			Username:     config.Username,
+			Password:     config.Password,
+		}
+		oauthManager := auth.NewOAuth2TokenManager(oauthConfig)
+		tokenManager = &fallbackTokenManager{
+			staticToken:  config.AccessToken,
+			oauthManager: oauthManager,
+		}
+	} else if config.AccessToken != "" {
+		// Use provided access token only
 		tokenManager = &staticTokenManager{token: config.AccessToken}
 	} else if config.ClientID != "" && config.ClientSecret != "" {
 		// Use OAuth2 with client credentials or password
@@ -122,9 +141,10 @@ func New(config *capi.Config) (*Client, error) {
 	httpClient := http.NewClient(config.APIEndpoint, tokenManager, httpOpts...)
 
 	client := &Client{
-		httpClient: httpClient,
-		baseURL:    config.APIEndpoint,
-		logger:     config.Logger,
+		httpClient:   httpClient,
+		tokenManager: tokenManager,
+		baseURL:      config.APIEndpoint,
+		logger:       config.Logger,
 	}
 
 	// Initialize resource clients
@@ -349,6 +369,14 @@ func (c *Client) Jobs() capi.JobsClient {
 	return c.jobs
 }
 
+// GetToken returns the current access token from the token manager
+func (c *Client) GetToken(ctx context.Context) (string, error) {
+	if c.tokenManager == nil {
+		return "", fmt.Errorf("no token manager configured")
+	}
+	return c.tokenManager.GetToken(ctx)
+}
+
 // staticTokenManager provides a static token
 type staticTokenManager struct {
 	token string
@@ -385,4 +413,48 @@ func (l *loggerAdapter) Warn(msg string, fields map[string]interface{}) {
 
 func (l *loggerAdapter) Error(msg string, fields map[string]interface{}) {
 	l.logger.Error(msg, fields)
+}
+
+// fallbackTokenManager tries static token first, then falls back to OAuth2
+type fallbackTokenManager struct {
+	staticToken      string
+	oauthManager     auth.TokenManager
+	usingOAuth       bool
+	staticTokenTried bool
+}
+
+func (m *fallbackTokenManager) GetToken(ctx context.Context) (string, error) {
+	// If we're already using OAuth (static token failed), continue with OAuth
+	if m.usingOAuth {
+		return m.oauthManager.GetToken(ctx)
+	}
+
+	// Try static token first, but only if we haven't tried it yet
+	if m.staticToken != "" && !m.staticTokenTried {
+		m.staticTokenTried = true
+		return m.staticToken, nil
+	}
+
+	// Fall back to OAuth
+	m.usingOAuth = true
+	return m.oauthManager.GetToken(ctx)
+}
+
+func (m *fallbackTokenManager) RefreshToken(ctx context.Context) error {
+	// If static token needs refresh, switch to OAuth and get a fresh token
+	if !m.usingOAuth {
+		m.usingOAuth = true
+		// Get a fresh token instead of trying to refresh the static one
+		_, err := m.oauthManager.GetToken(ctx)
+		return err
+	}
+	return m.oauthManager.RefreshToken(ctx)
+}
+
+func (m *fallbackTokenManager) SetToken(token string, expiresAt time.Time) {
+	if m.usingOAuth {
+		m.oauthManager.SetToken(token, expiresAt)
+	} else {
+		m.staticToken = token
+	}
 }

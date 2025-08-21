@@ -50,7 +50,7 @@ func newSpacesListCommand() *cobra.Command {
 		Short: "List spaces",
 		Long:  "List all spaces the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -125,12 +125,12 @@ func newSpacesListCommand() *cobra.Command {
 						}
 					}
 
-					table.Append(space.Name, space.GUID, orgName,
+					_ = table.Append(space.Name, space.GUID, orgName,
 						space.CreatedAt.Format("2006-01-02"),
 						space.UpdatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && spaces.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", spaces.Pagination.TotalPages)
@@ -157,7 +157,7 @@ func newSpacesGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -240,7 +240,7 @@ func newSpacesCreateCommand() *cobra.Command {
 				return fmt.Errorf("space name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -292,8 +292,8 @@ func newSpacesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&name, "name", "n", "", "space name (required)")
 	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name (required)")
 	cmd.Flags().StringToStringVar(&labels, "labels", nil, "labels to apply (key=value)")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("org")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("org")
 
 	return cmd
 }
@@ -312,7 +312,7 @@ func newSpacesUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -383,14 +383,14 @@ func newSpacesDeleteCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Really delete space '%s'? (y/N): ", nameOrGUID)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled")
 					return nil
 				}
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -469,7 +469,7 @@ func newSpacesListUsersCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			spaceNameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -559,10 +559,10 @@ func newSpacesListUsersCommand() *cobra.Command {
 					if user != nil {
 						username = user.Username
 					}
-					table.Append(username, rolesStr, "")
+					_ = table.Append(username, rolesStr, "")
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && roles.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", roles.Pagination.TotalPages)
@@ -595,7 +595,7 @@ func newSpacesSetRoleCommand() *cobra.Command {
 				role = "space_developer"
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -682,7 +682,7 @@ func newSpacesUnsetRoleCommand() *cobra.Command {
 			spaceNameOrGUID := args[0]
 			userNameOrGUID := args[1]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -780,7 +780,7 @@ func newSpacesListAppsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			spaceNameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -854,12 +854,12 @@ func newSpacesListAppsCommand() *cobra.Command {
 				table.Header("Name", "GUID", "State", "Created", "Updated")
 
 				for _, app := range allApps {
-					table.Append(app.Name, app.GUID, app.State,
+					_ = table.Append(app.Name, app.GUID, app.State,
 						app.CreatedAt.Format("2006-01-02"),
 						app.UpdatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && apps.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", apps.Pagination.TotalPages)
@@ -890,7 +890,7 @@ func newSpacesListServicesCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			spaceNameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -968,11 +968,11 @@ func newSpacesListServicesCommand() *cobra.Command {
 					if service.LastOperation != nil {
 						state = service.LastOperation.State
 					}
-					table.Append(service.Name, service.GUID, service.Type, state,
+					_ = table.Append(service.Name, service.GUID, service.Type, state,
 						service.CreatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && services.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", services.Pagination.TotalPages)

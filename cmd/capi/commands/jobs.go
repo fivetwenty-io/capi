@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -36,7 +38,7 @@ func newJobsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			jobGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -59,25 +61,32 @@ func newJobsGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(job)
 			default:
-				fmt.Printf("Job: %s\n", job.GUID)
-				fmt.Printf("  Operation: %s\n", job.Operation)
-				fmt.Printf("  State:     %s\n", job.State)
-				fmt.Printf("  Created:   %s\n", job.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:   %s\n", job.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("GUID", job.GUID)
+				_ = table.Append("Operation", job.Operation)
+				_ = table.Append("State", job.State)
+				_ = table.Append("Created", job.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", job.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 				if len(job.Errors) > 0 {
-					fmt.Printf("  Errors:\n")
+					var errorStrings []string
 					for _, apiErr := range job.Errors {
-						fmt.Printf("    - %s: %s\n", apiErr.Title, apiErr.Detail)
+						errorStrings = append(errorStrings, fmt.Sprintf("%s: %s", apiErr.Title, apiErr.Detail))
 					}
+					_ = table.Append("Errors", strings.Join(errorStrings, "\n"))
 				}
 
 				if len(job.Warnings) > 0 {
-					fmt.Printf("  Warnings:\n")
+					var warningStrings []string
 					for _, warning := range job.Warnings {
-						fmt.Printf("    - %s\n", warning.Detail)
+						warningStrings = append(warningStrings, warning.Detail)
 					}
+					_ = table.Append("Warnings", strings.Join(warningStrings, "\n"))
 				}
+
+				_ = table.Render()
 			}
 
 			return nil
@@ -99,7 +108,7 @@ func newJobsPollCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			jobGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

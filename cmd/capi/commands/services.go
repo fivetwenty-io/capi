@@ -53,7 +53,7 @@ func newServicesListCommand() *cobra.Command {
 		Short: "List service instances",
 		Long:  "List all service instances the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -154,10 +154,10 @@ func newServicesListCommand() *cobra.Command {
 						state = service.LastOperation.State
 					}
 
-					table.Append(service.Name, offeringName, planName, fmt.Sprintf("%d", boundApps), state, service.Type)
+					_ = table.Append(service.Name, offeringName, planName, fmt.Sprintf("%d", boundApps), state, service.Type)
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && services.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", services.Pagination.TotalPages)
@@ -184,7 +184,7 @@ func newServicesGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -312,7 +312,7 @@ func newServicesCreateCommand() *cobra.Command {
 				return fmt.Errorf("service instance name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -438,7 +438,7 @@ func newServicesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&routeServiceURL, "route-service-url", "", "route service URL for user-provided services")
 	cmd.Flags().StringToStringVar(&credentials, "credentials", nil, "credentials for user-provided services (key=value)")
 	cmd.Flags().BoolVar(&userProvided, "user-provided", false, "create a user-provided service instance")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
@@ -462,7 +462,7 @@ func newServicesUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -605,14 +605,14 @@ func newServicesDeleteCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Really delete service instance '%s'? (y/N): ", nameOrGUID)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled")
 					return nil
 				}
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -684,7 +684,7 @@ func newServicesBindCommand() *cobra.Command {
 			serviceNameOrGUID := args[0]
 			appNameOrGUID := args[1]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -803,14 +803,14 @@ func newServicesUnbindCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Really unbind service instance '%s' from application '%s'? (y/N): ", serviceNameOrGUID, appNameOrGUID)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled")
 					return nil
 				}
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -911,7 +911,7 @@ func newServicesRenameCommand() *cobra.Command {
 			nameOrGUID := args[0]
 			newName := args[1]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -987,7 +987,7 @@ func newServicesShareCommand() *cobra.Command {
 				return fmt.Errorf("at least one space must be specified")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1060,7 +1060,7 @@ func newServicesShareCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringArrayVarP(&spaceNames, "spaces", "s", nil, "spaces to share with (required)")
-	cmd.MarkFlagRequired("spaces")
+	_ = cmd.MarkFlagRequired("spaces")
 
 	return cmd
 }
@@ -1080,7 +1080,7 @@ func newServicesUnshareCommand() *cobra.Command {
 				return fmt.Errorf("space name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1143,7 +1143,7 @@ func newServicesUnshareCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&spaceName, "space", "s", "", "space to unshare from (required)")
-	cmd.MarkFlagRequired("space")
+	_ = cmd.MarkFlagRequired("space")
 
 	return cmd
 }
@@ -1162,7 +1162,7 @@ func newServicesListBindingsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1252,10 +1252,10 @@ func newServicesListBindingsCommand() *cobra.Command {
 						state = binding.LastOperation.State
 					}
 
-					table.Append(binding.Name, binding.Type, appName, state, binding.CreatedAt.Format("2006-01-02"))
+					_ = table.Append(binding.Name, binding.Type, appName, state, binding.CreatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && bindings.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", bindings.Pagination.TotalPages)
@@ -1297,7 +1297,7 @@ func newServicesBrokersListCommand() *cobra.Command {
 		Short: "List service brokers",
 		Long:  "List all service brokers",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1339,10 +1339,10 @@ func newServicesBrokersListCommand() *cobra.Command {
 						}
 					}
 
-					table.Append(broker.Name, broker.URL, broker.GUID, spaceName, broker.CreatedAt.Format("2006-01-02"))
+					_ = table.Append(broker.Name, broker.URL, broker.GUID, spaceName, broker.CreatedAt.Format("2006-01-02"))
 				}
 
-				table.Render()
+				_ = table.Render()
 			}
 
 			return nil
@@ -1364,7 +1364,7 @@ func newServicesBrokersGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1439,7 +1439,7 @@ func newServicesOfferingsListCommand() *cobra.Command {
 		Short: "List service offerings",
 		Long:  "List all service offerings",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1500,10 +1500,10 @@ func newServicesOfferingsListCommand() *cobra.Command {
 						description = description[:47] + "..."
 					}
 
-					table.Append(offering.Name, description, brokerName, available, fmt.Sprintf("%d", planCount))
+					_ = table.Append(offering.Name, description, brokerName, available, fmt.Sprintf("%d", planCount))
 				}
 
-				table.Render()
+				_ = table.Render()
 			}
 
 			return nil
@@ -1522,7 +1522,7 @@ func newServicesOfferingsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1581,7 +1581,7 @@ func newServicesPlansListCommand() *cobra.Command {
 		Short: "List service plans",
 		Long:  "List all service plans",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -1638,10 +1638,10 @@ func newServicesPlansListCommand() *cobra.Command {
 						description = description[:37] + "..."
 					}
 
-					table.Append(plan.Name, offeringName, description, free, available)
+					_ = table.Append(plan.Name, offeringName, description, free, available)
 				}
 
-				table.Render()
+				_ = table.Render()
 			}
 
 			return nil
@@ -1660,7 +1660,7 @@ func newServicesPlansGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

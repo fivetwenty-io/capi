@@ -39,7 +39,7 @@ func newRoutesListCommand() *cobra.Command {
 		Short: "List routes",
 		Long:  "List all routes the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -144,10 +144,10 @@ func newRoutesListCommand() *cobra.Command {
 						updated = route.UpdatedAt.Format("2006-01-02 15:04:05")
 					}
 
-					table.Append(route.URL, route.GUID, route.Protocol, route.Host, path, port, destinations, created, updated)
+					_ = table.Append(route.URL, route.GUID, route.Protocol, route.Host, path, port, destinations, created, updated)
 				}
 
-				table.Render()
+				_ = table.Render()
 			}
 
 			return nil
@@ -174,7 +174,7 @@ func newRoutesCreateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			domainName := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -286,7 +286,7 @@ func newRoutesDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			routeIdentifier := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -327,7 +327,7 @@ func newRoutesDeleteCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Are you sure you want to delete route '%s'? (y/N): ", routeURL)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" && response != "yes" && response != "YES" {
 					fmt.Println("Deletion cancelled.")
 					return nil

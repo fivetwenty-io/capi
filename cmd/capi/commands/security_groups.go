@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fivetwenty-io/capi-client/pkg/capi"
@@ -13,6 +14,32 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
+
+// validateFilePath validates that a file path is safe to read
+func validateFilePathSecurity(filePath string) error {
+	// Clean the path to resolve any path traversal attempts
+	cleanPath := filepath.Clean(filePath)
+
+	// Check for path traversal attempts
+	if filepath.IsAbs(filePath) {
+		// Allow absolute paths but ensure they're clean
+		if cleanPath != filePath {
+			return fmt.Errorf("invalid file path: potential path traversal attempt")
+		}
+	} else {
+		// For relative paths, ensure they don't escape the current directory
+		if len(cleanPath) > 0 && cleanPath[0] == '.' && len(cleanPath) > 1 && cleanPath[1] == '.' {
+			return fmt.Errorf("invalid file path: path traversal not allowed")
+		}
+	}
+
+	// Check if file exists and is readable
+	if _, err := os.Stat(cleanPath); err != nil {
+		return fmt.Errorf("file not accessible: %w", err)
+	}
+
+	return nil
+}
 
 // NewSecurityGroupsCommand creates the security groups command group
 func NewSecurityGroupsCommand() *cobra.Command {
@@ -50,7 +77,7 @@ func newSecurityGroupsListCommand() *cobra.Command {
 		Short: "List security groups",
 		Long:  "List all security groups",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -115,13 +142,13 @@ func newSecurityGroupsListCommand() *cobra.Command {
 						globalStaging = "yes"
 					}
 
-					table.Append(sg.Name, sg.GUID,
+					_ = table.Append(sg.Name, sg.GUID,
 						fmt.Sprintf("%d", runningSpacesCount),
 						fmt.Sprintf("%d", stagingSpacesCount),
 						globalRunning, globalStaging)
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && securityGroups.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", securityGroups.Pagination.TotalPages)
@@ -150,7 +177,7 @@ func newSecurityGroupsGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -239,7 +266,7 @@ func newSecurityGroupsCreateCommand() *cobra.Command {
 				return fmt.Errorf("security group name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -261,10 +288,10 @@ func newSecurityGroupsCreateCommand() *cobra.Command {
 			// Load rules from file if specified
 			if rulesFile != "" {
 				// Validate file path to prevent directory traversal
-				if strings.Contains(rulesFile, "..") {
-					return fmt.Errorf("invalid file path: directory traversal not allowed")
+				if err := validateFilePathSecurity(rulesFile); err != nil {
+					return fmt.Errorf("invalid rules file: %w", err)
 				}
-				rulesContent, err := os.ReadFile(rulesFile) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
+				rulesContent, err := os.ReadFile(filepath.Clean(rulesFile))
 				if err != nil {
 					return fmt.Errorf("failed to read rules file: %w", err)
 				}
@@ -294,7 +321,7 @@ func newSecurityGroupsCreateCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&rulesFile, "rules", "r", "", "JSON file containing security group rules")
 	cmd.Flags().BoolVar(&globalRunning, "global-running", false, "enable globally for running applications")
 	cmd.Flags().BoolVar(&globalStaging, "global-staging", false, "enable globally for staging applications")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
@@ -315,7 +342,7 @@ func newSecurityGroupsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -364,10 +391,10 @@ func newSecurityGroupsUpdateCommand() *cobra.Command {
 			// Load rules from file if specified
 			if rulesFile != "" {
 				// Validate file path to prevent directory traversal
-				if strings.Contains(rulesFile, "..") {
-					return fmt.Errorf("invalid file path: directory traversal not allowed")
+				if err := validateFilePathSecurity(rulesFile); err != nil {
+					return fmt.Errorf("invalid rules file: %w", err)
 				}
-				rulesContent, err := os.ReadFile(rulesFile) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
+				rulesContent, err := os.ReadFile(filepath.Clean(rulesFile))
 				if err != nil {
 					return fmt.Errorf("failed to read rules file: %w", err)
 				}
@@ -413,14 +440,14 @@ func newSecurityGroupsDeleteCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Really delete security group '%s'? (y/N): ", nameOrGUID)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled")
 					return nil
 				}
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -491,7 +518,7 @@ func newSecurityGroupsBindCommand() *cobra.Command {
 				return fmt.Errorf("must specify --running or --staging (or both)")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -562,7 +589,7 @@ func newSecurityGroupsBindCommand() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&spaceNames, "spaces", "s", nil, "spaces to bind to (required)")
 	cmd.Flags().BoolVar(&running, "running", false, "bind for running applications")
 	cmd.Flags().BoolVar(&staging, "staging", false, "bind for staging applications")
-	cmd.MarkFlagRequired("spaces")
+	_ = cmd.MarkFlagRequired("spaces")
 
 	return cmd
 }
@@ -590,7 +617,7 @@ func newSecurityGroupsUnbindCommand() *cobra.Command {
 				return fmt.Errorf("must specify --running or --staging (or both)")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -658,7 +685,7 @@ func newSecurityGroupsUnbindCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&spaceName, "space", "s", "", "space to unbind from (required)")
 	cmd.Flags().BoolVar(&running, "running", false, "unbind from running applications")
 	cmd.Flags().BoolVar(&staging, "staging", false, "unbind from staging applications")
-	cmd.MarkFlagRequired("space")
+	_ = cmd.MarkFlagRequired("space")
 
 	return cmd
 }
@@ -669,7 +696,7 @@ func newSecurityGroupsRunningCommand() *cobra.Command {
 		Short: "List running security groups",
 		Long:  "List all security groups that are globally enabled for running applications",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -704,7 +731,7 @@ func newSecurityGroupsStagingCommand() *cobra.Command {
 		Short: "List staging security groups",
 		Long:  "List all security groups that are globally enabled for staging applications",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
+	"path/filepath"
 
 	"github.com/fivetwenty-io/capi-client/pkg/capi"
 	"github.com/olekukonko/tablewriter"
@@ -13,6 +13,32 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
+
+// validateFilePath validates that a file path is safe to read
+func validateFilePathBuildpacks(filePath string) error {
+	// Clean the path to resolve any path traversal attempts
+	cleanPath := filepath.Clean(filePath)
+
+	// Check for path traversal attempts
+	if filepath.IsAbs(filePath) {
+		// Allow absolute paths but ensure they're clean
+		if cleanPath != filePath {
+			return fmt.Errorf("invalid file path: potential path traversal attempt")
+		}
+	} else {
+		// For relative paths, ensure they don't escape the current directory
+		if len(cleanPath) > 0 && cleanPath[0] == '.' && len(cleanPath) > 1 && cleanPath[1] == '.' {
+			return fmt.Errorf("invalid file path: path traversal not allowed")
+		}
+	}
+
+	// Check if file exists and is readable
+	if _, err := os.Stat(cleanPath); err != nil {
+		return fmt.Errorf("file not accessible: %w", err)
+	}
+
+	return nil
+}
 
 // NewBuildpacksCommand creates the buildpacks command group
 func NewBuildpacksCommand() *cobra.Command {
@@ -46,7 +72,7 @@ func newBuildpacksListCommand() *cobra.Command {
 		Short: "List buildpacks",
 		Long:  "List all buildpacks",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -127,10 +153,10 @@ func newBuildpacksListCommand() *cobra.Command {
 						filename = *bp.Filename
 					}
 
-					table.Append(fmt.Sprintf("%d", bp.Position), bp.Name, stack, bp.State, enabled, locked, filename)
+					_ = table.Append(fmt.Sprintf("%d", bp.Position), bp.Name, stack, bp.State, enabled, locked, filename)
 				}
 
-				table.Render()
+				_ = table.Render()
 
 				if !allPages && buildpacks.Pagination.TotalPages > 1 {
 					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", buildpacks.Pagination.TotalPages)
@@ -158,7 +184,7 @@ func newBuildpacksGetCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -235,7 +261,7 @@ func newBuildpacksCreateCommand() *cobra.Command {
 				return fmt.Errorf("buildpack name is required")
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -285,7 +311,7 @@ func newBuildpacksCreateCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "enable the buildpack")
 	cmd.Flags().BoolVar(&locked, "locked", false, "lock the buildpack")
 	cmd.Flags().StringVar(&lifecycle, "lifecycle", "", "lifecycle type")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
@@ -308,7 +334,7 @@ func newBuildpacksUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -391,14 +417,14 @@ func newBuildpacksDeleteCommand() *cobra.Command {
 			if !force {
 				fmt.Printf("Really delete buildpack '%s'? (y/N): ", nameOrGUID)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					fmt.Println("Cancelled")
 					return nil
 				}
 			}
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -460,7 +486,7 @@ func newBuildpacksUploadCommand() *cobra.Command {
 			nameOrGUID := args[0]
 			buildpackFile = args[1]
 
-			client, err := createClient()
+			client, err := createClientWithAPI(cmd.Flag("api").Value.String())
 			if err != nil {
 				return err
 			}
@@ -487,10 +513,10 @@ func newBuildpacksUploadCommand() *cobra.Command {
 
 			// Read buildpack file
 			// Validate file path to prevent directory traversal
-			if strings.Contains(buildpackFile, "..") {
-				return fmt.Errorf("invalid file path: directory traversal not allowed")
+			if err := validateFilePathBuildpacks(buildpackFile); err != nil {
+				return fmt.Errorf("invalid buildpack file: %w", err)
 			}
-			buildpackBits, err := os.Open(buildpackFile) //nolint:gosec // G304: User-specified file path is intentional for CLI tool
+			buildpackBits, err := os.Open(filepath.Clean(buildpackFile))
 			if err != nil {
 				return fmt.Errorf("failed to open buildpack file: %w", err)
 			}

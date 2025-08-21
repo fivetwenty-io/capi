@@ -389,6 +389,22 @@ func (m *MockAppsClient) GetManifest(ctx context.Context, guid string) (string, 
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockAppsClient) GetRecentLogs(ctx context.Context, guid string, lines int) (*capi.AppLogs, error) {
+	args := m.Called(ctx, guid, lines)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*capi.AppLogs), args.Error(1)
+}
+
+func (m *MockAppsClient) StreamLogs(ctx context.Context, guid string) (<-chan capi.LogMessage, error) {
+	args := m.Called(ctx, guid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(<-chan capi.LogMessage), args.Error(1)
+}
+
 func TestBatchExecutor_Execute(t *testing.T) {
 	mockClient := &MockClient{}
 	mockApps := &MockAppsClient{}

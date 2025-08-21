@@ -129,6 +129,7 @@ type Request struct {
 	Query   url.Values
 	Body    interface{}
 	Headers map[string]string
+	isRetry bool
 }
 
 // Response represents an HTTP response
@@ -214,6 +215,15 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 
 	// Check for errors
 	if httpResp.StatusCode >= 400 {
+		// Handle authentication errors with retry
+		if httpResp.StatusCode == 401 && c.tokenManager != nil && !req.isRetry {
+			// Try to refresh token and retry once
+			if err := c.tokenManager.RefreshToken(ctx); err == nil {
+				retryReq := *req
+				retryReq.isRetry = true
+				return c.Do(ctx, &retryReq)
+			}
+		}
 		return response, c.parseError(response)
 	}
 

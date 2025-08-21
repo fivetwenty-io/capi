@@ -187,13 +187,13 @@ capi services unbind my-service my-app
 
 ```bash
 # List users in organization
-capi users list -o my-org
+capi uaa list -o my-org
 
 # List users in space
-capi users list -s my-space
+capi uaa list -s my-space
 
 # Get user details
-capi users get user@example.com
+capi uaa get user@example.com
 
 # Assign organization role
 capi roles assign user@example.com my-org OrgManager
