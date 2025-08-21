@@ -46,20 +46,21 @@ type Config struct {
 
 // APIConfig represents configuration for a single Cloud Foundry API endpoint
 type APIConfig struct {
-	Endpoint          string `json:"endpoint" yaml:"endpoint"`
-	Token             string `json:"token,omitempty" yaml:"token,omitempty"`
-	RefreshToken      string `json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
-	Username          string `json:"username,omitempty" yaml:"username,omitempty"`
-	Organization      string `json:"organization,omitempty" yaml:"organization,omitempty"`
-	OrganizationGUID  string `json:"organization_guid,omitempty" yaml:"organization_guid,omitempty"`
-	Space             string `json:"space,omitempty" yaml:"space,omitempty"`
-	SpaceGUID         string `json:"space_guid,omitempty" yaml:"space_guid,omitempty"`
-	SkipSSLValidation bool   `json:"skip_ssl_validation" yaml:"skip_ssl_validation"`
-	UAAEndpoint       string `json:"uaa_endpoint,omitempty" yaml:"uaa_endpoint,omitempty"`
-	UAAToken          string `json:"uaa_token,omitempty" yaml:"uaa_token,omitempty"`
-	UAARefreshToken   string `json:"uaa_refresh_token,omitempty" yaml:"uaa_refresh_token,omitempty"`
-	UAAClientID       string `json:"uaa_client_id,omitempty" yaml:"uaa_client_id,omitempty"`
-	UAAClientSecret   string `json:"uaa_client_secret,omitempty" yaml:"uaa_client_secret,omitempty"`
+	Endpoint          string            `json:"endpoint" yaml:"endpoint"`
+	Token             string            `json:"token,omitempty" yaml:"token,omitempty"`
+	RefreshToken      string            `json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
+	Username          string            `json:"username,omitempty" yaml:"username,omitempty"`
+	Organization      string            `json:"organization,omitempty" yaml:"organization,omitempty"`
+	OrganizationGUID  string            `json:"organization_guid,omitempty" yaml:"organization_guid,omitempty"`
+	Space             string            `json:"space,omitempty" yaml:"space,omitempty"`
+	SpaceGUID         string            `json:"space_guid,omitempty" yaml:"space_guid,omitempty"`
+	SkipSSLValidation bool              `json:"skip_ssl_validation" yaml:"skip_ssl_validation"`
+	UAAEndpoint       string            `json:"uaa_endpoint,omitempty" yaml:"uaa_endpoint,omitempty"`
+	UAAToken          string            `json:"uaa_token,omitempty" yaml:"uaa_token,omitempty"`
+	UAARefreshToken   string            `json:"uaa_refresh_token,omitempty" yaml:"uaa_refresh_token,omitempty"`
+	UAAClientID       string            `json:"uaa_client_id,omitempty" yaml:"uaa_client_id,omitempty"`
+	UAAClientSecret   string            `json:"uaa_client_secret,omitempty" yaml:"uaa_client_secret,omitempty"`
+	APILinks          map[string]string `json:"api_links,omitempty" yaml:"api_links,omitempty"`
 }
 
 // Target represents a saved CF target

@@ -124,6 +124,13 @@ func NewLoginCommand() *cobra.Command {
 				return fmt.Errorf("failed to connect to API: %w", err)
 			}
 
+			// Get root info to fetch all available API endpoints
+			rootInfo, err := client.GetRootInfo(ctx)
+			if err != nil {
+				// Non-fatal: log warning but continue
+				fmt.Printf("Warning: could not fetch API endpoints: %v\n", err)
+			}
+
 			// Normalize endpoint
 			normalizedEndpoint, err := normalizeEndpoint(apiEndpoint)
 			if err != nil {
@@ -169,6 +176,14 @@ func NewLoginCommand() *cobra.Command {
 			}); ok {
 				if token, err := tokenGetter.GetToken(ctx); err == nil && token != "" {
 					apiConfig.Token = token
+				}
+			}
+
+			// Store API links from root info if available
+			if rootInfo != nil && rootInfo.Links != nil {
+				apiConfig.APILinks = make(map[string]string)
+				for key, link := range rootInfo.Links {
+					apiConfig.APILinks[key] = link.Href
 				}
 			}
 

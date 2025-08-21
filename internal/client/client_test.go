@@ -105,7 +105,7 @@ func TestClient_GetInfo(t *testing.T) {
 
 func TestClient_GetRootInfo(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/", r.URL.Path)
+		assert.Equal(t, "/v3", r.URL.Path)
 		assert.Equal(t, "GET", r.Method)
 
 		rootInfo := capi.RootInfo{

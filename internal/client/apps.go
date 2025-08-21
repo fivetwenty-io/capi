@@ -14,12 +14,21 @@ import (
 // AppsClient implements capi.AppsClient
 type AppsClient struct {
 	httpClient *http.Client
+	apiLinks   map[string]string
 }
 
 // NewAppsClient creates a new apps client
 func NewAppsClient(httpClient *http.Client) *AppsClient {
 	return &AppsClient{
 		httpClient: httpClient,
+	}
+}
+
+// NewAppsClientWithLinks creates a new apps client with API links
+func NewAppsClientWithLinks(httpClient *http.Client, apiLinks map[string]string) *AppsClient {
+	return &AppsClient{
+		httpClient: httpClient,
+		apiLinks:   apiLinks,
 	}
 }
 
@@ -318,20 +327,27 @@ func (c *AppsClient) Restage(ctx context.Context, guid string) (*capi.Build, err
 
 // GetRecentLogs implements capi.AppsClient.GetRecentLogs
 func (c *AppsClient) GetRecentLogs(ctx context.Context, guid string, lines int) (*capi.AppLogs, error) {
-	// Get the log cache endpoint from CF info
-	infoResp, err := c.httpClient.Get(ctx, "/v3/info", nil)
-	if err != nil {
-		return nil, fmt.Errorf("getting CF info: %w", err)
-	}
+	// Check if we have the log_cache endpoint from API links
+	if c.apiLinks != nil {
+		if _, exists := c.apiLinks["log_cache"]; !exists {
+			return nil, fmt.Errorf("log_cache endpoint not available")
+		}
+	} else {
+		// Fallback: Get the log cache endpoint from CF info
+		infoResp, err := c.httpClient.Get(ctx, "/v3/info", nil)
+		if err != nil {
+			return nil, fmt.Errorf("getting CF info: %w", err)
+		}
 
-	var info capi.Info
-	if err := json.Unmarshal(infoResp.Body, &info); err != nil {
-		return nil, fmt.Errorf("parsing info response: %w", err)
-	}
+		var info capi.Info
+		if err := json.Unmarshal(infoResp.Body, &info); err != nil {
+			return nil, fmt.Errorf("parsing info response: %w", err)
+		}
 
-	_, exists := info.Links["log_cache"]
-	if !exists {
-		return nil, fmt.Errorf("log_cache endpoint not available")
+		_, exists := info.Links["log_cache"]
+		if !exists {
+			return nil, fmt.Errorf("log_cache endpoint not available")
+		}
 	}
 
 	// Use the log cache endpoint to get recent logs
@@ -368,20 +384,27 @@ func (c *AppsClient) GetRecentLogs(ctx context.Context, guid string, lines int) 
 
 // StreamLogs implements capi.AppsClient.StreamLogs
 func (c *AppsClient) StreamLogs(ctx context.Context, guid string) (<-chan capi.LogMessage, error) {
-	// Get the logging endpoint from CF info
-	infoResp, err := c.httpClient.Get(ctx, "/v3/info", nil)
-	if err != nil {
-		return nil, fmt.Errorf("getting CF info: %w", err)
-	}
+	// Check if we have the logging endpoint from API links
+	if c.apiLinks != nil {
+		if _, exists := c.apiLinks["logging"]; !exists {
+			return nil, fmt.Errorf("logging endpoint not available")
+		}
+	} else {
+		// Fallback: Get the logging endpoint from CF info
+		infoResp, err := c.httpClient.Get(ctx, "/v3/info", nil)
+		if err != nil {
+			return nil, fmt.Errorf("getting CF info: %w", err)
+		}
 
-	var info capi.Info
-	if err := json.Unmarshal(infoResp.Body, &info); err != nil {
-		return nil, fmt.Errorf("parsing info response: %w", err)
-	}
+		var info capi.Info
+		if err := json.Unmarshal(infoResp.Body, &info); err != nil {
+			return nil, fmt.Errorf("parsing info response: %w", err)
+		}
 
-	_, exists := info.Links["logging"]
-	if !exists {
-		return nil, fmt.Errorf("logging endpoint not available")
+		_, exists := info.Links["logging"]
+		if !exists {
+			return nil, fmt.Errorf("logging endpoint not available")
+		}
 	}
 
 	// Create a channel for streaming logs

@@ -43,6 +43,9 @@ func New(config *capi.Config) (capi.Client, error) {
 		config.TokenURL = strings.TrimSuffix(uaaURL, "/") + "/oauth/token"
 	}
 
+	// Enable fetching API links on init for better log support
+	config.FetchAPILinksOnInit = true
+
 	// Use the internal client implementation
 	return client.New(config)
 }

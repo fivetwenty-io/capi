@@ -67,14 +67,15 @@ type Config struct {
 	TokenURL     string // OAuth2 token endpoint (auto-discovered if not provided)
 
 	// Optional configurations
-	HTTPTimeout   time.Duration
-	RetryMax      int
-	RetryWaitMin  time.Duration
-	RetryWaitMax  time.Duration
-	Debug         bool
-	Logger        Logger
-	SkipTLSVerify bool
-	UserAgent     string
+	HTTPTimeout         time.Duration
+	RetryMax            int
+	RetryWaitMin        time.Duration
+	RetryWaitMax        time.Duration
+	Debug               bool
+	Logger              Logger
+	SkipTLSVerify       bool
+	UserAgent           string
+	FetchAPILinksOnInit bool // Whether to fetch API links during client initialization
 }
 
 // NewClient creates a new CF API client

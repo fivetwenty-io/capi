@@ -17,6 +17,7 @@ type Client struct {
 	tokenManager auth.TokenManager
 	baseURL      string
 	logger       capi.Logger
+	apiLinks     map[string]string
 
 	// Resource clients
 	apps                      capi.AppsClient
@@ -150,7 +151,33 @@ func New(config *capi.Config) (*Client, error) {
 	// Initialize resource clients
 	client.initializeResourceClients()
 
+	// Fetch API links if requested
+	if config.FetchAPILinksOnInit {
+		ctx := context.Background()
+		_ = client.FetchAPILinks(ctx) // Ignore error as it's optional
+	}
+
 	return client, nil
+}
+
+// FetchAPILinks fetches and caches API links from /v3
+func (c *Client) FetchAPILinks(ctx context.Context) error {
+	rootInfo, err := c.GetRootInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("fetching API links: %w", err)
+	}
+
+	if rootInfo.Links != nil {
+		apiLinks := make(map[string]string)
+		for key, link := range rootInfo.Links {
+			apiLinks[key] = link.Href
+		}
+		c.apiLinks = apiLinks
+		// Re-initialize apps client with API links
+		c.apps = NewAppsClientWithLinks(c.httpClient, apiLinks)
+	}
+
+	return nil
 }
 
 // initializeResourceClients initializes all resource-specific clients
@@ -199,7 +226,7 @@ func (c *Client) GetInfo(ctx context.Context) (*capi.Info, error) {
 
 // GetRootInfo implements capi.Client.GetRootInfo
 func (c *Client) GetRootInfo(ctx context.Context) (*capi.RootInfo, error) {
-	resp, err := c.httpClient.Get(ctx, "/", nil)
+	resp, err := c.httpClient.Get(ctx, "/v3", nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting root info: %w", err)
 	}
