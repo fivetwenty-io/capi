@@ -1,3 +1,4 @@
 *.html
-capi
+./capi
 *.test
+cmd/capi/capi
