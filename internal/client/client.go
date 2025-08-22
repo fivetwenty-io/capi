@@ -45,6 +45,15 @@ type Client struct {
 	isolationSegments         capi.IsolationSegmentsClient
 	featureFlags              capi.FeatureFlagsClient
 	jobs                      capi.JobsClient
+	organizationQuotas        capi.OrganizationQuotasClient
+	spaceQuotas               capi.SpaceQuotasClient
+	sidecars                  capi.SidecarsClient
+	revisions                 capi.RevisionsClient
+	environmentVariableGroups capi.EnvironmentVariableGroupsClient
+	appUsageEvents            capi.AppUsageEventsClient
+	serviceUsageEvents        capi.ServiceUsageEventsClient
+	auditEvents               capi.AuditEventsClient
+	resourceMatches           capi.ResourceMatchesClient
 }
 
 // New creates a new CF API client
@@ -207,6 +216,15 @@ func (c *Client) initializeResourceClients() {
 	c.isolationSegments = NewIsolationSegmentsClient(c.httpClient)
 	c.featureFlags = NewFeatureFlagsClient(c.httpClient)
 	c.jobs = NewJobsClient(c.httpClient)
+	c.organizationQuotas = NewOrganizationQuotasClient(c.httpClient)
+	c.spaceQuotas = NewSpaceQuotasClient(c.httpClient)
+	c.sidecars = NewSidecarsClient(c.httpClient)
+	c.revisions = NewRevisionsClient(c.httpClient)
+	c.environmentVariableGroups = NewEnvironmentVariableGroupsClient(c.httpClient)
+	c.appUsageEvents = NewAppUsageEventsClient(c.httpClient)
+	c.serviceUsageEvents = NewServiceUsageEventsClient(c.httpClient)
+	c.auditEvents = NewAuditEventsClient(c.httpClient)
+	c.resourceMatches = NewResourceMatchesClient(c.httpClient)
 }
 
 // GetInfo implements capi.Client.GetInfo
@@ -394,6 +412,51 @@ func (c *Client) FeatureFlags() capi.FeatureFlagsClient {
 // Jobs implements capi.Client.Jobs
 func (c *Client) Jobs() capi.JobsClient {
 	return c.jobs
+}
+
+// OrganizationQuotas implements capi.Client.OrganizationQuotas
+func (c *Client) OrganizationQuotas() capi.OrganizationQuotasClient {
+	return c.organizationQuotas
+}
+
+// SpaceQuotas implements capi.Client.SpaceQuotas
+func (c *Client) SpaceQuotas() capi.SpaceQuotasClient {
+	return c.spaceQuotas
+}
+
+// Sidecars implements capi.Client.Sidecars
+func (c *Client) Sidecars() capi.SidecarsClient {
+	return c.sidecars
+}
+
+// Revisions implements capi.Client.Revisions
+func (c *Client) Revisions() capi.RevisionsClient {
+	return c.revisions
+}
+
+// EnvironmentVariableGroups implements capi.Client.EnvironmentVariableGroups
+func (c *Client) EnvironmentVariableGroups() capi.EnvironmentVariableGroupsClient {
+	return c.environmentVariableGroups
+}
+
+// AppUsageEvents implements capi.Client.AppUsageEvents
+func (c *Client) AppUsageEvents() capi.AppUsageEventsClient {
+	return c.appUsageEvents
+}
+
+// ServiceUsageEvents implements capi.Client.ServiceUsageEvents
+func (c *Client) ServiceUsageEvents() capi.ServiceUsageEventsClient {
+	return c.serviceUsageEvents
+}
+
+// AuditEvents implements capi.Client.AuditEvents
+func (c *Client) AuditEvents() capi.AuditEventsClient {
+	return c.auditEvents
+}
+
+// ResourceMatches implements capi.Client.ResourceMatches
+func (c *Client) ResourceMatches() capi.ResourceMatchesClient {
+	return c.resourceMatches
 }
 
 // GetToken returns the current access token from the token manager

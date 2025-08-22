@@ -249,6 +249,78 @@ func (m *MockClient) Jobs() capi.JobsClient {
 	return args.Get(0).(capi.JobsClient)
 }
 
+func (m *MockClient) OrganizationQuotas() capi.OrganizationQuotasClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.OrganizationQuotasClient)
+}
+
+func (m *MockClient) SpaceQuotas() capi.SpaceQuotasClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.SpaceQuotasClient)
+}
+
+func (m *MockClient) Sidecars() capi.SidecarsClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.SidecarsClient)
+}
+
+func (m *MockClient) Revisions() capi.RevisionsClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.RevisionsClient)
+}
+
+func (m *MockClient) EnvironmentVariableGroups() capi.EnvironmentVariableGroupsClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.EnvironmentVariableGroupsClient)
+}
+
+func (m *MockClient) AppUsageEvents() capi.AppUsageEventsClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.AppUsageEventsClient)
+}
+
+func (m *MockClient) ServiceUsageEvents() capi.ServiceUsageEventsClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.ServiceUsageEventsClient)
+}
+
+func (m *MockClient) AuditEvents() capi.AuditEventsClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.AuditEventsClient)
+}
+
+func (m *MockClient) ResourceMatches() capi.ResourceMatchesClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.ResourceMatchesClient)
+}
+
 // MockAppsClient implements capi.AppsClient for testing
 type MockAppsClient struct {
 	mock.Mock

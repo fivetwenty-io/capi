@@ -99,7 +99,7 @@ govulncheck: ## Run vulnerability check on dependencies
 
 .PHONY: gosec
 gosec: ## Run security scanner on source code
-	@echo "$(GREEN)Running security scan...$(RESET)"
+	@echo "$(GREEN)Running security scan (gosec)...$(RESET)"
 	@command -v gosec >/dev/null 2>&1 || { \
 		echo "$(YELLOW)Installing gosec...$(RESET)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \

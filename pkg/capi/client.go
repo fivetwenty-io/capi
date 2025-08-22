@@ -34,6 +34,15 @@ type Client interface {
 	IsolationSegments() IsolationSegmentsClient
 	FeatureFlags() FeatureFlagsClient
 	Jobs() JobsClient
+	OrganizationQuotas() OrganizationQuotasClient
+	SpaceQuotas() SpaceQuotasClient
+	Sidecars() SidecarsClient
+	Revisions() RevisionsClient
+	EnvironmentVariableGroups() EnvironmentVariableGroupsClient
+	AppUsageEvents() AppUsageEventsClient
+	ServiceUsageEvents() ServiceUsageEventsClient
+	AuditEvents() AuditEventsClient
+	ResourceMatches() ResourceMatchesClient
 
 	// Info endpoints
 	GetInfo(ctx context.Context) (*Info, error)

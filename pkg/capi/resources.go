@@ -1277,3 +1277,298 @@ type LogMessage struct {
 type AppLogs struct {
 	Messages []LogMessage `json:"messages"`
 }
+
+// OrganizationQuota represents an organization quota
+type OrganizationQuota struct {
+	Resource
+	Name          string                          `json:"name"`
+	Apps          *OrganizationQuotaApps          `json:"apps,omitempty"`
+	Services      *OrganizationQuotaServices      `json:"services,omitempty"`
+	Routes        *OrganizationQuotaRoutes        `json:"routes,omitempty"`
+	Domains       *OrganizationQuotaDomains       `json:"domains,omitempty"`
+	Relationships *OrganizationQuotaRelationships `json:"relationships,omitempty"`
+	Metadata      *Metadata                       `json:"metadata,omitempty"`
+}
+
+// OrganizationQuotaApps represents app limits in an organization quota
+type OrganizationQuotaApps struct {
+	TotalMemoryInMB              *int `json:"total_memory_in_mb,omitempty"`
+	TotalInstanceMemoryInMB      *int `json:"total_instance_memory_in_mb,omitempty"`
+	LogRateLimitInBytesPerSecond *int `json:"log_rate_limit_in_bytes_per_second,omitempty"`
+	TotalInstances               *int `json:"total_instances,omitempty"`
+	TotalAppTasks                *int `json:"total_app_tasks,omitempty"`
+}
+
+// OrganizationQuotaServices represents service limits in an organization quota
+type OrganizationQuotaServices struct {
+	PaidServicesAllowed   *bool `json:"paid_services_allowed,omitempty"`
+	TotalServiceInstances *int  `json:"total_service_instances,omitempty"`
+	TotalServiceKeys      *int  `json:"total_service_keys,omitempty"`
+}
+
+// OrganizationQuotaRoutes represents route limits in an organization quota
+type OrganizationQuotaRoutes struct {
+	TotalRoutes        *int `json:"total_routes,omitempty"`
+	TotalReservedPorts *int `json:"total_reserved_ports,omitempty"`
+}
+
+// OrganizationQuotaDomains represents domain limits in an organization quota
+type OrganizationQuotaDomains struct {
+	TotalDomains *int `json:"total_domains,omitempty"`
+}
+
+// OrganizationQuotaRelationships represents organization quota relationships
+type OrganizationQuotaRelationships struct {
+	Organizations ToManyRelationship `json:"organizations"`
+}
+
+// OrganizationQuotaCreateRequest represents a request to create an organization quota
+type OrganizationQuotaCreateRequest struct {
+	Name     string                     `json:"name"`
+	Apps     *OrganizationQuotaApps     `json:"apps,omitempty"`
+	Services *OrganizationQuotaServices `json:"services,omitempty"`
+	Routes   *OrganizationQuotaRoutes   `json:"routes,omitempty"`
+	Domains  *OrganizationQuotaDomains  `json:"domains,omitempty"`
+	Metadata *Metadata                  `json:"metadata,omitempty"`
+}
+
+// OrganizationQuotaUpdateRequest represents a request to update an organization quota
+type OrganizationQuotaUpdateRequest struct {
+	Name     *string                    `json:"name,omitempty"`
+	Apps     *OrganizationQuotaApps     `json:"apps,omitempty"`
+	Services *OrganizationQuotaServices `json:"services,omitempty"`
+	Routes   *OrganizationQuotaRoutes   `json:"routes,omitempty"`
+	Domains  *OrganizationQuotaDomains  `json:"domains,omitempty"`
+	Metadata *Metadata                  `json:"metadata,omitempty"`
+}
+
+// SpaceQuotaV3 represents a space quota (v3 API)
+type SpaceQuotaV3 struct {
+	Resource
+	Name          string                   `json:"name"`
+	Apps          *SpaceQuotaApps          `json:"apps,omitempty"`
+	Services      *SpaceQuotaServices      `json:"services,omitempty"`
+	Routes        *SpaceQuotaRoutes        `json:"routes,omitempty"`
+	Relationships *SpaceQuotaRelationships `json:"relationships,omitempty"`
+	Metadata      *Metadata                `json:"metadata,omitempty"`
+}
+
+// SpaceQuotaApps represents app limits in a space quota
+type SpaceQuotaApps struct {
+	TotalMemoryInMB              *int `json:"total_memory_in_mb,omitempty"`
+	TotalInstanceMemoryInMB      *int `json:"total_instance_memory_in_mb,omitempty"`
+	LogRateLimitInBytesPerSecond *int `json:"log_rate_limit_in_bytes_per_second,omitempty"`
+	TotalInstances               *int `json:"total_instances,omitempty"`
+	TotalAppTasks                *int `json:"total_app_tasks,omitempty"`
+}
+
+// SpaceQuotaServices represents service limits in a space quota
+type SpaceQuotaServices struct {
+	PaidServicesAllowed   *bool `json:"paid_services_allowed,omitempty"`
+	TotalServiceInstances *int  `json:"total_service_instances,omitempty"`
+	TotalServiceKeys      *int  `json:"total_service_keys,omitempty"`
+}
+
+// SpaceQuotaRoutes represents route limits in a space quota
+type SpaceQuotaRoutes struct {
+	TotalRoutes        *int `json:"total_routes,omitempty"`
+	TotalReservedPorts *int `json:"total_reserved_ports,omitempty"`
+}
+
+// SpaceQuotaRelationships represents space quota relationships
+type SpaceQuotaRelationships struct {
+	Organization Relationship       `json:"organization"`
+	Spaces       ToManyRelationship `json:"spaces"`
+}
+
+// SpaceQuotaV3CreateRequest represents a request to create a space quota
+type SpaceQuotaV3CreateRequest struct {
+	Name          string                  `json:"name"`
+	Apps          *SpaceQuotaApps         `json:"apps,omitempty"`
+	Services      *SpaceQuotaServices     `json:"services,omitempty"`
+	Routes        *SpaceQuotaRoutes       `json:"routes,omitempty"`
+	Relationships SpaceQuotaRelationships `json:"relationships"`
+	Metadata      *Metadata               `json:"metadata,omitempty"`
+}
+
+// SpaceQuotaV3UpdateRequest represents a request to update a space quota
+type SpaceQuotaV3UpdateRequest struct {
+	Name     *string             `json:"name,omitempty"`
+	Apps     *SpaceQuotaApps     `json:"apps,omitempty"`
+	Services *SpaceQuotaServices `json:"services,omitempty"`
+	Routes   *SpaceQuotaRoutes   `json:"routes,omitempty"`
+	Metadata *Metadata           `json:"metadata,omitempty"`
+}
+
+// Sidecar represents a sidecar
+type Sidecar struct {
+	Resource
+	Name          string               `json:"name"`
+	Command       string               `json:"command"`
+	ProcessTypes  []string             `json:"process_types"`
+	MemoryInMB    *int                 `json:"memory_in_mb,omitempty"`
+	Origin        string               `json:"origin"`
+	Relationships SidecarRelationships `json:"relationships"`
+}
+
+// SidecarRelationships represents sidecar relationships
+type SidecarRelationships struct {
+	App Relationship `json:"app"`
+}
+
+// SidecarCreateRequest represents a request to create a sidecar
+type SidecarCreateRequest struct {
+	Name         string   `json:"name"`
+	Command      string   `json:"command"`
+	ProcessTypes []string `json:"process_types"`
+	MemoryInMB   *int     `json:"memory_in_mb,omitempty"`
+}
+
+// SidecarUpdateRequest represents a request to update a sidecar
+type SidecarUpdateRequest struct {
+	Name         *string  `json:"name,omitempty"`
+	Command      *string  `json:"command,omitempty"`
+	ProcessTypes []string `json:"process_types,omitempty"`
+	MemoryInMB   *int     `json:"memory_in_mb,omitempty"`
+}
+
+// Revision represents a revision
+type Revision struct {
+	Resource
+	Version       int                   `json:"version"`
+	Droplet       RevisionDropletRef    `json:"droplet"`
+	Processes     map[string]Process    `json:"processes"`
+	Sidecars      []Sidecar             `json:"sidecars"`
+	Relationships RevisionRelationships `json:"relationships"`
+	Metadata      *Metadata             `json:"metadata,omitempty"`
+	Description   *string               `json:"description,omitempty"`
+	Deployable    bool                  `json:"deployable"`
+}
+
+// RevisionDropletRef represents a droplet reference in a revision
+type RevisionDropletRef struct {
+	GUID string `json:"guid"`
+}
+
+// RevisionRelationships represents revision relationships
+type RevisionRelationships struct {
+	App Relationship `json:"app"`
+}
+
+// RevisionUpdateRequest represents a request to update a revision
+type RevisionUpdateRequest struct {
+	Metadata *Metadata `json:"metadata,omitempty"`
+}
+
+// EnvironmentVariableGroup represents an environment variable group
+type EnvironmentVariableGroup struct {
+	Name      string                 `json:"name"`
+	Var       map[string]interface{} `json:"var"`
+	UpdatedAt *time.Time             `json:"updated_at,omitempty"`
+	Links     Links                  `json:"links,omitempty"`
+}
+
+// AppUsageEvent represents an app usage event
+type AppUsageEvent struct {
+	Resource
+	State                         string               `json:"state"`
+	PreviousState                 *string              `json:"previous_state,omitempty"`
+	MemoryInMBPerInstance         int                  `json:"memory_in_mb_per_instance"`
+	PreviousMemoryInMBPerInstance *int                 `json:"previous_memory_in_mb_per_instance,omitempty"`
+	InstanceCount                 int                  `json:"instance_count"`
+	PreviousInstanceCount         *int                 `json:"previous_instance_count,omitempty"`
+	AppName                       string               `json:"app_name"`
+	AppGUID                       string               `json:"app_guid"`
+	SpaceName                     string               `json:"space_name"`
+	SpaceGUID                     string               `json:"space_guid"`
+	OrganizationName              string               `json:"organization_name"`
+	OrganizationGUID              string               `json:"organization_guid"`
+	BuildpackName                 *string              `json:"buildpack_name,omitempty"`
+	BuildpackGUID                 *string              `json:"buildpack_guid,omitempty"`
+	Package                       AppUsageEventPackage `json:"package"`
+	ParentAppName                 *string              `json:"parent_app_name,omitempty"`
+	ParentAppGUID                 *string              `json:"parent_app_guid,omitempty"`
+	ProcessType                   string               `json:"process_type"`
+	TaskName                      *string              `json:"task_name,omitempty"`
+	TaskGUID                      *string              `json:"task_guid,omitempty"`
+}
+
+// AppUsageEventPackage represents package information in an app usage event
+type AppUsageEventPackage struct {
+	State string `json:"state"`
+}
+
+// ServiceUsageEvent represents a service usage event
+type ServiceUsageEvent struct {
+	Resource
+	State               string  `json:"state"`
+	PreviousState       *string `json:"previous_state,omitempty"`
+	ServiceInstanceName string  `json:"service_instance_name"`
+	ServiceInstanceGUID string  `json:"service_instance_guid"`
+	ServiceInstanceType string  `json:"service_instance_type"`
+	ServicePlanName     string  `json:"service_plan_name"`
+	ServicePlanGUID     string  `json:"service_plan_guid"`
+	ServiceOfferingName string  `json:"service_offering_name"`
+	ServiceOfferingGUID string  `json:"service_offering_guid"`
+	ServiceBrokerName   string  `json:"service_broker_name"`
+	ServiceBrokerGUID   string  `json:"service_broker_guid"`
+	SpaceName           string  `json:"space_name"`
+	SpaceGUID           string  `json:"space_guid"`
+	OrganizationName    string  `json:"organization_name"`
+	OrganizationGUID    string  `json:"organization_guid"`
+}
+
+// AuditEvent represents an audit event
+type AuditEvent struct {
+	Resource
+	Type         string                  `json:"type"`
+	Actor        AuditEventActor         `json:"actor"`
+	Target       AuditEventTarget        `json:"target"`
+	Data         map[string]interface{}  `json:"data"`
+	Space        *AuditEventSpace        `json:"space,omitempty"`
+	Organization *AuditEventOrganization `json:"organization,omitempty"`
+}
+
+// AuditEventActor represents the actor in an audit event
+type AuditEventActor struct {
+	GUID string `json:"guid"`
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+// AuditEventTarget represents the target in an audit event
+type AuditEventTarget struct {
+	GUID string `json:"guid"`
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+// AuditEventSpace represents space information in an audit event
+type AuditEventSpace struct {
+	GUID string `json:"guid"`
+	Name string `json:"name"`
+}
+
+// AuditEventOrganization represents organization information in an audit event
+type AuditEventOrganization struct {
+	GUID string `json:"guid"`
+	Name string `json:"name"`
+}
+
+// ResourceMatches represents resource matches
+type ResourceMatches struct {
+	Resources []ResourceMatch `json:"resources"`
+}
+
+// ResourceMatch represents a single resource match
+type ResourceMatch struct {
+	SHA1 string `json:"sha1"`
+	Size int64  `json:"size"`
+	Path string `json:"path"`
+	Mode string `json:"mode"`
+}
+
+// ResourceMatchesRequest represents a request to create resource matches
+type ResourceMatchesRequest struct {
+	Resources []ResourceMatch `json:"resources"`
+}

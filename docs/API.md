@@ -11,6 +11,9 @@ This document provides comprehensive documentation for the Cloud Foundry API v3 
 - [Pagination](#pagination)
 - [Error Handling](#error-handling)
 - [Caching](#caching)
+- [Quota Management](#quota-management)
+- [Usage Monitoring](#usage-monitoring)
+- [Application Lifecycle](#application-lifecycle)
 - [Advanced Usage](#advanced-usage)
 
 ## Getting Started
@@ -646,6 +649,467 @@ func (c *MyCache) Delete(key string) {
 capi.RegisterCacheFactory("mycache", func(config map[string]interface{}) (capi.Cache, error) {
     return &MyCache{}, nil
 })
+```
+
+## Quota Management
+
+The client provides comprehensive quota management for both organizations and spaces.
+
+### Organization Quotas
+
+Organization quotas define resource limits at the organization level.
+
+#### List Organization Quotas
+
+```go
+// List all organization quotas
+quotas, err := client.OrganizationQuotas().List(ctx, nil)
+
+// List with filtering
+params := capi.NewQueryParams()
+params.WithFilter("names", "production,staging")
+quotas, err := client.OrganizationQuotas().List(ctx, params)
+```
+
+#### Get Organization Quota
+
+```go
+quota, err := client.OrganizationQuotas().Get(ctx, "quota-guid")
+
+// You can also get by name
+params := capi.NewQueryParams().WithFilter("names", "production-quota")
+quotas, err := client.OrganizationQuotas().List(ctx, params)
+if len(quotas.Resources) > 0 {
+    quota := &quotas.Resources[0]
+}
+```
+
+#### Create Organization Quota
+
+```go
+totalMemory := 10240        // 10GB
+instanceMemory := 1024      // 1GB
+totalInstances := 50
+totalAppTasks := 20
+totalRoutes := 100
+totalReservedPorts := 10
+totalServices := 25
+totalServiceKeys := 50
+totalDomains := 10
+
+createReq := &capi.OrganizationQuotaCreateRequest{
+    Name: "production-quota",
+    Apps: &capi.OrganizationQuotaApps{
+        TotalMemoryInMB:         &totalMemory,
+        TotalInstanceMemoryInMB: &instanceMemory,
+        TotalInstances:          &totalInstances,
+        TotalAppTasks:           &totalAppTasks,
+    },
+    Services: &capi.OrganizationQuotaServices{
+        PaidServicesAllowed:     &[]bool{true}[0],
+        TotalServiceInstances:   &totalServices,
+        TotalServiceKeys:        &totalServiceKeys,
+    },
+    Routes: &capi.OrganizationQuotaRoutes{
+        TotalRoutes:        &totalRoutes,
+        TotalReservedPorts: &totalReservedPorts,
+    },
+    Domains: &capi.OrganizationQuotaDomains{
+        TotalDomains: &totalDomains,
+    },
+}
+
+quota, err := client.OrganizationQuotas().Create(ctx, createReq)
+```
+
+#### Update Organization Quota
+
+```go
+newMemory := 20480 // 20GB
+newName := "updated-production-quota"
+updateReq := &capi.OrganizationQuotaUpdateRequest{
+    Name: &newName,
+    Apps: &capi.OrganizationQuotaApps{
+        TotalMemoryInMB: &newMemory,
+    },
+}
+
+quota, err := client.OrganizationQuotas().Update(ctx, "quota-guid", updateReq)
+```
+
+#### Apply Organization Quota
+
+```go
+// Apply quota to multiple organizations
+orgGUIDs := []string{"org-1-guid", "org-2-guid", "org-3-guid"}
+relationship, err := client.OrganizationQuotas().ApplyToOrganizations(ctx, "quota-guid", orgGUIDs)
+```
+
+#### Delete Organization Quota
+
+```go
+err := client.OrganizationQuotas().Delete(ctx, "quota-guid")
+```
+
+### Space Quotas
+
+Space quotas define resource limits at the space level within an organization.
+
+#### List Space Quotas
+
+```go
+// List all space quotas
+quotas, err := client.SpaceQuotas().List(ctx, nil)
+
+// Filter by organization
+params := capi.NewQueryParams()
+params.WithFilter("organization_guids", "org-guid")
+quotas, err := client.SpaceQuotas().List(ctx, params)
+```
+
+#### Create Space Quota
+
+```go
+totalMemory := 2048     // 2GB
+totalInstances := 10
+totalRoutes := 20
+logRateLimit := 1000
+
+createReq := &capi.SpaceQuotaV3CreateRequest{
+    Name: "development-quota",
+    Relationships: capi.SpaceQuotaRelationships{
+        Organization: capi.Relationship{
+            Data: &capi.RelationshipData{GUID: "org-guid"},
+        },
+    },
+    Apps: &capi.SpaceQuotaApps{
+        TotalMemoryInMB:         &totalMemory,
+        TotalInstances:          &totalInstances,
+        LogRateLimitInBytesPerSecond: &logRateLimit,
+    },
+    Routes: &capi.SpaceQuotaRoutes{
+        TotalRoutes: &totalRoutes,
+    },
+}
+
+quota, err := client.SpaceQuotas().Create(ctx, createReq)
+```
+
+#### Apply and Remove Space Quotas
+
+```go
+// Apply quota to multiple spaces
+spaceGUIDs := []string{"space-1-guid", "space-2-guid"}
+relationship, err := client.SpaceQuotas().ApplyToSpaces(ctx, "quota-guid", spaceGUIDs)
+
+// Remove quota from a specific space
+err := client.SpaceQuotas().RemoveFromSpace(ctx, "quota-guid", "space-guid")
+```
+
+## Usage Monitoring
+
+The client provides comprehensive usage monitoring and auditing capabilities.
+
+### Application Usage Events
+
+Application usage events track resource consumption for billing and monitoring.
+
+#### List Application Usage Events
+
+```go
+// List all app usage events
+events, err := client.AppUsageEvents().List(ctx, nil)
+
+// Filter by application, space, or organization
+params := capi.NewQueryParams()
+params.WithFilter("app_names", "my-app")
+params.WithFilter("space_names", "production")
+params.WithFilter("organization_names", "my-org")
+events, err := client.AppUsageEvents().List(ctx, params)
+
+// Filter by time range
+params.WithFilter("created_ats[gte]", "2023-01-01T00:00:00Z")
+params.WithFilter("created_ats[lte]", "2023-12-31T23:59:59Z")
+events, err := client.AppUsageEvents().List(ctx, params)
+```
+
+#### Get Application Usage Event
+
+```go
+event, err := client.AppUsageEvents().Get(ctx, "event-guid")
+
+// Access usage information
+fmt.Printf("App: %s\n", event.AppName)
+fmt.Printf("State Transition: %s -> %s\n", *event.PreviousState, event.State)
+fmt.Printf("Instance Count: %d\n", event.InstanceCount)
+fmt.Printf("Memory per Instance: %d MB\n", event.MemoryInMBPerInstance)
+fmt.Printf("Space: %s\n", event.SpaceName)
+fmt.Printf("Organization: %s\n", event.OrganizationName)
+```
+
+#### Purge and Reseed Usage Events
+
+```go
+// This operation removes all existing usage events and creates new ones
+// based on the current state of applications
+err := client.AppUsageEvents().PurgeAndReseed(ctx)
+```
+
+### Service Usage Events
+
+Service usage events track service instance lifecycle and usage.
+
+#### List Service Usage Events
+
+```go
+// List all service usage events
+events, err := client.ServiceUsageEvents().List(ctx, nil)
+
+// Filter by service information
+params := capi.NewQueryParams()
+params.WithFilter("service_instance_types", "managed_service_instance")
+params.WithFilter("service_offering_names", "postgresql")
+events, err := client.ServiceUsageEvents().List(ctx, params)
+```
+
+#### Get Service Usage Event
+
+```go
+event, err := client.ServiceUsageEvents().Get(ctx, "event-guid")
+
+// Access service usage information
+fmt.Printf("Service Instance: %s\n", event.ServiceInstanceName)
+fmt.Printf("Service Type: %s\n", event.ServiceInstanceType)
+fmt.Printf("Service Plan: %s\n", event.ServicePlanName)
+fmt.Printf("Service Offering: %s\n", event.ServiceOfferingName)
+fmt.Printf("Service Broker: %s\n", event.ServiceBrokerName)
+```
+
+### Audit Events
+
+Audit events provide a comprehensive log of all API operations for security and compliance.
+
+#### List Audit Events
+
+```go
+// List all audit events
+events, err := client.AuditEvents().List(ctx, nil)
+
+// Filter by event type
+params := capi.NewQueryParams()
+params.WithFilter("types", "audit.app.create,audit.app.update,audit.app.delete")
+events, err := client.AuditEvents().List(ctx, params)
+
+// Filter by actor (user)
+params.WithFilter("actor_ids", "user-guid")
+events, err := client.AuditEvents().List(ctx, params)
+
+// Filter by target resource
+params.WithFilter("target_ids", "app-guid")
+events, err := client.AuditEvents().List(ctx, params)
+```
+
+#### Get Audit Event
+
+```go
+event, err := client.AuditEvents().Get(ctx, "event-guid")
+
+// Access audit information
+fmt.Printf("Event Type: %s\n", event.Type)
+fmt.Printf("Actor: %s (%s)\n", event.Actor.Name, event.Actor.Type)
+fmt.Printf("Target: %s (%s)\n", event.Target.Name, event.Target.Type)
+fmt.Printf("Space: %s\n", event.Space.Name)
+fmt.Printf("Organization: %s\n", event.Organization.Name)
+
+// Access event data
+if requestData, ok := event.Data["request"].(map[string]interface{}); ok {
+    fmt.Printf("Request Data: %+v\n", requestData)
+}
+```
+
+### Environment Variable Groups
+
+Environment variable groups allow setting environment variables globally for running and staging applications.
+
+#### Get Environment Variable Groups
+
+```go
+// Get running environment variables
+runningEnvVars, err := client.EnvironmentVariableGroups().Get(ctx, "running")
+
+// Get staging environment variables  
+stagingEnvVars, err := client.EnvironmentVariableGroups().Get(ctx, "staging")
+
+// Access variables
+for key, value := range runningEnvVars.Var {
+    fmt.Printf("%s=%v\n", key, value)
+}
+```
+
+#### Update Environment Variable Groups
+
+```go
+// Update running environment variables
+newVars := map[string]interface{}{
+    "LOG_LEVEL":    "info",
+    "TIMEOUT":      30,
+    "FEATURE_FLAG": true,
+}
+
+runningEnvVars, err := client.EnvironmentVariableGroups().Update(ctx, "running", newVars)
+
+// Update staging environment variables
+stagingVars := map[string]interface{}{
+    "BUILD_CACHE": true,
+    "BUILD_ENV":   "production",
+}
+
+stagingEnvVars, err := client.EnvironmentVariableGroups().Update(ctx, "staging", stagingVars)
+```
+
+## Application Lifecycle
+
+Advanced application lifecycle management features.
+
+### Revisions
+
+Revisions represent immutable snapshots of application configuration.
+
+#### Get Revision
+
+```go
+revision, err := client.Revisions().Get(ctx, "revision-guid")
+
+// Access revision information
+fmt.Printf("Version: %d\n", revision.Version)
+fmt.Printf("Deployable: %t\n", revision.Deployable)
+fmt.Printf("Description: %s\n", *revision.Description)
+fmt.Printf("Droplet GUID: %s\n", revision.Droplet.GUID)
+
+// Access processes
+for processType, process := range revision.Processes {
+    fmt.Printf("Process %s: %d instances, %d MB memory\n", 
+        processType, process.Instances, process.MemoryInMB)
+}
+```
+
+#### Update Revision Metadata
+
+```go
+updateReq := &capi.RevisionUpdateRequest{
+    Metadata: &capi.Metadata{
+        Labels: map[string]string{
+            "version":     "1.2.0",
+            "environment": "production",
+            "team":        "backend",
+        },
+    },
+}
+
+revision, err := client.Revisions().Update(ctx, "revision-guid", updateReq)
+```
+
+#### Get Revision Environment Variables
+
+```go
+envVars, err := client.Revisions().GetEnvironmentVariables(ctx, "revision-guid")
+
+for key, value := range envVars {
+    fmt.Printf("%s=%v\n", key, value)
+}
+```
+
+### Sidecars
+
+Sidecars are additional processes that run alongside application processes.
+
+#### Get Sidecar
+
+```go
+sidecar, err := client.Sidecars().Get(ctx, "sidecar-guid")
+
+fmt.Printf("Name: %s\n", sidecar.Name)
+fmt.Printf("Command: %s\n", sidecar.Command)
+fmt.Printf("Process Types: %v\n", sidecar.ProcessTypes)
+if sidecar.MemoryInMB != nil {
+    fmt.Printf("Memory: %d MB\n", *sidecar.MemoryInMB)
+}
+```
+
+#### Update Sidecar
+
+```go
+newName := "updated-sidecar"
+newCommand := "./updated-command"
+newMemory := 256
+updateReq := &capi.SidecarUpdateRequest{
+    Name:         &newName,
+    Command:      &newCommand,
+    ProcessTypes: []string{"web", "worker"},
+    MemoryInMB:   &newMemory,
+}
+
+sidecar, err := client.Sidecars().Update(ctx, "sidecar-guid", updateReq)
+```
+
+#### List Sidecars for Process
+
+```go
+params := capi.NewQueryParams().WithPerPage(50)
+sidecars, err := client.Sidecars().ListForProcess(ctx, "process-guid", params)
+
+for _, sidecar := range sidecars.Resources {
+    fmt.Printf("Sidecar: %s (%s)\n", sidecar.Name, sidecar.Command)
+}
+```
+
+### Resource Matches
+
+Resource matches help optimize package uploads by identifying files already present in the platform.
+
+#### Create Resource Matches
+
+```go
+// Prepare resource list for matching
+resources := []capi.ResourceMatch{
+    {
+        Path: "app.js",
+        SHA1: "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+        Size: 1024,
+        Mode: "0644",
+    },
+    {
+        Path: "package.json", 
+        SHA1: "356a192b7913b04c54574d18c28d46e6395428ab",
+        Size: 512,
+        Mode: "0644",
+    },
+}
+
+createReq := &capi.ResourceMatchesRequest{
+    Resources: resources,
+}
+
+// Get list of resources that already exist in the platform
+matches, err := client.ResourceMatches().Create(ctx, createReq)
+
+// Upload only non-matching resources
+var resourcesToUpload []capi.ResourceMatch
+for _, resource := range resources {
+    found := false
+    for _, match := range matches.Resources {
+        if resource.SHA1 == match.SHA1 {
+            found = true
+            break
+        }
+    }
+    if !found {
+        resourcesToUpload = append(resourcesToUpload, resource)
+    }
+}
+
+fmt.Printf("Need to upload %d out of %d resources\n", 
+    len(resourcesToUpload), len(resources))
 ```
 
 ## Advanced Usage

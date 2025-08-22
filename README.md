@@ -11,6 +11,10 @@ A comprehensive Go client library and CLI for interacting with Cloud Foundry API
 - **Complete CF API v3 Coverage**: Full support for all Cloud Foundry API v3 resources and operations
 - **Type-Safe API**: Generated from official OpenAPI specifications with strong typing
 - **Authentication Support**: Multiple auth methods including OAuth2, client credentials, and user credentials
+- **Quota Management**: Organization and space quota creation, management, and enforcement
+- **Usage Monitoring**: Application and service usage event tracking for billing and analytics
+- **Audit Logging**: Comprehensive audit event tracking for security and compliance
+- **Application Lifecycle**: Advanced features like revisions, sidecars, and environment management
 - **Pagination Handling**: Automatic handling of paginated responses
 - **Rate Limiting**: Built-in rate limiting with configurable policies
 - **Caching**: Pluggable caching backends (memory, Redis, NATS)
@@ -361,6 +365,69 @@ capi apps scale my-app --instances 3 --memory 512M
 capi apps delete my-app
 ```
 
+### Quota Management
+
+```bash
+# Organization quotas
+capi org-quotas list
+capi org-quotas get production-quota
+capi org-quotas create --name dev-quota --total-memory 2048 --instances 10
+capi org-quotas update production-quota --total-memory 4096
+capi org-quotas apply production-quota my-org-1 my-org-2
+capi org-quotas delete old-quota
+
+# Space quotas
+capi space-quotas list
+capi space-quotas list --org my-org
+capi space-quotas create --name dev-space-quota --org my-org --total-memory 1024
+capi space-quotas apply dev-space-quota my-space-1 my-space-2
+capi space-quotas remove dev-space-quota my-space-1
+```
+
+### Usage Monitoring
+
+```bash
+# Application usage events
+capi app-usage-events list
+capi app-usage-events list --app-name my-app --start-time 2023-01-01T00:00:00Z
+capi app-usage-events get event-guid
+capi app-usage-events purge-and-reseed
+
+# Service usage events  
+capi service-usage-events list
+capi service-usage-events get event-guid
+capi service-usage-events purge-and-reseed
+
+# Audit events
+capi audit-events list
+capi audit-events list --target-ids app-guid
+capi audit-events get event-guid
+```
+
+### Application Lifecycle
+
+```bash
+# Revisions
+capi revisions get revision-guid
+capi revisions get-env revision-guid
+capi revisions update revision-guid --metadata team=backend,version=1.2.0
+
+# Sidecars
+capi sidecars get sidecar-guid
+capi sidecars list-for-process process-guid
+capi sidecars update sidecar-guid --name new-name --command "./new-command"
+capi sidecars delete sidecar-guid
+
+# Environment variable groups
+capi env-var-groups get running
+capi env-var-groups get staging
+capi env-var-groups update running LOG_LEVEL=debug TIMEOUT=60
+capi env-var-groups update staging BUILD_CACHE=true
+
+# Resource matches
+capi resource-matches create resource-list.json
+```
+
 ### UAA User Management
 
 The CLI includes comprehensive UAA (User Account and Authentication) user management functionality:
@@ -441,6 +508,9 @@ See the [examples](./examples) directory for comprehensive examples:
 - [Authentication](./examples/auth/)
 - [Application Management](./examples/apps/)
 - [Service Management](./examples/services/)
+- [Quota Management](./examples/quota-management/)
+- [Usage Monitoring](./examples/usage-monitoring/)
+- [Lifecycle Management](./examples/lifecycle-management/)
 - [Advanced Usage](./examples/advanced/)
 
 ## Contributing

@@ -334,3 +334,70 @@ type JobsClient interface {
 	Get(ctx context.Context, guid string) (*Job, error)
 	PollUntilComplete(ctx context.Context, guid string) (*Job, error)
 }
+
+// OrganizationQuotasClient defines operations for organization quotas
+type OrganizationQuotasClient interface {
+	Create(ctx context.Context, request *OrganizationQuotaCreateRequest) (*OrganizationQuota, error)
+	Get(ctx context.Context, guid string) (*OrganizationQuota, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[OrganizationQuota], error)
+	Update(ctx context.Context, guid string, request *OrganizationQuotaUpdateRequest) (*OrganizationQuota, error)
+	Delete(ctx context.Context, guid string) error
+	ApplyToOrganizations(ctx context.Context, quotaGUID string, orgGUIDs []string) (*ToManyRelationship, error)
+}
+
+// SpaceQuotasClient defines operations for space quotas
+type SpaceQuotasClient interface {
+	Create(ctx context.Context, request *SpaceQuotaV3CreateRequest) (*SpaceQuotaV3, error)
+	Get(ctx context.Context, guid string) (*SpaceQuotaV3, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[SpaceQuotaV3], error)
+	Update(ctx context.Context, guid string, request *SpaceQuotaV3UpdateRequest) (*SpaceQuotaV3, error)
+	Delete(ctx context.Context, guid string) error
+	ApplyToSpaces(ctx context.Context, quotaGUID string, spaceGUIDs []string) (*ToManyRelationship, error)
+	RemoveFromSpace(ctx context.Context, quotaGUID string, spaceGUID string) error
+}
+
+// SidecarsClient defines operations for sidecars
+type SidecarsClient interface {
+	Get(ctx context.Context, guid string) (*Sidecar, error)
+	Update(ctx context.Context, guid string, request *SidecarUpdateRequest) (*Sidecar, error)
+	Delete(ctx context.Context, guid string) error
+	ListForProcess(ctx context.Context, processGUID string, params *QueryParams) (*ListResponse[Sidecar], error)
+}
+
+// RevisionsClient defines operations for revisions
+type RevisionsClient interface {
+	Get(ctx context.Context, guid string) (*Revision, error)
+	Update(ctx context.Context, guid string, request *RevisionUpdateRequest) (*Revision, error)
+	GetEnvironmentVariables(ctx context.Context, guid string) (map[string]interface{}, error)
+}
+
+// EnvironmentVariableGroupsClient defines operations for environment variable groups
+type EnvironmentVariableGroupsClient interface {
+	Get(ctx context.Context, name string) (*EnvironmentVariableGroup, error)
+	Update(ctx context.Context, name string, envVars map[string]interface{}) (*EnvironmentVariableGroup, error)
+}
+
+// AppUsageEventsClient defines operations for app usage events
+type AppUsageEventsClient interface {
+	Get(ctx context.Context, guid string) (*AppUsageEvent, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[AppUsageEvent], error)
+	PurgeAndReseed(ctx context.Context) error
+}
+
+// ServiceUsageEventsClient defines operations for service usage events
+type ServiceUsageEventsClient interface {
+	Get(ctx context.Context, guid string) (*ServiceUsageEvent, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceUsageEvent], error)
+	PurgeAndReseed(ctx context.Context) error
+}
+
+// AuditEventsClient defines operations for audit events
+type AuditEventsClient interface {
+	Get(ctx context.Context, guid string) (*AuditEvent, error)
+	List(ctx context.Context, params *QueryParams) (*ListResponse[AuditEvent], error)
+}
+
+// ResourceMatchesClient defines operations for resource matches
+type ResourceMatchesClient interface {
+	Create(ctx context.Context, request *ResourceMatchesRequest) (*ResourceMatches, error)
+}

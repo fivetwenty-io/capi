@@ -67,6 +67,17 @@ func init() {
 	rootCmd.AddCommand(commands.NewJobsCommand())
 	rootCmd.AddCommand(commands.NewTargetCommand())
 	rootCmd.AddCommand(commands.NewInfoCommand())
+
+	// Add new API v3 commands
+	rootCmd.AddCommand(commands.NewOrgQuotasCommand())
+	rootCmd.AddCommand(commands.NewSpaceQuotasCommand())
+	rootCmd.AddCommand(commands.NewSidecarsCommand())
+	rootCmd.AddCommand(commands.NewRevisionsCommand())
+	rootCmd.AddCommand(commands.NewEnvVarGroupsCommand())
+	rootCmd.AddCommand(commands.NewAppUsageEventsCommand())
+	rootCmd.AddCommand(commands.NewServiceUsageEventsCommand())
+	rootCmd.AddCommand(commands.NewAuditEventsCommand())
+	rootCmd.AddCommand(commands.NewResourceMatchesCommand())
 }
 
 func initConfig() {
