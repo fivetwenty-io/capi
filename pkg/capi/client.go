@@ -89,10 +89,9 @@ type Config struct {
 }
 
 // NewClient creates a new CF API client
+// Deprecated: Use github.com/fivetwenty-io/capi/pkg/cfclient.New instead
 func NewClient(config *Config) (Client, error) {
-	// We'll implement a factory in a separate package to avoid circular dependencies
-	// For now, return an error indicating the client needs to be created using the factory
-	return nil, fmt.Errorf("use github.com/fivetwenty-io/capi/internal/client.New to create a client")
+	return nil, fmt.Errorf("use github.com/fivetwenty-io/capi/pkg/cfclient.New to create a client")
 }
 
 // Info represents the /v3/info response
