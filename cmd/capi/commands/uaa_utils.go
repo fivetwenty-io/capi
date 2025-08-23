@@ -31,7 +31,7 @@ to the UAA endpoint (e.g., '/Users' or '/oauth/clients').`,
 			config := loadConfig()
 			path := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -96,7 +96,7 @@ current access token, including user attributes and granted scopes.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 

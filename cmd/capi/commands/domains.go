@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -195,37 +195,46 @@ func newDomainsGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(domain)
 			default:
-				fmt.Printf("Domain: %s\n", domain.Name)
-				fmt.Printf("  GUID:       %s\n", domain.GUID)
-				fmt.Printf("  Internal:   %t\n", domain.Internal)
-				fmt.Printf("  Protocols:  %s\n", strings.Join(domain.SupportedProtocols, ", "))
-				fmt.Printf("  Created:    %s\n", domain.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:    %s\n", domain.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("Name", domain.Name)
+				_ = table.Append("GUID", domain.GUID)
+				_ = table.Append("Internal", fmt.Sprintf("%t", domain.Internal))
+				_ = table.Append("Protocols", strings.Join(domain.SupportedProtocols, ", "))
+				_ = table.Append("Created", domain.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", domain.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 				if domain.RouterGroup != nil {
-					fmt.Printf("  Router Group: %s\n", *domain.RouterGroup)
+					_ = table.Append("Router Group", *domain.RouterGroup)
 				}
 
 				// Organization info
 				if domain.Relationships.Organization != nil && domain.Relationships.Organization.Data != nil {
 					org, _ := client.Organizations().Get(ctx, domain.Relationships.Organization.Data.GUID)
 					if org != nil {
-						fmt.Printf("  Organization: %s\n", org.Name)
+						_ = table.Append("Organization", org.Name)
 					}
 				} else {
-					fmt.Printf("  Organization: shared (platform)\n")
+					_ = table.Append("Organization", "shared (platform)")
 				}
 
 				// Shared organizations
 				if domain.Relationships.SharedOrganizations != nil && len(domain.Relationships.SharedOrganizations.Data) > 0 {
-					fmt.Printf("  Shared With:\n")
+					var sharedOrgs []string
 					for _, orgData := range domain.Relationships.SharedOrganizations.Data {
 						org, _ := client.Organizations().Get(ctx, orgData.GUID)
 						if org != nil {
-							fmt.Printf("    - %s\n", org.Name)
+							sharedOrgs = append(sharedOrgs, org.Name)
 						}
 					}
+					if len(sharedOrgs) > 0 {
+						_ = table.Append("Shared With", strings.Join(sharedOrgs, ", "))
+					}
 				}
+
+				fmt.Printf("Domain: %s\n\n", domain.Name)
+				_ = table.Render()
 			}
 
 			return nil

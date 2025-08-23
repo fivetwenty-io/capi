@@ -261,9 +261,11 @@ deps-graph: ## Show dependency graph
 
 ##@ Build
 
-.PHONY: cli
-cli: ## Build the CLI binary
-	@echo "$(GREEN)Building CLI...$(RESET)"
+.PHONY: cli capi
+cli: capi
+
+capi: ## Build the CLI binary
+	@echo "$(GREEN)Building `./capi` CLI...$(RESET)"
 	@go build -ldflags "-X main.version=$(VERSION) -X main.commit=$(GIT_SHA) -X main.date=$(BUILD_TIME)" -o capi cmd/capi/main.go
 	@echo "$(GREEN)✓ CLI built as 'capi'$(RESET)"
 

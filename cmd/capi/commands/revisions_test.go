@@ -16,12 +16,12 @@ func TestNewRevisionsCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 3)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "get")
 	assert.Contains(t, commandNames, "update")
 	assert.Contains(t, commandNames, "get-env")

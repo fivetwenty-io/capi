@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -106,34 +107,78 @@ func (w *UAAClientWrapper) Endpoint() string {
 
 // IsAuthenticated checks if the client has valid authentication
 func (w *UAAClientWrapper) IsAuthenticated() bool {
-	return w.config.UAAToken != "" || w.config.Token != ""
+	// Check legacy tokens first
+	if w.config.UAAToken != "" || w.config.Token != "" {
+		return true
+	}
+
+	// Check current API configuration for tokens
+	if w.config.CurrentAPI != "" {
+		if apiConfig, exists := w.config.APIs[w.config.CurrentAPI]; exists {
+			return apiConfig.UAAToken != "" || apiConfig.Token != ""
+		}
+	}
+
+	return false
 }
 
 // SetToken sets the authentication token for UAA requests
 func (w *UAAClientWrapper) SetToken(token string) {
-	w.config.UAAToken = token
+	// Set in current API configuration if available
+	if w.config.CurrentAPI != "" {
+		if apiConfig, exists := w.config.APIs[w.config.CurrentAPI]; exists {
+			apiConfig.UAAToken = token
+			w.config.APIs[w.config.CurrentAPI] = apiConfig
+		}
+	} else {
+		// Fallback to legacy configuration
+		w.config.UAAToken = token
+	}
 	// Note: The go-uaa client handles authentication internally via its configuration
 }
 
 // GetToken retrieves the current authentication token
 func (w *UAAClientWrapper) GetToken() string {
+	// Check legacy UAA token first
 	if w.config.UAAToken != "" {
 		return w.config.UAAToken
 	}
-	// Fallback to CF token if UAA token is not available
+
+	// Check current API configuration for UAA token
+	if w.config.CurrentAPI != "" {
+		if apiConfig, exists := w.config.APIs[w.config.CurrentAPI]; exists {
+			if apiConfig.UAAToken != "" {
+				return apiConfig.UAAToken
+			}
+			// Fallback to CF token if UAA token is not available
+			if apiConfig.Token != "" {
+				return apiConfig.Token
+			}
+		}
+	}
+
+	// Fallback to legacy CF token if UAA token is not available
 	return w.config.Token
 }
 
 // discoverUAAEndpoint attempts to discover the UAA endpoint from various sources
 func (w *UAAClientWrapper) discoverUAAEndpoint() (string, error) {
-	// 1. Check if UAA endpoint is explicitly configured
+	// 1. Check if UAA endpoint is explicitly configured in legacy config
 	if w.config.UAAEndpoint != "" {
 		return w.config.UAAEndpoint, nil
 	}
 
+	// 1.5. Check if UAA endpoint is configured in the current API
+	if w.config.CurrentAPI != "" {
+		if apiConfig, exists := w.config.APIs[w.config.CurrentAPI]; exists && apiConfig.UAAEndpoint != "" {
+			return apiConfig.UAAEndpoint, nil
+		}
+	}
+
 	// 2. Try to discover from CF API endpoint
-	if w.config.API != "" {
-		uaaEndpoint, err := w.discoverFromCFAPI()
+	apiEndpoint := w.getCurrentAPIEndpoint()
+	if apiEndpoint != "" {
+		uaaEndpoint, err := w.discoverFromCFAPIEndpoint(apiEndpoint)
 		if err == nil && uaaEndpoint != "" {
 			return uaaEndpoint, nil
 		}
@@ -143,8 +188,8 @@ func (w *UAAClientWrapper) discoverUAAEndpoint() (string, error) {
 	}
 
 	// 3. Try to infer from CF API endpoint (common patterns)
-	if w.config.API != "" {
-		if inferredEndpoint := w.inferUAAEndpoint(); inferredEndpoint != "" {
+	if apiEndpoint != "" {
+		if inferredEndpoint := w.inferUAAEndpointFromAPI(apiEndpoint); inferredEndpoint != "" {
 			return inferredEndpoint, nil
 		}
 	}
@@ -152,10 +197,22 @@ func (w *UAAClientWrapper) discoverUAAEndpoint() (string, error) {
 	return "", fmt.Errorf("no UAA endpoint configured and unable to discover from CF API endpoint")
 }
 
-// discoverFromCFAPI attempts to discover UAA endpoint from CF API info endpoint
-func (w *UAAClientWrapper) discoverFromCFAPI() (string, error) {
-	if w.config.API == "" {
-		return "", fmt.Errorf("no CF API endpoint configured")
+// getCurrentAPIEndpoint returns the current API endpoint from config
+func (w *UAAClientWrapper) getCurrentAPIEndpoint() string {
+	// Check current API configuration first
+	if w.config.CurrentAPI != "" {
+		if apiConfig, exists := w.config.APIs[w.config.CurrentAPI]; exists {
+			return apiConfig.Endpoint
+		}
+	}
+	// Fallback to legacy API endpoint
+	return w.config.API
+}
+
+// discoverFromCFAPIEndpoint attempts to discover UAA endpoint from a specific CF API endpoint
+func (w *UAAClientWrapper) discoverFromCFAPIEndpoint(apiEndpoint string) (string, error) {
+	if apiEndpoint == "" {
+		return "", fmt.Errorf("no CF API endpoint provided")
 	}
 
 	// Create HTTP client with appropriate SSL settings
@@ -178,55 +235,53 @@ func (w *UAAClientWrapper) discoverFromCFAPI() (string, error) {
 		Transport: transport,
 	}
 
-	// Try to get CF API info
-	infoURL := strings.TrimSuffix(w.config.API, "/") + "/v2/info"
-	resp, err := httpClient.Get(infoURL)
+	// Get the root info from the CF API
+	rootURL := strings.TrimSuffix(apiEndpoint, "/") + "/"
+	resp, err := httpClient.Get(rootURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to get CF API info: %w", err)
+		return "", fmt.Errorf("failed to get CF API root info: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("CF API info returned status %d", resp.StatusCode)
+		return "", fmt.Errorf("CF API root info request returned status %d", resp.StatusCode)
 	}
 
-	// Parse JSON response to extract authorization_endpoint
-	// For now, we'll use a simple approach - in a full implementation,
-	// we would parse the JSON properly
-	// This is a simplified version that assumes standard CF deployment patterns
+	var rootInfo struct {
+		Links struct {
+			UAA struct {
+				HREF string `json:"href"`
+			} `json:"uaa"`
+		} `json:"links"`
+	}
 
-	return "", fmt.Errorf("JSON parsing not implemented in this version")
+	if err := json.NewDecoder(resp.Body).Decode(&rootInfo); err != nil {
+		return "", fmt.Errorf("failed to decode CF API root info: %w", err)
+	}
+
+	if rootInfo.Links.UAA.HREF == "" {
+		return "", fmt.Errorf("no UAA endpoint found in CF API links")
+	}
+
+	return rootInfo.Links.UAA.HREF, nil
 }
 
-// inferUAAEndpoint attempts to infer UAA endpoint from CF API endpoint using common patterns
-func (w *UAAClientWrapper) inferUAAEndpoint() string {
-	if w.config.API == "" {
+// inferUAAEndpointFromAPI infers UAA endpoint from CF API endpoint using common patterns
+func (w *UAAClientWrapper) inferUAAEndpointFromAPI(apiEndpoint string) string {
+	if apiEndpoint == "" {
 		return ""
 	}
 
-	parsedURL, err := url.Parse(w.config.API)
+	// Parse the API endpoint
+	parsed, err := url.Parse(apiEndpoint)
 	if err != nil {
 		return ""
 	}
 
-	// Common patterns for UAA endpoints
-	patterns := []string{
-		// Replace "api." with "uaa."
-		strings.Replace(parsedURL.Host, "api.", "uaa.", 1),
-		// Replace "api" with "uaa"
-		strings.Replace(parsedURL.Host, "api", "uaa", 1),
-		// Append ":8443" for UAA (if not HTTPS)
-		parsedURL.Host + ":8443",
-	}
-
-	for _, pattern := range patterns {
-		if pattern != parsedURL.Host && pattern != "" {
-			uaaURL := &url.URL{
-				Scheme: "https", // UAA typically uses HTTPS
-				Host:   pattern,
-			}
-			return uaaURL.String()
-		}
+	// Common pattern: replace 'api.' with 'uaa.'
+	if strings.HasPrefix(parsed.Host, "api.") {
+		uaaHost := strings.Replace(parsed.Host, "api.", "uaa.", 1)
+		return fmt.Sprintf("%s://%s", parsed.Scheme, uaaHost)
 	}
 
 	return ""

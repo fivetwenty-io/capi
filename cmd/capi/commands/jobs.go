@@ -121,23 +121,52 @@ func newJobsPollCommand() *cobra.Command {
 				return fmt.Errorf("failed to poll job: %w", err)
 			}
 
-			fmt.Printf("Job completed: %s\n", job.GUID)
-			fmt.Printf("  Operation: %s\n", job.Operation)
-			fmt.Printf("  State:     %s\n", job.State)
-
-			if len(job.Errors) > 0 {
-				fmt.Printf("  Errors:\n")
-				for _, apiErr := range job.Errors {
-					fmt.Printf("    - %s: %s\n", apiErr.Title, apiErr.Detail)
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				if err := encoder.Encode(job); err != nil {
+					return err
 				}
-				return fmt.Errorf("job completed with errors")
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				if err := encoder.Encode(job); err != nil {
+					return err
+				}
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("GUID", job.GUID)
+				_ = table.Append("Operation", job.Operation)
+				_ = table.Append("State", job.State)
+				_ = table.Append("Created", job.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", job.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+				if len(job.Errors) > 0 {
+					var errorStrings []string
+					for _, apiErr := range job.Errors {
+						errorStrings = append(errorStrings, fmt.Sprintf("%s: %s", apiErr.Title, apiErr.Detail))
+					}
+					_ = table.Append("Errors", strings.Join(errorStrings, "\n"))
+				}
+
+				if len(job.Warnings) > 0 {
+					var warningStrings []string
+					for _, warning := range job.Warnings {
+						warningStrings = append(warningStrings, warning.Detail)
+					}
+					_ = table.Append("Warnings", strings.Join(warningStrings, "\n"))
+				}
+
+				fmt.Printf("Job polling completed:\n\n")
+				_ = table.Render()
 			}
 
-			if len(job.Warnings) > 0 {
-				fmt.Printf("  Warnings:\n")
-				for _, warning := range job.Warnings {
-					fmt.Printf("    - %s\n", warning.Detail)
-				}
+			if len(job.Errors) > 0 {
+				return fmt.Errorf("job completed with errors")
 			}
 
 			return nil

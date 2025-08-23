@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -62,22 +62,30 @@ func newSidecarsGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(sidecar)
 			default:
-				fmt.Printf("Sidecar: %s\n", sidecar.Name)
-				fmt.Printf("  GUID: %s\n", sidecar.GUID)
-				fmt.Printf("  Command: %s\n", sidecar.Command)
-				fmt.Printf("  Process Types: %s\n", strings.Join(sidecar.ProcessTypes, ", "))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("Name", sidecar.Name)
+				_ = table.Append("GUID", sidecar.GUID)
+				_ = table.Append("Command", sidecar.Command)
+				_ = table.Append("Process Types", strings.Join(sidecar.ProcessTypes, ", "))
+
 				if sidecar.MemoryInMB != nil {
-					fmt.Printf("  Memory: %d MB\n", *sidecar.MemoryInMB)
+					_ = table.Append("Memory", fmt.Sprintf("%d MB", *sidecar.MemoryInMB))
 				} else {
-					fmt.Printf("  Memory: default\n")
+					_ = table.Append("Memory", "default")
 				}
-				fmt.Printf("  Origin: %s\n", sidecar.Origin)
-				fmt.Printf("  Created: %s\n", sidecar.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated: %s\n", sidecar.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+				_ = table.Append("Origin", sidecar.Origin)
+				_ = table.Append("Created", sidecar.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", sidecar.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 				if sidecar.Relationships.App.Data != nil {
-					fmt.Printf("  App GUID: %s\n", sidecar.Relationships.App.Data.GUID)
+					_ = table.Append("App GUID", sidecar.Relationships.App.Data.GUID)
 				}
+
+				fmt.Printf("Sidecar details:\n\n")
+				_ = table.Render()
 			}
 
 			return nil

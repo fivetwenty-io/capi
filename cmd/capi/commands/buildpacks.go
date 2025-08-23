@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -218,23 +218,29 @@ func newBuildpacksGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(bp)
 			default:
-				fmt.Printf("Buildpack: %s\n", bp.Name)
-				fmt.Printf("  GUID:      %s\n", bp.GUID)
-				fmt.Printf("  Position:  %d\n", bp.Position)
-				fmt.Printf("  State:     %s\n", bp.State)
-				fmt.Printf("  Enabled:   %t\n", bp.Enabled)
-				fmt.Printf("  Locked:    %t\n", bp.Locked)
-				fmt.Printf("  Lifecycle: %s\n", bp.Lifecycle)
-				fmt.Printf("  Created:   %s\n", bp.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:   %s\n", bp.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("Name", bp.Name)
+				_ = table.Append("GUID", bp.GUID)
+				_ = table.Append("Position", fmt.Sprintf("%d", bp.Position))
+				_ = table.Append("State", bp.State)
+				_ = table.Append("Enabled", fmt.Sprintf("%t", bp.Enabled))
+				_ = table.Append("Locked", fmt.Sprintf("%t", bp.Locked))
+				_ = table.Append("Lifecycle", bp.Lifecycle)
+				_ = table.Append("Created", bp.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", bp.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 				if bp.Stack != nil {
-					fmt.Printf("  Stack:     %s\n", *bp.Stack)
+					_ = table.Append("Stack", *bp.Stack)
 				}
 
 				if bp.Filename != nil {
-					fmt.Printf("  Filename:  %s\n", *bp.Filename)
+					_ = table.Append("Filename", *bp.Filename)
 				}
+
+				fmt.Printf("Buildpack: %s\n\n", bp.Name)
+				_ = table.Render()
 			}
 
 			return nil

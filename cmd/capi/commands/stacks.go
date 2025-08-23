@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -170,14 +170,19 @@ func newStacksGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(stack)
 			default:
-				fmt.Printf("Stack: %s\n", stack.GUID)
-				fmt.Printf("  Name:        %s\n", stack.Name)
-				fmt.Printf("  Description: %s\n", stack.Description)
-				fmt.Printf("  Default:     %t\n", stack.Default)
-				fmt.Printf("  Build Image: %s\n", stack.BuildRootfsImage)
-				fmt.Printf("  Run Image:   %s\n", stack.RunRootfsImage)
-				fmt.Printf("  Created:     %s\n", stack.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:     %s\n", stack.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("GUID", stack.GUID)
+				_ = table.Append("Name", stack.Name)
+				_ = table.Append("Description", stack.Description)
+				_ = table.Append("Default", fmt.Sprintf("%t", stack.Default))
+				_ = table.Append("Build Image", stack.BuildRootfsImage)
+				_ = table.Append("Run Image", stack.RunRootfsImage)
+				_ = table.Append("Created", stack.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", stack.UpdatedAt.Format("2006-01-02 15:04:05"))
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
 			}
 
 			return nil

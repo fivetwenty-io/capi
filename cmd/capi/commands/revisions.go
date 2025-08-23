@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -60,46 +60,71 @@ func newRevisionsGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(revision)
 			default:
-				fmt.Printf("Revision: %d\n", revision.Version)
-				fmt.Printf("  GUID: %s\n", revision.GUID)
-				fmt.Printf("  Deployable: %t\n", revision.Deployable)
-				if revision.Description != nil {
-					fmt.Printf("  Description: %s\n", *revision.Description)
-				}
-				fmt.Printf("  Created: %s\n", revision.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated: %s\n", revision.UpdatedAt.Format("2006-01-02 15:04:05"))
+				// Basic revision information
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
 
-				fmt.Printf("  Droplet GUID: %s\n", revision.Droplet.GUID)
+				_ = table.Append("Version", fmt.Sprintf("%d", revision.Version))
+				_ = table.Append("GUID", revision.GUID)
+				_ = table.Append("Deployable", fmt.Sprintf("%t", revision.Deployable))
+				if revision.Description != nil {
+					_ = table.Append("Description", *revision.Description)
+				}
+				_ = table.Append("Created", revision.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", revision.UpdatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Droplet GUID", revision.Droplet.GUID)
 
 				if revision.Relationships.App.Data != nil {
-					fmt.Printf("  App GUID: %s\n", revision.Relationships.App.Data.GUID)
+					_ = table.Append("App GUID", revision.Relationships.App.Data.GUID)
 				}
 
+				fmt.Printf("Revision Details:\n\n")
+				_ = table.Render()
+
+				// Processes table
 				if len(revision.Processes) > 0 {
-					fmt.Println("  Processes:")
+					fmt.Println("\nProcesses:")
+					processTable := tablewriter.NewWriter(os.Stdout)
+					processTable.Header("Type", "GUID", "Instances", "Memory", "Disk", "Command")
+
 					for processType, process := range revision.Processes {
-						fmt.Printf("    %s:\n", processType)
-						fmt.Printf("      GUID: %s\n", process.GUID)
-						fmt.Printf("      Type: %s\n", process.Type)
-						fmt.Printf("      Instances: %d\n", process.Instances)
-						fmt.Printf("      Memory: %d MB\n", process.MemoryInMB)
-						fmt.Printf("      Disk: %d MB\n", process.DiskInMB)
+						command := ""
 						if process.Command != nil {
-							fmt.Printf("      Command: %s\n", *process.Command)
+							command = *process.Command
+							if len(command) > 40 {
+								command = command[:37] + "..."
+							}
 						}
+						_ = processTable.Append(
+							processType,
+							process.GUID,
+							fmt.Sprintf("%d", process.Instances),
+							fmt.Sprintf("%d MB", process.MemoryInMB),
+							fmt.Sprintf("%d MB", process.DiskInMB),
+							command,
+						)
 					}
+					_ = processTable.Render()
 				}
 
+				// Sidecars table
 				if len(revision.Sidecars) > 0 {
-					fmt.Println("  Sidecars:")
+					fmt.Println("\nSidecars:")
+					sidecarTable := tablewriter.NewWriter(os.Stdout)
+					sidecarTable.Header("Name", "GUID", "Command", "Memory")
+
 					for _, sidecar := range revision.Sidecars {
-						fmt.Printf("    %s:\n", sidecar.Name)
-						fmt.Printf("      GUID: %s\n", sidecar.GUID)
-						fmt.Printf("      Command: %s\n", sidecar.Command)
+						memory := "N/A"
 						if sidecar.MemoryInMB != nil {
-							fmt.Printf("      Memory: %d MB\n", *sidecar.MemoryInMB)
+							memory = fmt.Sprintf("%d MB", *sidecar.MemoryInMB)
 						}
+						command := sidecar.Command
+						if len(command) > 40 {
+							command = command[:37] + "..."
+						}
+						_ = sidecarTable.Append(sidecar.Name, sidecar.GUID, command, memory)
 					}
+					_ = sidecarTable.Render()
 				}
 			}
 

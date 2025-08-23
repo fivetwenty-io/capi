@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fivetwenty-io/capi-client/cmd/capi/commands"
+	"github.com/fivetwenty-io/capi/cmd/capi/commands"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -78,6 +78,10 @@ func init() {
 	rootCmd.AddCommand(commands.NewServiceUsageEventsCommand())
 	rootCmd.AddCommand(commands.NewAuditEventsCommand())
 	rootCmd.AddCommand(commands.NewResourceMatchesCommand())
+	rootCmd.AddCommand(commands.NewIsolationSegmentsCommand())
+	rootCmd.AddCommand(commands.NewFeatureFlagsCommand())
+	rootCmd.AddCommand(commands.NewManifestsCommand())
+	rootCmd.AddCommand(commands.NewAdminCommand())
 }
 
 func initConfig() {

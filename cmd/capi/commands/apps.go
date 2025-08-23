@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -67,6 +67,12 @@ func NewAppsCommand() *cobra.Command {
 	cmd.AddCommand(newAppsStatsCommand())
 	cmd.AddCommand(newAppsEventsCommand())
 	cmd.AddCommand(newAppsHealthCheckCommand())
+	cmd.AddCommand(newAppsTasksCommand())
+	cmd.AddCommand(newAppsDeploymentsCommand())
+	cmd.AddCommand(newAppsPackagesCommand())
+	cmd.AddCommand(newAppsDropletsCommand())
+	cmd.AddCommand(newAppsBuildsCommand())
+	cmd.AddCommand(newAppsFeaturesCommand())
 
 	return cmd
 }
@@ -421,10 +427,46 @@ func newAppsScaleCommand() *cobra.Command {
 			// Check if any scaling parameters were provided
 			if scaleReq.Instances == nil && scaleReq.MemoryInMB == nil && scaleReq.DiskInMB == nil {
 				// No scaling parameters provided, show current scale
-				fmt.Printf("Application '%s' process '%s' current scale:\n", appName, targetProcess.Type)
-				fmt.Printf("  Instances: %d\n", targetProcess.Instances)
-				fmt.Printf("  Memory: %d MB\n", targetProcess.MemoryInMB)
-				fmt.Printf("  Disk: %d MB\n", targetProcess.DiskInMB)
+				type ScaleInfo struct {
+					AppName     string `json:"app_name" yaml:"app_name"`
+					AppGUID     string `json:"app_guid" yaml:"app_guid"`
+					ProcessType string `json:"process_type" yaml:"process_type"`
+					Instances   int    `json:"instances" yaml:"instances"`
+					MemoryMB    int    `json:"memory_mb" yaml:"memory_mb"`
+					DiskMB      int    `json:"disk_mb" yaml:"disk_mb"`
+				}
+
+				scaleInfo := ScaleInfo{
+					AppName:     appName,
+					AppGUID:     appGUID,
+					ProcessType: targetProcess.Type,
+					Instances:   targetProcess.Instances,
+					MemoryMB:    targetProcess.MemoryInMB,
+					DiskMB:      targetProcess.DiskInMB,
+				}
+
+				// Output results
+				output := viper.GetString("output")
+				switch output {
+				case "json":
+					encoder := json.NewEncoder(os.Stdout)
+					encoder.SetIndent("", "  ")
+					return encoder.Encode(scaleInfo)
+				case "yaml":
+					encoder := yaml.NewEncoder(os.Stdout)
+					return encoder.Encode(scaleInfo)
+				default:
+					table := tablewriter.NewWriter(os.Stdout)
+					table.Header("Property", "Value")
+					_ = table.Append("Application", appName)
+					_ = table.Append("Process Type", targetProcess.Type)
+					_ = table.Append("Instances", fmt.Sprintf("%d", targetProcess.Instances))
+					_ = table.Append("Memory", fmt.Sprintf("%d MB", targetProcess.MemoryInMB))
+					_ = table.Append("Disk", fmt.Sprintf("%d MB", targetProcess.DiskInMB))
+
+					fmt.Printf("Current scale for application '%s' process '%s':\n\n", appName, targetProcess.Type)
+					_ = table.Render()
+				}
 				return nil
 			}
 
@@ -434,10 +476,46 @@ func newAppsScaleCommand() *cobra.Command {
 				return fmt.Errorf("failed to scale application: %w", err)
 			}
 
-			fmt.Printf("Successfully scaled application '%s' process '%s':\n", appName, scaledProcess.Type)
-			fmt.Printf("  Instances: %d\n", scaledProcess.Instances)
-			fmt.Printf("  Memory: %d MB\n", scaledProcess.MemoryInMB)
-			fmt.Printf("  Disk: %d MB\n", scaledProcess.DiskInMB)
+			type ScaledInfo struct {
+				AppName     string `json:"app_name" yaml:"app_name"`
+				AppGUID     string `json:"app_guid" yaml:"app_guid"`
+				ProcessType string `json:"process_type" yaml:"process_type"`
+				Instances   int    `json:"instances" yaml:"instances"`
+				MemoryMB    int    `json:"memory_mb" yaml:"memory_mb"`
+				DiskMB      int    `json:"disk_mb" yaml:"disk_mb"`
+			}
+
+			scaledInfo := ScaledInfo{
+				AppName:     appName,
+				AppGUID:     appGUID,
+				ProcessType: scaledProcess.Type,
+				Instances:   scaledProcess.Instances,
+				MemoryMB:    scaledProcess.MemoryInMB,
+				DiskMB:      scaledProcess.DiskInMB,
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(scaledInfo)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(scaledInfo)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Application", appName)
+				_ = table.Append("Process Type", scaledProcess.Type)
+				_ = table.Append("Instances", fmt.Sprintf("%d", scaledProcess.Instances))
+				_ = table.Append("Memory", fmt.Sprintf("%d MB", scaledProcess.MemoryInMB))
+				_ = table.Append("Disk", fmt.Sprintf("%d MB", scaledProcess.DiskInMB))
+
+				fmt.Printf("Successfully scaled application '%s' process '%s':\n\n", appName, scaledProcess.Type)
+				_ = table.Render()
+			}
 
 			return nil
 		},
@@ -714,9 +792,44 @@ func newAppsSetEnvCommand() *cobra.Command {
 				return fmt.Errorf("failed to set environment variable: %w", err)
 			}
 
-			fmt.Printf("Successfully set environment variable '%s' for application '%s'\n", envVarName, appName)
-			fmt.Printf("  %s=%s\n", envVarName, envVarValue)
-			fmt.Println("\nNote: You may need to restart the application for the changes to take effect.")
+			type EnvVarResult struct {
+				AppName   string `json:"app_name" yaml:"app_name"`
+				AppGUID   string `json:"app_guid" yaml:"app_guid"`
+				Name      string `json:"name" yaml:"name"`
+				Value     string `json:"value" yaml:"value"`
+				Operation string `json:"operation" yaml:"operation"`
+			}
+
+			result := EnvVarResult{
+				AppName:   appName,
+				AppGUID:   appGUID,
+				Name:      envVarName,
+				Value:     envVarValue,
+				Operation: "set",
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(result)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(result)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Application", appName)
+				_ = table.Append("Operation", "set")
+				_ = table.Append("Variable Name", envVarName)
+				_ = table.Append("Variable Value", envVarValue)
+
+				fmt.Printf("Successfully set environment variable for application '%s':\n\n", appName)
+				_ = table.Render()
+				fmt.Println("\nNote: You may need to restart the application for the changes to take effect.")
+			}
 
 			return nil
 		},
@@ -757,8 +870,8 @@ func newAppsUnsetEnvCommand() *cobra.Command {
 				return fmt.Errorf("environment variable '%s' not found for application '%s'", envVarName, appName)
 			}
 
-			// Remove the environment variable
-			delete(currentEnvVars, envVarName)
+			// Set the environment variable to null to remove it (CF API v3 requirement)
+			currentEnvVars[envVarName] = nil
 
 			// Update environment variables
 			_, err = client.Apps().UpdateEnvVars(ctx, appGUID, currentEnvVars)
@@ -766,8 +879,41 @@ func newAppsUnsetEnvCommand() *cobra.Command {
 				return fmt.Errorf("failed to unset environment variable: %w", err)
 			}
 
-			fmt.Printf("Successfully unset environment variable '%s' for application '%s'\n", envVarName, appName)
-			fmt.Println("\nNote: You may need to restart the application for the changes to take effect.")
+			type EnvVarResult struct {
+				AppName   string `json:"app_name" yaml:"app_name"`
+				AppGUID   string `json:"app_guid" yaml:"app_guid"`
+				Name      string `json:"name" yaml:"name"`
+				Operation string `json:"operation" yaml:"operation"`
+			}
+
+			result := EnvVarResult{
+				AppName:   appName,
+				AppGUID:   appGUID,
+				Name:      envVarName,
+				Operation: "unset",
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(result)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(result)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Application", appName)
+				_ = table.Append("Operation", "unset")
+				_ = table.Append("Variable Name", envVarName)
+
+				fmt.Printf("Successfully unset environment variable for application '%s':\n\n", appName)
+				_ = table.Render()
+				fmt.Println("\nNote: You may need to restart the application for the changes to take effect.")
+			}
 
 			return nil
 		},
@@ -809,9 +955,10 @@ func newAppsLogsCommand() *cobra.Command {
 
 				fmt.Printf("Recent logs for application '%s':\n\n", appName)
 				for _, logMsg := range logs.Messages {
-					timestamp := logMsg.Timestamp.Format("2006-01-02T15:04:05.000Z")
-					fmt.Printf("[%s/%s] %s %s %s\n",
-						logMsg.SourceType, logMsg.SourceID, logMsg.MessageType, timestamp, logMsg.Message)
+					// Format timestamp like CF CLI: 2025-08-22T18:37:33.70-0400
+					timestamp := logMsg.Timestamp.Format("2006-01-02T15:04:05.00-0700")
+					fmt.Printf("   %s [%s] %s %s\n",
+						timestamp, logMsg.SourceType, logMsg.MessageType, logMsg.Message)
 				}
 
 				fmt.Printf("\nNote: Logs streaming requires WebSocket/SSE connection to CF API.\n")
@@ -834,9 +981,10 @@ func newAppsLogsCommand() *cobra.Command {
 
 				// Process streaming logs
 				for logMsg := range logChan {
-					timestamp := logMsg.Timestamp.Format("2006-01-02T15:04:05.000Z")
-					fmt.Printf("[%s/%s] %s %s %s\n",
-						logMsg.SourceType, logMsg.SourceID, logMsg.MessageType, timestamp, logMsg.Message)
+					// Format timestamp like CF CLI: 2025-08-22T18:37:33.70-0400
+					timestamp := logMsg.Timestamp.Format("2006-01-02T15:04:05.00-0700")
+					fmt.Printf("   %s [%s] %s %s\n",
+						timestamp, logMsg.SourceType, logMsg.MessageType, logMsg.Message)
 				}
 
 				fmt.Println("\nLog streaming stopped.")
@@ -1059,56 +1207,68 @@ func newAppsProcessesCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(processData)
 			default:
-				fmt.Printf("Processes for application '%s':\n\n", appName)
+				table := tablewriter.NewWriter(os.Stdout)
+
+				if showStats {
+					table.Header("Process", "GUID", "Instances", "Memory", "Disk", "Log Rate Limit", "Command", "Health Check", "Instance Stats")
+				} else {
+					table.Header("Process", "GUID", "Instances", "Memory", "Disk", "Log Rate Limit", "Command", "Health Check")
+				}
 
 				for _, process := range processes.Resources {
-					fmt.Printf("Process: %s\n", process.Type)
-					fmt.Printf("  GUID: %s\n", process.GUID)
-					fmt.Printf("  Instances: %d\n", process.Instances)
-					fmt.Printf("  Memory: %d MB\n", process.MemoryInMB)
-					fmt.Printf("  Disk: %d MB\n", process.DiskInMB)
+					processType := process.Type
+					guid := process.GUID
+					instances := fmt.Sprintf("%d", process.Instances)
+					memory := fmt.Sprintf("%d MB", process.MemoryInMB)
+					disk := fmt.Sprintf("%d MB", process.DiskInMB)
 
+					logRateLimit := "-1 bytes/sec"
 					if process.LogRateLimitInBytesPerSecond != nil {
-						fmt.Printf("  Log Rate Limit: %d bytes/sec\n", *process.LogRateLimitInBytesPerSecond)
-					} else {
-						fmt.Printf("  Log Rate Limit: -1 bytes/sec\n")
+						logRateLimit = fmt.Sprintf("%d bytes/sec", *process.LogRateLimitInBytesPerSecond)
 					}
 
-					if process.Command != nil {
-						fmt.Printf("  Command: %s\n", *process.Command)
+					command := "[PRIVATE DATA HIDDEN IN LISTS]"
+					if process.Command != nil && *process.Command != "" {
+						command = "[PRIVATE DATA HIDDEN IN LISTS]"
 					}
 
+					healthCheck := "none"
 					if process.HealthCheck != nil {
-						fmt.Printf("  Health Check: %s", process.HealthCheck.Type)
+						healthCheck = process.HealthCheck.Type
 						if process.HealthCheck.Data != nil {
 							if process.HealthCheck.Data.Timeout != nil {
-								fmt.Printf(" (timeout: %ds)", *process.HealthCheck.Data.Timeout)
+								healthCheck += fmt.Sprintf(" (timeout: %ds)", *process.HealthCheck.Data.Timeout)
 							}
 							if process.HealthCheck.Data.Endpoint != nil {
-								fmt.Printf(" (endpoint: %s)", *process.HealthCheck.Data.Endpoint)
+								healthCheck += fmt.Sprintf(" (endpoint: %s)", *process.HealthCheck.Data.Endpoint)
 							}
 						}
-						fmt.Println()
 					}
 
-					// Get process stats if requested
 					if showStats {
+						// Get process stats if requested
+						instanceStats := "N/A"
 						stats, err := client.Processes().GetStats(ctx, process.GUID)
 						if err == nil && len(stats.Resources) > 0 {
-							fmt.Printf("  Instance Stats:\n")
+							var statDetails []string
 							for _, stat := range stats.Resources {
-								fmt.Printf("    Instance %d: %s", stat.Index, stat.State)
+								detail := fmt.Sprintf("Instance %d: %s", stat.Index, stat.State)
 								if stat.Usage != nil {
-									fmt.Printf(" (CPU: %.2f%%, Memory: %d bytes, Disk: %d bytes)",
+									detail += fmt.Sprintf(" (CPU: %.2f%%, Mem: %d bytes, Disk: %d bytes)",
 										stat.Usage.CPU*100, stat.Usage.Mem, stat.Usage.Disk)
 								}
-								fmt.Println()
+								statDetails = append(statDetails, detail)
 							}
+							instanceStats = strings.Join(statDetails, "\n")
 						}
+						_ = table.Append(processType, guid, instances, memory, disk, logRateLimit, command, healthCheck, instanceStats)
+					} else {
+						_ = table.Append(processType, guid, instances, memory, disk, logRateLimit, command, healthCheck)
 					}
-
-					fmt.Println()
 				}
+
+				fmt.Printf("Processes for application '%s':\n\n", appName)
+				_ = table.Render()
 			}
 
 			return nil
@@ -1372,10 +1532,18 @@ func newAppsManifestDiffCommand() *cobra.Command {
 			}
 
 			fmt.Printf("Manifest diff for space '%s':\n\n", spaceName)
-			if diff.Diff == "" {
+			if len(diff.Diff) == 0 {
 				fmt.Println("No differences found - manifest matches current state")
 			} else {
-				fmt.Print(diff.Diff)
+				for _, entry := range diff.Diff {
+					fmt.Printf("%s: %s\n", entry.Op, entry.Path)
+					if entry.Was != nil {
+						fmt.Printf("  Was: %v\n", entry.Was)
+					}
+					if entry.Value != nil {
+						fmt.Printf("  Now: %v\n", entry.Value)
+					}
+				}
 			}
 
 			return nil
@@ -1898,4 +2066,976 @@ func newAppsHealthCheckCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&processType, "process", "p", "", "Process type (defaults to first process)")
 
 	return cmd
+}
+
+func newAppsTasksCommand() *cobra.Command {
+	var (
+		appNameOrGUID string
+		allPages      bool
+		perPage       int
+		state         string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "tasks [APP_NAME_OR_GUID]",
+		Short: "List application tasks",
+		Long:  "List all tasks for an application",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				appNameOrGUID = args[0]
+			}
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			params := capi.NewQueryParams()
+
+			if perPage > 0 {
+				params.PerPage = perPage
+			}
+
+			// Filter by app if specified
+			if appNameOrGUID != "" {
+				// Find app by name or GUID
+				app, err := client.Apps().Get(ctx, appNameOrGUID)
+				if err != nil {
+					// Try by name in targeted space
+					appParams := capi.NewQueryParams()
+					appParams.WithFilter("names", appNameOrGUID)
+					if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+						appParams.WithFilter("space_guids", spaceGUID)
+					}
+					apps, err := client.Apps().List(ctx, appParams)
+					if err != nil {
+						return fmt.Errorf("failed to find application: %w", err)
+					}
+					if len(apps.Resources) == 0 {
+						return fmt.Errorf("application '%s' not found", appNameOrGUID)
+					}
+					params.WithFilter("app_guids", apps.Resources[0].GUID)
+				} else {
+					params.WithFilter("app_guids", app.GUID)
+				}
+			}
+
+			// Filter by state if specified
+			if state != "" {
+				params.WithFilter("states", state)
+			}
+
+			tasks, err := client.Tasks().List(ctx, params)
+			if err != nil {
+				return fmt.Errorf("failed to list tasks: %w", err)
+			}
+
+			// Fetch all pages if requested
+			allTasks := tasks.Resources
+			if allPages && tasks.Pagination.TotalPages > 1 {
+				for page := 2; page <= tasks.Pagination.TotalPages; page++ {
+					params.Page = page
+					moreTasks, err := client.Tasks().List(ctx, params)
+					if err != nil {
+						return fmt.Errorf("failed to fetch page %d: %w", page, err)
+					}
+					allTasks = append(allTasks, moreTasks.Resources...)
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allTasks)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				encoder.SetIndent(2)
+				return encoder.Encode(allTasks)
+			default:
+				if len(allTasks) == 0 {
+					fmt.Println("No tasks found")
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("GUID", "Name", "State", "App", "Command", "Created")
+
+				for _, task := range allTasks {
+					createdAt := ""
+					if !task.CreatedAt.IsZero() {
+						createdAt = task.CreatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					appName := ""
+					if task.Relationships != nil && task.Relationships.App != nil {
+						appName = task.Relationships.App.Data.GUID
+					}
+
+					command := ""
+					if task.Command != "" {
+						command = task.Command
+						if len(command) > 50 {
+							command = command[:47] + "..."
+						}
+					}
+
+					_ = table.Append(task.GUID, task.Name, task.State, appName, command, createdAt)
+				}
+
+				_ = table.Render()
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
+	cmd.Flags().IntVar(&perPage, "per-page", 0, "results per page")
+	cmd.Flags().StringVar(&state, "state", "", "filter by task state")
+
+	return cmd
+}
+
+func newAppsDeploymentsCommand() *cobra.Command {
+	var (
+		appNameOrGUID string
+		allPages      bool
+		perPage       int
+		state         string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "deployments [APP_NAME_OR_GUID]",
+		Short: "List application deployments",
+		Long:  "List all deployments for an application",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				appNameOrGUID = args[0]
+			}
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			params := capi.NewQueryParams()
+
+			if perPage > 0 {
+				params.PerPage = perPage
+			}
+
+			// Filter by app if specified
+			if appNameOrGUID != "" {
+				// Find app by name or GUID
+				app, err := client.Apps().Get(ctx, appNameOrGUID)
+				if err != nil {
+					// Try by name in targeted space
+					appParams := capi.NewQueryParams()
+					appParams.WithFilter("names", appNameOrGUID)
+					if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+						appParams.WithFilter("space_guids", spaceGUID)
+					}
+					apps, err := client.Apps().List(ctx, appParams)
+					if err != nil {
+						return fmt.Errorf("failed to find application: %w", err)
+					}
+					if len(apps.Resources) == 0 {
+						return fmt.Errorf("application '%s' not found", appNameOrGUID)
+					}
+					params.WithFilter("app_guids", apps.Resources[0].GUID)
+				} else {
+					params.WithFilter("app_guids", app.GUID)
+				}
+			}
+
+			// Filter by state if specified
+			if state != "" {
+				params.WithFilter("states", state)
+			}
+
+			deployments, err := client.Deployments().List(ctx, params)
+			if err != nil {
+				return fmt.Errorf("failed to list deployments: %w", err)
+			}
+
+			// Fetch all pages if requested
+			allDeployments := deployments.Resources
+			if allPages && deployments.Pagination.TotalPages > 1 {
+				for page := 2; page <= deployments.Pagination.TotalPages; page++ {
+					params.Page = page
+					moreDeployments, err := client.Deployments().List(ctx, params)
+					if err != nil {
+						return fmt.Errorf("failed to fetch page %d: %w", page, err)
+					}
+					allDeployments = append(allDeployments, moreDeployments.Resources...)
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allDeployments)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				encoder.SetIndent(2)
+				return encoder.Encode(allDeployments)
+			default:
+				if len(allDeployments) == 0 {
+					fmt.Println("No deployments found")
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("GUID", "Status", "Strategy", "App", "Created", "Updated")
+
+				for _, deployment := range allDeployments {
+					createdAt := ""
+					if !deployment.CreatedAt.IsZero() {
+						createdAt = deployment.CreatedAt.Format("2006-01-02 15:04:05")
+					}
+					updatedAt := ""
+					if !deployment.UpdatedAt.IsZero() {
+						updatedAt = deployment.UpdatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					appName := ""
+					if deployment.Relationships != nil && deployment.Relationships.App != nil {
+						appName = deployment.Relationships.App.Data.GUID
+					}
+
+					_ = table.Append(deployment.GUID, deployment.Status.Value, deployment.Strategy, appName, createdAt, updatedAt)
+				}
+
+				_ = table.Render()
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
+	cmd.Flags().IntVar(&perPage, "per-page", 0, "results per page")
+	cmd.Flags().StringVar(&state, "state", "", "filter by deployment state")
+
+	return cmd
+}
+
+func newAppsPackagesCommand() *cobra.Command {
+	var (
+		appNameOrGUID string
+		allPages      bool
+		perPage       int
+		state         string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "packages [APP_NAME_OR_GUID]",
+		Short: "List application packages",
+		Long:  "List all packages for an application",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				appNameOrGUID = args[0]
+			}
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			params := capi.NewQueryParams()
+
+			if perPage > 0 {
+				params.PerPage = perPage
+			}
+
+			// Filter by app if specified
+			if appNameOrGUID != "" {
+				// Find app by name or GUID
+				app, err := client.Apps().Get(ctx, appNameOrGUID)
+				if err != nil {
+					// Try by name in targeted space
+					appParams := capi.NewQueryParams()
+					appParams.WithFilter("names", appNameOrGUID)
+					if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+						appParams.WithFilter("space_guids", spaceGUID)
+					}
+					apps, err := client.Apps().List(ctx, appParams)
+					if err != nil {
+						return fmt.Errorf("failed to find application: %w", err)
+					}
+					if len(apps.Resources) == 0 {
+						return fmt.Errorf("application '%s' not found", appNameOrGUID)
+					}
+					params.WithFilter("app_guids", apps.Resources[0].GUID)
+				} else {
+					params.WithFilter("app_guids", app.GUID)
+				}
+			}
+
+			// Filter by state if specified
+			if state != "" {
+				params.WithFilter("states", state)
+			}
+
+			packages, err := client.Packages().List(ctx, params)
+			if err != nil {
+				return fmt.Errorf("failed to list packages: %w", err)
+			}
+
+			// Fetch all pages if requested
+			allPackages := packages.Resources
+			if allPages && packages.Pagination.TotalPages > 1 {
+				for page := 2; page <= packages.Pagination.TotalPages; page++ {
+					params.Page = page
+					morePackages, err := client.Packages().List(ctx, params)
+					if err != nil {
+						return fmt.Errorf("failed to fetch page %d: %w", page, err)
+					}
+					allPackages = append(allPackages, morePackages.Resources...)
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allPackages)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				encoder.SetIndent(2)
+				return encoder.Encode(allPackages)
+			default:
+				if len(allPackages) == 0 {
+					fmt.Println("No packages found")
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("GUID", "Type", "State", "App", "Created", "Updated")
+
+				for _, pkg := range allPackages {
+					createdAt := ""
+					if !pkg.CreatedAt.IsZero() {
+						createdAt = pkg.CreatedAt.Format("2006-01-02 15:04:05")
+					}
+					updatedAt := ""
+					if !pkg.UpdatedAt.IsZero() {
+						updatedAt = pkg.UpdatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					appName := ""
+					if pkg.Relationships != nil && pkg.Relationships.App != nil {
+						appName = pkg.Relationships.App.Data.GUID
+					}
+
+					_ = table.Append(pkg.GUID, pkg.Type, pkg.State, appName, createdAt, updatedAt)
+				}
+
+				_ = table.Render()
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
+	cmd.Flags().IntVar(&perPage, "per-page", 0, "results per page")
+	cmd.Flags().StringVar(&state, "state", "", "filter by package state")
+
+	return cmd
+}
+
+func newAppsDropletsCommand() *cobra.Command {
+	var (
+		appNameOrGUID string
+		allPages      bool
+		perPage       int
+		state         string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "droplets [APP_NAME_OR_GUID]",
+		Short: "List application droplets",
+		Long:  "List all droplets for an application",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				appNameOrGUID = args[0]
+			}
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			params := capi.NewQueryParams()
+
+			if perPage > 0 {
+				params.PerPage = perPage
+			}
+
+			// Filter by app if specified
+			if appNameOrGUID != "" {
+				// Find app by name or GUID
+				app, err := client.Apps().Get(ctx, appNameOrGUID)
+				if err != nil {
+					// Try by name in targeted space
+					appParams := capi.NewQueryParams()
+					appParams.WithFilter("names", appNameOrGUID)
+					if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+						appParams.WithFilter("space_guids", spaceGUID)
+					}
+					apps, err := client.Apps().List(ctx, appParams)
+					if err != nil {
+						return fmt.Errorf("failed to find application: %w", err)
+					}
+					if len(apps.Resources) == 0 {
+						return fmt.Errorf("application '%s' not found", appNameOrGUID)
+					}
+					params.WithFilter("app_guids", apps.Resources[0].GUID)
+				} else {
+					params.WithFilter("app_guids", app.GUID)
+				}
+			}
+
+			// Filter by state if specified
+			if state != "" {
+				params.WithFilter("states", state)
+			}
+
+			droplets, err := client.Droplets().List(ctx, params)
+			if err != nil {
+				return fmt.Errorf("failed to list droplets: %w", err)
+			}
+
+			// Fetch all pages if requested
+			allDroplets := droplets.Resources
+			if allPages && droplets.Pagination.TotalPages > 1 {
+				for page := 2; page <= droplets.Pagination.TotalPages; page++ {
+					params.Page = page
+					moreDroplets, err := client.Droplets().List(ctx, params)
+					if err != nil {
+						return fmt.Errorf("failed to fetch page %d: %w", page, err)
+					}
+					allDroplets = append(allDroplets, moreDroplets.Resources...)
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allDroplets)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				encoder.SetIndent(2)
+				return encoder.Encode(allDroplets)
+			default:
+				if len(allDroplets) == 0 {
+					fmt.Println("No droplets found")
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("GUID", "State", "Stack", "App", "Current", "Created")
+
+				for _, droplet := range allDroplets {
+					createdAt := ""
+					if !droplet.CreatedAt.IsZero() {
+						createdAt = droplet.CreatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					appName := ""
+					if droplet.Relationships != nil && droplet.Relationships.App != nil {
+						appName = droplet.Relationships.App.Data.GUID
+					}
+
+					stack := ""
+					if droplet.Stack != nil && *droplet.Stack != "" {
+						stack = *droplet.Stack
+					}
+
+					current := ""
+					// Note: Current droplet identification would require additional API call
+
+					_ = table.Append(droplet.GUID, droplet.State, stack, appName, current, createdAt)
+				}
+
+				_ = table.Render()
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
+	cmd.Flags().IntVar(&perPage, "per-page", 0, "results per page")
+	cmd.Flags().StringVar(&state, "state", "", "filter by droplet state")
+
+	return cmd
+}
+
+func newAppsBuildsCommand() *cobra.Command {
+	var (
+		appNameOrGUID string
+		allPages      bool
+		perPage       int
+		state         string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "builds [APP_NAME_OR_GUID]",
+		Short: "List application builds",
+		Long:  "List all builds for an application",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				appNameOrGUID = args[0]
+			}
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			params := capi.NewQueryParams()
+
+			if perPage > 0 {
+				params.PerPage = perPage
+			}
+
+			// Filter by app if specified
+			if appNameOrGUID != "" {
+				// Find app by name or GUID
+				app, err := client.Apps().Get(ctx, appNameOrGUID)
+				if err != nil {
+					// Try by name in targeted space
+					appParams := capi.NewQueryParams()
+					appParams.WithFilter("names", appNameOrGUID)
+					if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+						appParams.WithFilter("space_guids", spaceGUID)
+					}
+					apps, err := client.Apps().List(ctx, appParams)
+					if err != nil {
+						return fmt.Errorf("failed to find application: %w", err)
+					}
+					if len(apps.Resources) == 0 {
+						return fmt.Errorf("application '%s' not found", appNameOrGUID)
+					}
+					params.WithFilter("app_guids", apps.Resources[0].GUID)
+				} else {
+					params.WithFilter("app_guids", app.GUID)
+				}
+			}
+
+			// Filter by state if specified
+			if state != "" {
+				params.WithFilter("states", state)
+			}
+
+			builds, err := client.Builds().List(ctx, params)
+			if err != nil {
+				return fmt.Errorf("failed to list builds: %w", err)
+			}
+
+			// Fetch all pages if requested
+			allBuilds := builds.Resources
+			if allPages && builds.Pagination.TotalPages > 1 {
+				for page := 2; page <= builds.Pagination.TotalPages; page++ {
+					params.Page = page
+					moreBuilds, err := client.Builds().List(ctx, params)
+					if err != nil {
+						return fmt.Errorf("failed to fetch page %d: %w", page, err)
+					}
+					allBuilds = append(allBuilds, moreBuilds.Resources...)
+				}
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(allBuilds)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				encoder.SetIndent(2)
+				return encoder.Encode(allBuilds)
+			default:
+				if len(allBuilds) == 0 {
+					fmt.Println("No builds found")
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("GUID", "State", "App", "Package", "Created", "Updated")
+
+				for _, build := range allBuilds {
+					createdAt := ""
+					if !build.CreatedAt.IsZero() {
+						createdAt = build.CreatedAt.Format("2006-01-02 15:04:05")
+					}
+					updatedAt := ""
+					if !build.UpdatedAt.IsZero() {
+						updatedAt = build.UpdatedAt.Format("2006-01-02 15:04:05")
+					}
+
+					appName := ""
+					if build.Relationships != nil && build.Relationships.App != nil {
+						appName = build.Relationships.App.Data.GUID
+					}
+
+					packageGUID := ""
+					if build.Package != nil {
+						packageGUID = build.Package.GUID
+					}
+
+					_ = table.Append(build.GUID, build.State, appName, packageGUID, createdAt, updatedAt)
+				}
+
+				_ = table.Render()
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
+	cmd.Flags().IntVar(&perPage, "per-page", 0, "results per page")
+	cmd.Flags().StringVar(&state, "state", "", "filter by build state")
+
+	return cmd
+}
+
+func newAppsFeaturesCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "features",
+		Short: "Manage application features",
+		Long:  "Manage application features including listing, getting, enabling, and disabling features",
+	}
+
+	cmd.AddCommand(newAppsFeaturesListCommand())
+	cmd.AddCommand(newAppsFeaturesGetCommand())
+	cmd.AddCommand(newAppsFeaturesEnableCommand())
+	cmd.AddCommand(newAppsFeaturesDisableCommand())
+
+	return cmd
+}
+
+func newAppsFeaturesListCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list APP_NAME_OR_GUID",
+		Short: "List application features",
+		Long:  "List all features for an application",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			appNameOrGUID := args[0]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find app
+			app, err := client.Apps().Get(ctx, appNameOrGUID)
+			if err != nil {
+				// Try by name in targeted space
+				params := capi.NewQueryParams()
+				params.WithFilter("names", appNameOrGUID)
+				if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+					params.WithFilter("space_guids", spaceGUID)
+				}
+				apps, err := client.Apps().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find application: %w", err)
+				}
+				if len(apps.Resources) == 0 {
+					return fmt.Errorf("application '%s' not found", appNameOrGUID)
+				}
+				app = &apps.Resources[0]
+			}
+
+			features, err := client.Apps().GetFeatures(ctx, app.GUID)
+			if err != nil {
+				return fmt.Errorf("getting app features: %w", err)
+			}
+
+			// Prepare structured data for output
+			type FeatureInfo struct {
+				Name        string `json:"name" yaml:"name"`
+				Description string `json:"description" yaml:"description"`
+				Enabled     bool   `json:"enabled" yaml:"enabled"`
+				Status      string `json:"status" yaml:"status"`
+			}
+
+			var featureInfos []FeatureInfo
+			for _, feature := range features.Resources {
+				status := "disabled"
+				if feature.Enabled {
+					status = "enabled"
+				}
+				featureInfos = append(featureInfos, FeatureInfo{
+					Name:        feature.Name,
+					Description: feature.Description,
+					Enabled:     feature.Enabled,
+					Status:      status,
+				})
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(featureInfos)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(featureInfos)
+			default:
+				if len(featureInfos) == 0 {
+					fmt.Printf("No features found for application %s\n", app.Name)
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Feature", "Status", "Description")
+
+				for _, feature := range featureInfos {
+					description := feature.Description
+					// Truncate long descriptions for table display
+					if len(description) > 60 {
+						description = description[:57] + "..."
+					}
+					_ = table.Append(feature.Name, feature.Status, description)
+				}
+
+				fmt.Printf("Features for application '%s':\n\n", app.Name)
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func newAppsFeaturesGetCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get APP_NAME_OR_GUID FEATURE_NAME",
+		Short: "Get details for a specific application feature",
+		Long:  "Get detailed information about a specific application feature",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			appNameOrGUID := args[0]
+			featureName := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find app
+			app, err := client.Apps().Get(ctx, appNameOrGUID)
+			if err != nil {
+				// Try by name in targeted space
+				params := capi.NewQueryParams()
+				params.WithFilter("names", appNameOrGUID)
+				if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+					params.WithFilter("space_guids", spaceGUID)
+				}
+				apps, err := client.Apps().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find application: %w", err)
+				}
+				if len(apps.Resources) == 0 {
+					return fmt.Errorf("application '%s' not found", appNameOrGUID)
+				}
+				app = &apps.Resources[0]
+			}
+
+			feature, err := client.Apps().GetFeature(ctx, app.GUID, featureName)
+			if err != nil {
+				return fmt.Errorf("getting app feature '%s': %w", featureName, err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(feature)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(feature)
+			default:
+				status := "disabled"
+				if feature.Enabled {
+					status = "enabled"
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Name", feature.Name)
+				_ = table.Append("Status", status)
+				_ = table.Append("Description", feature.Description)
+
+				fmt.Printf("Feature '%s' for application '%s':\n\n", featureName, app.Name)
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func newAppsFeaturesEnableCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "enable APP_NAME_OR_GUID FEATURE_NAME",
+		Short: "Enable a specific application feature",
+		Long:  "Enable a specific application feature",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			appNameOrGUID := args[0]
+			featureName := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find app
+			app, err := client.Apps().Get(ctx, appNameOrGUID)
+			if err != nil {
+				// Try by name in targeted space
+				params := capi.NewQueryParams()
+				params.WithFilter("names", appNameOrGUID)
+				if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+					params.WithFilter("space_guids", spaceGUID)
+				}
+				apps, err := client.Apps().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find application: %w", err)
+				}
+				if len(apps.Resources) == 0 {
+					return fmt.Errorf("application '%s' not found", appNameOrGUID)
+				}
+				app = &apps.Resources[0]
+			}
+
+			request := &capi.AppFeatureUpdateRequest{
+				Enabled: true,
+			}
+
+			updatedFeature, err := client.Apps().UpdateFeature(ctx, app.GUID, featureName, request)
+			if err != nil {
+				return fmt.Errorf("enabling app feature '%s': %w", featureName, err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(updatedFeature)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(updatedFeature)
+			default:
+				fmt.Printf("✓ Feature '%s' has been enabled for application '%s'\n", featureName, app.Name)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newAppsFeaturesDisableCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "disable APP_NAME_OR_GUID FEATURE_NAME",
+		Short: "Disable a specific application feature",
+		Long:  "Disable a specific application feature",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			appNameOrGUID := args[0]
+			featureName := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find app
+			app, err := client.Apps().Get(ctx, appNameOrGUID)
+			if err != nil {
+				// Try by name in targeted space
+				params := capi.NewQueryParams()
+				params.WithFilter("names", appNameOrGUID)
+				if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+					params.WithFilter("space_guids", spaceGUID)
+				}
+				apps, err := client.Apps().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find application: %w", err)
+				}
+				if len(apps.Resources) == 0 {
+					return fmt.Errorf("application '%s' not found", appNameOrGUID)
+				}
+				app = &apps.Resources[0]
+			}
+
+			request := &capi.AppFeatureUpdateRequest{
+				Enabled: false,
+			}
+
+			updatedFeature, err := client.Apps().UpdateFeature(ctx, app.GUID, featureName, request)
+			if err != nil {
+				return fmt.Errorf("disabling app feature '%s': %w", featureName, err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(updatedFeature)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(updatedFeature)
+			default:
+				fmt.Printf("✓ Feature '%s' has been disabled for application '%s'\n", featureName, app.Name)
+			}
+
+			return nil
+		},
+	}
 }

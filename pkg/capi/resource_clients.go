@@ -35,6 +35,11 @@ type AppsClient interface {
 	// Logs operations
 	GetRecentLogs(ctx context.Context, guid string, lines int) (*AppLogs, error)
 	StreamLogs(ctx context.Context, guid string) (<-chan LogMessage, error)
+
+	// Features operations
+	GetFeatures(ctx context.Context, guid string) (*AppFeatures, error)
+	GetFeature(ctx context.Context, guid, featureName string) (*AppFeature, error)
+	UpdateFeature(ctx context.Context, guid, featureName string, request *AppFeatureUpdateRequest) (*AppFeature, error)
 }
 
 // OrganizationsClient defines operations for organizations

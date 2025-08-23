@@ -16,12 +16,12 @@ func TestNewServiceUsageEventsCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 3)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "list")
 	assert.Contains(t, commandNames, "get")
 	assert.Contains(t, commandNames, "purge-and-reseed")
@@ -37,15 +37,15 @@ func TestServiceUsageEventsListCommand(t *testing.T) {
 	// Check filtering flags
 	flags := []string{
 		"all", "per-page", "after-guid", "service-instance-name",
-		"service-offering-name", "service-broker-name", "space-name", 
+		"service-offering-name", "service-broker-name", "space-name",
 		"org-name", "start-time", "end-time",
 	}
-	
+
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
 		assert.NotNil(t, flag, "Flag %s should exist", flagName)
 	}
-	
+
 	// Check default values
 	perPageFlag := cmd.Flags().Lookup("per-page")
 	assert.Equal(t, "50", perPageFlag.DefValue)

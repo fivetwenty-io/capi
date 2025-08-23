@@ -16,12 +16,12 @@ func TestNewSpaceQuotasCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 7)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "list")
 	assert.Contains(t, commandNames, "get")
 	assert.Contains(t, commandNames, "create")
@@ -42,14 +42,14 @@ func TestSpaceQuotasListCommand(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup("all"))
 	assert.NotNil(t, cmd.Flags().Lookup("per-page"))
 	assert.NotNil(t, cmd.Flags().Lookup("org"))
-	
+
 	// Check flag defaults
 	allFlag := cmd.Flags().Lookup("all")
 	assert.Equal(t, "false", allFlag.DefValue)
-	
+
 	perPageFlag := cmd.Flags().Lookup("per-page")
 	assert.Equal(t, "50", perPageFlag.DefValue)
-	
+
 	orgFlag := cmd.Flags().Lookup("org")
 	assert.Equal(t, "o", orgFlag.Shorthand)
 }
@@ -72,11 +72,11 @@ func TestSpaceQuotasCreateCommand(t *testing.T) {
 
 	// Check all flags exist
 	flags := []string{
-		"name", "org", "total-memory", "instance-memory", "instances", 
-		"app-tasks", "log-rate-limit", "paid-services", "service-instances", 
+		"name", "org", "total-memory", "instance-memory", "instances",
+		"app-tasks", "log-rate-limit", "paid-services", "service-instances",
 		"service-keys", "routes", "reserved-ports",
 	}
-	
+
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
 		assert.NotNil(t, flag, "Flag %s should exist", flagName)
@@ -86,7 +86,7 @@ func TestSpaceQuotasCreateCommand(t *testing.T) {
 	nameFlag := cmd.Flags().Lookup("name")
 	assert.NotNil(t, nameFlag)
 	assert.Equal(t, "n", nameFlag.Shorthand)
-	
+
 	orgFlag := cmd.Flags().Lookup("org")
 	assert.NotNil(t, orgFlag)
 	assert.Equal(t, "o", orgFlag.Shorthand)
@@ -121,7 +121,7 @@ func TestSpaceQuotasApplyCommand(t *testing.T) {
 	assert.Equal(t, "Apply quota to spaces", cmd.Short)
 	assert.Equal(t, "Apply a space quota to one or more spaces", cmd.Long)
 	assert.NotNil(t, cmd.RunE)
-	
+
 	assert.NotNil(t, cmd.Args)
 }
 

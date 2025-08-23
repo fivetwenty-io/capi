@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
-	"github.com/fivetwenty-io/capi-client/pkg/cfclient"
+	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/cfclient"
 )
 
 func main() {
@@ -281,32 +281,32 @@ func demonstrateEnvironmentVariableGroups(ctx context.Context, client capi.Clien
 	fmt.Println("   // runningEnvVars, err := client.EnvironmentVariableGroups().Update(ctx, \"running\", newVars)")
 
 	/*
-	// Uncomment this section if you want to actually update environment variables
-	// WARNING: This will affect all applications in the CF deployment
-	
-	newVars := map[string]interface{}{
-		"DEMO_LOG_LEVEL":    "debug",
-		"DEMO_FEATURE_FLAG": true,
-		"DEMO_TIMESTAMP":    time.Now().Format(time.RFC3339),
-	}
+		// Uncomment this section if you want to actually update environment variables
+		// WARNING: This will affect all applications in the CF deployment
 
-	fmt.Println("   Updating running environment variables...")
-	updatedRunningEnvVars, err := client.EnvironmentVariableGroups().Update(ctx, "running", newVars)
-	if err != nil {
-		log.Printf("   Failed to update running environment variables: %v", err)
-		return
-	}
+		newVars := map[string]interface{}{
+			"DEMO_LOG_LEVEL":    "debug",
+			"DEMO_FEATURE_FLAG": true,
+			"DEMO_TIMESTAMP":    time.Now().Format(time.RFC3339),
+		}
 
-	fmt.Printf("   Updated running environment variables (%d variables)\n", len(updatedRunningEnvVars.Var))
-	
-	// Restore original environment variables
-	fmt.Println("   Restoring original environment variables...")
-	_, err = client.EnvironmentVariableGroups().Update(ctx, "running", runningEnvVars.Var)
-	if err != nil {
-		log.Printf("   Failed to restore running environment variables: %v", err)
-		return
-	}
-	
-	fmt.Println("   Restored original environment variables")
+		fmt.Println("   Updating running environment variables...")
+		updatedRunningEnvVars, err := client.EnvironmentVariableGroups().Update(ctx, "running", newVars)
+		if err != nil {
+			log.Printf("   Failed to update running environment variables: %v", err)
+			return
+		}
+
+		fmt.Printf("   Updated running environment variables (%d variables)\n", len(updatedRunningEnvVars.Var))
+
+		// Restore original environment variables
+		fmt.Println("   Restoring original environment variables...")
+		_, err = client.EnvironmentVariableGroups().Update(ctx, "running", runningEnvVars.Var)
+		if err != nil {
+			log.Printf("   Failed to restore running environment variables: %v", err)
+			return
+		}
+
+		fmt.Println("   Restored original environment variables")
 	*/
 }

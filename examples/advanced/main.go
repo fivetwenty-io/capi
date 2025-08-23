@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
-	"github.com/fivetwenty-io/capi-client/pkg/cfclient"
+	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/cfclient"
 )
 
 func main() {

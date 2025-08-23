@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -321,6 +321,14 @@ func (m *MockClient) ResourceMatches() capi.ResourceMatchesClient {
 	return args.Get(0).(capi.ResourceMatchesClient)
 }
 
+func (m *MockClient) Manifests() capi.ManifestsClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(capi.ManifestsClient)
+}
+
 // MockAppsClient implements capi.AppsClient for testing
 type MockAppsClient struct {
 	mock.Mock
@@ -475,6 +483,30 @@ func (m *MockAppsClient) StreamLogs(ctx context.Context, guid string) (<-chan ca
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(<-chan capi.LogMessage), args.Error(1)
+}
+
+func (m *MockAppsClient) GetFeatures(ctx context.Context, guid string) (*capi.AppFeatures, error) {
+	args := m.Called(ctx, guid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*capi.AppFeatures), args.Error(1)
+}
+
+func (m *MockAppsClient) GetFeature(ctx context.Context, guid, featureName string) (*capi.AppFeature, error) {
+	args := m.Called(ctx, guid, featureName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*capi.AppFeature), args.Error(1)
+}
+
+func (m *MockAppsClient) UpdateFeature(ctx context.Context, guid, featureName string, request *capi.AppFeatureUpdateRequest) (*capi.AppFeature, error) {
+	args := m.Called(ctx, guid, featureName, request)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*capi.AppFeature), args.Error(1)
 }
 
 func TestBatchExecutor_Execute(t *testing.T) {

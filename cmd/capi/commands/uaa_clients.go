@@ -35,7 +35,7 @@ access tokens on behalf of users or using their own credentials.`,
 			config := loadConfig()
 			clientID := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -141,7 +141,7 @@ to display the actual secret value.`,
 			config := loadConfig()
 			clientID := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -210,7 +210,7 @@ Client secrets are never displayed in list operations for security.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -296,7 +296,7 @@ will remain unchanged.`,
 			config := loadConfig()
 			clientID := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -432,7 +432,7 @@ to enter it securely.`,
 			config := loadConfig()
 			clientID := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -486,7 +486,7 @@ func createUsersDeleteClientCommand() *cobra.Command {
 			config := loadConfig()
 			clientID := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 

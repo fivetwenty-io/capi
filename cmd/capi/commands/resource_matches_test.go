@@ -16,12 +16,12 @@ func TestNewResourceMatchesCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 1)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "create")
 }
 

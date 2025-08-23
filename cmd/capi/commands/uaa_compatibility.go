@@ -73,7 +73,7 @@ with the capi CLI UAA commands.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -127,7 +127,7 @@ Cloud Foundry and can properly authenticate CF API requests.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -389,7 +389,7 @@ func testCFIntegration(config *Config) (*CFIntegrationInfo, error) {
 		integration.CFAPIVersion = "configured"
 
 		// Try to infer UAA endpoint from CF API
-		if config.UAAEndpoint == "" {
+		if GetEffectiveUAAEndpoint(config) == "" {
 			// Try to infer UAA endpoint
 			inferredUAA := inferUAAFromCFAPI(config.API)
 			if inferredUAA != "" {
@@ -463,33 +463,44 @@ func displayCompatibilityResults(info *UAAVersionInfo) error {
 
 // displayCompatibilityTable displays results in table format
 func displayCompatibilityTable(info *UAAVersionInfo) error {
-	fmt.Printf("\nUAA Compatibility Report\n")
-	fmt.Printf("========================\n\n")
+	// Basic info table
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
 
-	// Basic info
-	fmt.Printf("Endpoint: %s\n", info.Endpoint)
-	fmt.Printf("Version: %s\n", info.Version)
-	fmt.Printf("Tested: %s\n", info.TestedAt.Format(time.RFC3339))
-	fmt.Printf("Overall Status: %s\n\n", strings.ToUpper(info.Compatibility.Overall))
+	overallStatus := formatStatus(info.Compatibility.Overall)
+	_ = table.Append("Endpoint", info.Endpoint)
+	_ = table.Append("Version", info.Version)
+	_ = table.Append("Tested", info.TestedAt.Format(time.RFC3339))
+	_ = table.Append("Overall Status", overallStatus)
+
+	if err := table.Render(); err != nil {
+		return fmt.Errorf("failed to render table: %w", err)
+	}
 
 	// Feature compatibility table
-	table := tablewriter.NewWriter(os.Stdout)
-	table.Header("Feature", "Status")
+	if info.Compatibility.BasicAuth != "" || info.Compatibility.UserMgmt != "" ||
+		info.Compatibility.GroupMgmt != "" || info.Compatibility.ClientMgmt != "" {
+		fmt.Println()
+		featureTable := tablewriter.NewWriter(os.Stdout)
+		featureTable.Header("Feature", "Status")
 
-	if info.Compatibility.BasicAuth != "" {
-		_ = table.Append([]string{"Authentication", formatStatus(info.Compatibility.BasicAuth)})
-	}
-	if info.Compatibility.UserMgmt != "" {
-		_ = table.Append([]string{"User Management", formatStatus(info.Compatibility.UserMgmt)})
-	}
-	if info.Compatibility.GroupMgmt != "" {
-		_ = table.Append([]string{"Group Management", formatStatus(info.Compatibility.GroupMgmt)})
-	}
-	if info.Compatibility.ClientMgmt != "" {
-		_ = table.Append([]string{"Client Management", formatStatus(info.Compatibility.ClientMgmt)})
-	}
+		if info.Compatibility.BasicAuth != "" {
+			_ = featureTable.Append("Authentication", formatStatus(info.Compatibility.BasicAuth))
+		}
+		if info.Compatibility.UserMgmt != "" {
+			_ = featureTable.Append("User Management", formatStatus(info.Compatibility.UserMgmt))
+		}
+		if info.Compatibility.GroupMgmt != "" {
+			_ = featureTable.Append("Group Management", formatStatus(info.Compatibility.GroupMgmt))
+		}
+		if info.Compatibility.ClientMgmt != "" {
+			_ = featureTable.Append("Client Management", formatStatus(info.Compatibility.ClientMgmt))
+		}
 
-	_ = table.Render()
+		if err := featureTable.Render(); err != nil {
+			return fmt.Errorf("failed to render feature table: %w", err)
+		}
+	}
 
 	// Display supported features
 	if len(info.Features) > 0 {
@@ -497,25 +508,22 @@ func displayCompatibilityTable(info *UAAVersionInfo) error {
 		for _, feature := range info.Features {
 			fmt.Printf("  ✅ %s\n", feature)
 		}
-		fmt.Println()
 	}
 
 	// Display issues
 	if len(info.Compatibility.Issues) > 0 {
-		fmt.Printf("Issues Found:\n")
+		fmt.Printf("\nIssues Found:\n")
 		for _, issue := range info.Compatibility.Issues {
 			fmt.Printf("  ⚠️  %s\n", issue)
 		}
-		fmt.Println()
 	}
 
 	// Display recommendations
 	if len(info.Compatibility.Recommendations) > 0 {
-		fmt.Printf("Recommendations:\n")
+		fmt.Printf("\nRecommendations:\n")
 		for _, rec := range info.Compatibility.Recommendations {
 			fmt.Printf("  💡 %s\n", rec)
 		}
-		fmt.Println()
 	}
 
 	return nil
@@ -523,20 +531,31 @@ func displayCompatibilityTable(info *UAAVersionInfo) error {
 
 // displayCFIntegrationResults displays CF integration test results
 func displayCFIntegrationResults(info *CFIntegrationInfo) error {
-	fmt.Printf("Cloud Foundry Integration Report\n")
-	fmt.Printf("================================\n\n")
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
 
-	fmt.Printf("CF API Version: %s\n", info.CFAPIVersion)
-	fmt.Printf("UAA Version: %s\n", info.UAAVersion)
-	fmt.Printf("Auth Method: %s\n", info.AuthMethod)
-	fmt.Printf("Scopes Supported: %v\n", info.ScopesSupported)
-	fmt.Printf("Token Format: %s\n", info.TokenFormat)
-	fmt.Printf("Compatible: %v\n\n", info.Compatible)
-
+	compatibleStatus := "❌ No"
 	if info.Compatible {
-		fmt.Println("✅ CF integration is working properly")
-	} else {
-		fmt.Println("❌ CF integration issues detected")
+		compatibleStatus = "✅ Yes"
+	}
+
+	scopeStatus := "❌ No"
+	if info.ScopesSupported {
+		scopeStatus = "✅ Yes"
+	}
+
+	_ = table.Append("CF API Version", info.CFAPIVersion)
+	_ = table.Append("UAA Version", info.UAAVersion)
+	_ = table.Append("Auth Method", info.AuthMethod)
+	_ = table.Append("Scopes Supported", scopeStatus)
+	_ = table.Append("Token Format", info.TokenFormat)
+	_ = table.Append("Compatible", compatibleStatus)
+
+	if err := table.Render(); err != nil {
+		return fmt.Errorf("failed to render table: %w", err)
+	}
+
+	if !info.Compatible {
 		fmt.Println("\nTroubleshooting:")
 		fmt.Println("  • Verify CF API endpoint is correct")
 		fmt.Println("  • Ensure UAA endpoint is accessible")

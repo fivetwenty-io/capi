@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client/internal/auth"
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/internal/auth"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/hashicorp/go-retryablehttp"
 )
 
@@ -422,4 +422,12 @@ func (c *Client) logResponse(resp *Response) {
 	}
 
 	c.logger.Debug("HTTP Response", fields)
+}
+
+// GetAuthToken returns the current authentication token
+func (c *Client) GetAuthToken(ctx context.Context) (string, error) {
+	if c.tokenManager == nil {
+		return "", fmt.Errorf("no token manager available")
+	}
+	return c.tokenManager.GetToken(ctx)
 }

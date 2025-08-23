@@ -49,7 +49,7 @@ prompted for required information.`,
 			config := loadConfig()
 			username := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				err := NewEnhancedError("create user", fmt.Errorf("no UAA endpoint configured"))
 				err.AddSuggestion("Run 'capi uaa target <url>' to set UAA endpoint")
 				return err
@@ -194,7 +194,7 @@ user attributes including groups, metadata, and authentication information.`,
 			config := loadConfig()
 			username := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -276,7 +276,7 @@ SCIM filters allow complex queries on user attributes. Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -361,7 +361,7 @@ will remain unchanged.`,
 			config := loadConfig()
 			username := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -484,7 +484,7 @@ func createUsersActivateUserCommand() *cobra.Command {
 			config := loadConfig()
 			username := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -532,7 +532,7 @@ func createUsersDeactivateUserCommand() *cobra.Command {
 			config := loadConfig()
 			username := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -588,7 +588,7 @@ func createUsersDeleteUserCommand() *cobra.Command {
 			config := loadConfig()
 			username := args[0]
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 

@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
-	"github.com/fivetwenty-io/capi-client/pkg/cfclient"
+	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/cfclient"
 )
 
 func main() {
@@ -178,7 +178,7 @@ func demonstrateSidecars(ctx context.Context, client capi.Client) {
 		fmt.Println("   Sidecar operations example:")
 		fmt.Println("   // Get sidecar")
 		fmt.Println("   // sidecar, err := client.Sidecars().Get(ctx, \"sidecar-guid\")")
-		
+
 		fmt.Println("   // Update sidecar")
 		fmt.Println("   // newName := \"updated-sidecar\"")
 		fmt.Println("   // newCommand := \"./updated-command\"")
@@ -224,7 +224,7 @@ func demonstrateResourceMatches(ctx context.Context, client capi.Client) {
 
 	fmt.Printf("   Checking %d resources for matches...\n", len(resources))
 	for _, resource := range resources {
-		fmt.Printf("     - %s (SHA1: %s, Size: %d bytes)\n", 
+		fmt.Printf("     - %s (SHA1: %s, Size: %d bytes)\n",
 			resource.Path, resource.SHA1, resource.Size)
 	}
 
@@ -269,6 +269,6 @@ func demonstrateResourceMatches(ctx context.Context, client capi.Client) {
 		}
 	}
 
-	fmt.Printf("\n   This optimization could save %.1f%% of upload bandwidth!\n", 
+	fmt.Printf("\n   This optimization could save %.1f%% of upload bandwidth!\n",
 		float64(matchedCount)/float64(totalCount)*100)
 }

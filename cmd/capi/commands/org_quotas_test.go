@@ -16,12 +16,12 @@ func TestNewOrgQuotasCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 6)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "list")
 	assert.Contains(t, commandNames, "get")
 	assert.Contains(t, commandNames, "create")
@@ -40,11 +40,11 @@ func TestOrgQuotasListCommand(t *testing.T) {
 	// Check flags
 	assert.NotNil(t, cmd.Flags().Lookup("all"))
 	assert.NotNil(t, cmd.Flags().Lookup("per-page"))
-	
+
 	// Check flag defaults
 	allFlag := cmd.Flags().Lookup("all")
 	assert.Equal(t, "false", allFlag.DefValue)
-	
+
 	perPageFlag := cmd.Flags().Lookup("per-page")
 	assert.Equal(t, "50", perPageFlag.DefValue)
 }
@@ -71,7 +71,7 @@ func TestOrgQuotasCreateCommand(t *testing.T) {
 		"log-rate-limit", "paid-services", "service-instances", "service-keys",
 		"routes", "reserved-ports", "domains",
 	}
-	
+
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
 		assert.NotNil(t, flag, "Flag %s should exist", flagName)
@@ -96,7 +96,7 @@ func TestOrgQuotasUpdateCommand(t *testing.T) {
 		"log-rate-limit", "paid-services", "service-instances", "service-keys",
 		"routes", "reserved-ports", "domains",
 	}
-	
+
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
 		assert.NotNil(t, flag, "Flag %s should exist", flagName)
@@ -124,6 +124,6 @@ func TestOrgQuotasApplyCommand(t *testing.T) {
 	assert.Equal(t, "Apply quota to organizations", cmd.Short)
 	assert.Equal(t, "Apply an organization quota to one or more organizations", cmd.Long)
 	assert.NotNil(t, cmd.RunE)
-	
+
 	assert.NotNil(t, cmd.Args)
 }

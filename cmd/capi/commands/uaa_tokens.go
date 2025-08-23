@@ -41,7 +41,7 @@ obtained by directing users to the UAA authorization URL in a browser.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -139,7 +139,7 @@ interaction is required. The client authenticates using its own credentials.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -212,7 +212,7 @@ handling user credentials directly.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -301,7 +301,7 @@ current configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -379,7 +379,7 @@ func createUsersGetTokenKeyCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -421,7 +421,7 @@ func createUsersGetTokenKeysCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -488,18 +488,33 @@ func displayTokenInfo(token *oauth2.Token, grantType string) error {
 		encoder := yaml.NewEncoder(os.Stdout)
 		return encoder.Encode(tokenInfo)
 	default:
-		fmt.Printf("Grant Type:    %s\n", grantType)
-		fmt.Printf("Token Type:    %s\n", token.TokenType)
-		if !token.Expiry.IsZero() {
-			fmt.Printf("Expires At:    %s\n", token.Expiry.Format(time.RFC3339))
-			fmt.Printf("Expires In:    %d seconds\n", int(time.Until(token.Expiry).Seconds()))
-		}
-		if scope := token.Extra("scope"); scope != nil {
-			fmt.Printf("Scope:         %v\n", scope)
-		}
-		fmt.Println("Token stored in configuration")
-		return nil
+		return displayTokenTable(token, grantType)
 	}
+}
+
+func displayTokenTable(token *oauth2.Token, grantType string) error {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	_ = table.Append("Grant Type", grantType)
+	_ = table.Append("Token Type", token.TokenType)
+
+	if !token.Expiry.IsZero() {
+		_ = table.Append("Expires At", token.Expiry.Format(time.RFC3339))
+		_ = table.Append("Expires In", fmt.Sprintf("%d seconds", int(time.Until(token.Expiry).Seconds())))
+	}
+
+	if scope := token.Extra("scope"); scope != nil {
+		_ = table.Append("Scope", fmt.Sprintf("%v", scope))
+	}
+
+	if jti := token.Extra("jti"); jti != nil {
+		_ = table.Append("JTI", fmt.Sprintf("%v", jti))
+	}
+
+	_ = table.Render()
+	fmt.Println("Token stored in configuration")
+	return nil
 }
 
 func displayTokenKeyTable(key *uaa.JWK) error {

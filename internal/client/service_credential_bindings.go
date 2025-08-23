@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/fivetwenty-io/capi-client/internal/http"
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/internal/http"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 )
 
 // ServiceCredentialBindingsClient implements the capi.ServiceCredentialBindingsClient interface

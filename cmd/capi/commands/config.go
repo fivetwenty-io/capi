@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
-	"github.com/fivetwenty-io/capi-client/pkg/cfclient"
+	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/cfclient"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -561,6 +561,23 @@ func ResolveAPIEndpoint(apiNameOrEndpoint string) (string, error) {
 
 	// If not found in config, treat as direct endpoint URL
 	return apiNameOrEndpoint, nil
+}
+
+// GetEffectiveUAAEndpoint returns the effective UAA endpoint from either legacy config or current API
+func GetEffectiveUAAEndpoint(config *Config) string {
+	// Check legacy UAA endpoint first
+	if config.UAAEndpoint != "" {
+		return config.UAAEndpoint
+	}
+
+	// Check current API configuration for UAA endpoint
+	if config.CurrentAPI != "" {
+		if apiConfig, exists := config.APIs[config.CurrentAPI]; exists && apiConfig.UAAEndpoint != "" {
+			return apiConfig.UAAEndpoint
+		}
+	}
+
+	return ""
 }
 
 // CreateClientWithAPI creates a CAPI client using the specified API or current API

@@ -16,12 +16,12 @@ func TestNewEnvVarGroupsCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 2)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "get")
 	assert.Contains(t, commandNames, "update")
 }
@@ -41,6 +41,6 @@ func TestEnvVarGroupsUpdateCommand(t *testing.T) {
 	assert.Equal(t, "Update environment variable group", cmd.Short)
 	assert.Equal(t, "Update environment variables for a specific group (running or staging)", cmd.Long)
 	assert.NotNil(t, cmd.RunE)
-	
+
 	assert.NotNil(t, cmd.Args)
 }

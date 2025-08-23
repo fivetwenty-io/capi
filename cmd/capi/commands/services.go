@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -225,21 +225,24 @@ func newServicesGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(service)
 			default:
-				fmt.Printf("Service Instance: %s\n", service.Name)
-				fmt.Printf("  GUID:        %s\n", service.GUID)
-				fmt.Printf("  Type:        %s\n", service.Type)
-				fmt.Printf("  Created:     %s\n", service.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:     %s\n", service.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("Name", service.Name)
+				_ = table.Append("GUID", service.GUID)
+				_ = table.Append("Type", service.Type)
+				_ = table.Append("Created", service.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", service.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 				// Service plan and offering details
 				if service.Relationships.ServicePlan != nil && service.Relationships.ServicePlan.Data != nil {
 					plan, _ := client.ServicePlans().Get(ctx, service.Relationships.ServicePlan.Data.GUID)
 					if plan != nil {
-						fmt.Printf("  Plan:        %s\n", plan.Name)
+						_ = table.Append("Plan", plan.Name)
 						if plan.Relationships.ServiceOffering.Data != nil {
 							offering, _ := client.ServiceOfferings().Get(ctx, plan.Relationships.ServiceOffering.Data.GUID)
 							if offering != nil {
-								fmt.Printf("  Service:     %s\n", offering.Name)
+								_ = table.Append("Service", offering.Name)
 							}
 						}
 					}
@@ -249,40 +252,42 @@ func newServicesGetCommand() *cobra.Command {
 				if service.Relationships.Space.Data != nil {
 					space, _ := client.Spaces().Get(ctx, service.Relationships.Space.Data.GUID)
 					if space != nil {
-						fmt.Printf("  Space:       %s\n", space.Name)
+						_ = table.Append("Space", space.Name)
 					}
 				}
 
 				// Last operation
 				if service.LastOperation != nil {
-					fmt.Printf("  Last Operation:\n")
-					fmt.Printf("    Type:        %s\n", service.LastOperation.Type)
-					fmt.Printf("    State:       %s\n", service.LastOperation.State)
-					fmt.Printf("    Description: %s\n", service.LastOperation.Description)
+					_ = table.Append("Last Operation Type", service.LastOperation.Type)
+					_ = table.Append("Last Operation State", service.LastOperation.State)
+					_ = table.Append("Last Operation Description", service.LastOperation.Description)
 					if service.LastOperation.UpdatedAt != nil {
-						fmt.Printf("    Updated:     %s\n", service.LastOperation.UpdatedAt.Format("2006-01-02 15:04:05"))
+						_ = table.Append("Last Operation Updated", service.LastOperation.UpdatedAt.Format("2006-01-02 15:04:05"))
 					}
 				}
 
 				// Tags
 				if len(service.Tags) > 0 {
-					fmt.Printf("  Tags:        %s\n", strings.Join(service.Tags, ", "))
+					_ = table.Append("Tags", strings.Join(service.Tags, ", "))
 				}
 
 				// Dashboard URL
 				if service.DashboardURL != nil {
-					fmt.Printf("  Dashboard:   %s\n", *service.DashboardURL)
+					_ = table.Append("Dashboard", *service.DashboardURL)
 				}
 
 				// User-provided specific fields
 				if service.Type == "user-provided" {
 					if service.SyslogDrainURL != nil {
-						fmt.Printf("  Syslog Drain: %s\n", *service.SyslogDrainURL)
+						_ = table.Append("Syslog Drain", *service.SyslogDrainURL)
 					}
 					if service.RouteServiceURL != nil {
-						fmt.Printf("  Route Service: %s\n", *service.RouteServiceURL)
+						_ = table.Append("Route Service", *service.RouteServiceURL)
 					}
 				}
+
+				fmt.Printf("Service Instance: %s\n\n", service.Name)
+				_ = table.Render()
 			}
 
 			return nil
@@ -432,7 +437,7 @@ func newServicesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&serviceName, "name", "n", "", "service instance name (required)")
 	cmd.Flags().StringVarP(&planName, "plan", "p", "", "service plan name (required for managed services)")
 	cmd.Flags().StringVarP(&spaceName, "space", "s", "", "space name (defaults to targeted space)")
-	cmd.Flags().StringArrayVarP(&tags, "tags", "t", nil, "tags for the service instance")
+	cmd.Flags().StringArrayVar(&tags, "tags", nil, "tags for the service instance")
 	cmd.Flags().StringToStringVar(&parameters, "parameters", nil, "parameters for managed service instances (key=value)")
 	cmd.Flags().StringVar(&syslogDrainURL, "syslog-drain-url", "", "syslog drain URL for user-provided services")
 	cmd.Flags().StringVar(&routeServiceURL, "route-service-url", "", "route service URL for user-provided services")
@@ -581,7 +586,7 @@ func newServicesUpdateCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&newName, "name", "", "new service instance name")
-	cmd.Flags().StringArrayVarP(&tags, "tags", "t", nil, "tags for the service instance")
+	cmd.Flags().StringArrayVar(&tags, "tags", nil, "tags for the service instance")
 	cmd.Flags().StringToStringVar(&parameters, "parameters", nil, "parameters for managed service instances (key=value)")
 	cmd.Flags().StringVar(&syslogDrainURL, "syslog-drain-url", "", "syslog drain URL for user-provided services")
 	cmd.Flags().StringVar(&routeServiceURL, "route-service-url", "", "route service URL for user-provided services")
@@ -1398,20 +1403,26 @@ func newServicesBrokersGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(broker)
 			default:
-				fmt.Printf("Service Broker: %s\n", broker.Name)
-				fmt.Printf("  GUID:    %s\n", broker.GUID)
-				fmt.Printf("  URL:     %s\n", broker.URL)
-				fmt.Printf("  Created: %s\n", broker.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated: %s\n", broker.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("Name", broker.Name)
+				_ = table.Append("GUID", broker.GUID)
+				_ = table.Append("URL", broker.URL)
+				_ = table.Append("Created", broker.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", broker.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 				if broker.Relationships.Space != nil && broker.Relationships.Space.Data != nil {
 					space, _ := client.Spaces().Get(ctx, broker.Relationships.Space.Data.GUID)
 					if space != nil {
-						fmt.Printf("  Space:   %s\n", space.Name)
+						_ = table.Append("Space", space.Name)
 					}
 				} else {
-					fmt.Printf("  Space:   platform (global)\n")
+					_ = table.Append("Space", "platform (global)")
 				}
+
+				fmt.Printf("Service Broker: %s\n\n", broker.Name)
+				_ = table.Render()
 			}
 
 			return nil
@@ -1545,15 +1556,33 @@ func newServicesOfferingsGetCommand() *cobra.Command {
 				offering = &offerings.Resources[0]
 			}
 
-			fmt.Printf("Service Offering: %s\n", offering.Name)
-			fmt.Printf("  GUID:        %s\n", offering.GUID)
-			fmt.Printf("  Description: %s\n", offering.Description)
-			fmt.Printf("  Available:   %t\n", offering.Available)
-			fmt.Printf("  Shareable:   %t\n", offering.Shareable)
-			fmt.Printf("  Created:     %s\n", offering.CreatedAt.Format("2006-01-02 15:04:05"))
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(offering)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(offering)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
 
-			if len(offering.Tags) > 0 {
-				fmt.Printf("  Tags:        %s\n", strings.Join(offering.Tags, ", "))
+				_ = table.Append("Name", offering.Name)
+				_ = table.Append("GUID", offering.GUID)
+				_ = table.Append("Description", offering.Description)
+				_ = table.Append("Available", fmt.Sprintf("%t", offering.Available))
+				_ = table.Append("Shareable", fmt.Sprintf("%t", offering.Shareable))
+				_ = table.Append("Created", offering.CreatedAt.Format("2006-01-02 15:04:05"))
+
+				if len(offering.Tags) > 0 {
+					_ = table.Append("Tags", strings.Join(offering.Tags, ", "))
+				}
+
+				fmt.Printf("Service Offering: %s\n\n", offering.Name)
+				_ = table.Render()
 			}
 
 			return nil
@@ -1571,6 +1600,7 @@ func newServicesPlansCommand() *cobra.Command {
 
 	cmd.AddCommand(newServicesPlansListCommand())
 	cmd.AddCommand(newServicesPlansGetCommand())
+	cmd.AddCommand(newServicesPlansVisibilityCommand())
 
 	return cmd
 }
@@ -1683,22 +1713,334 @@ func newServicesPlansGetCommand() *cobra.Command {
 				plan = &plans.Resources[0]
 			}
 
-			fmt.Printf("Service Plan: %s\n", plan.Name)
-			fmt.Printf("  GUID:        %s\n", plan.GUID)
-			fmt.Printf("  Description: %s\n", plan.Description)
-			fmt.Printf("  Free:        %t\n", plan.Free)
-			fmt.Printf("  Available:   %t\n", plan.Available)
-			fmt.Printf("  Visibility:  %s\n", plan.VisibilityType)
-			fmt.Printf("  Created:     %s\n", plan.CreatedAt.Format("2006-01-02 15:04:05"))
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(plan)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(plan)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
 
-			// Get service offering name
-			if plan.Relationships.ServiceOffering.Data != nil {
-				offering, _ := client.ServiceOfferings().Get(ctx, plan.Relationships.ServiceOffering.Data.GUID)
-				if offering != nil {
-					fmt.Printf("  Offering:    %s\n", offering.Name)
+				_ = table.Append("Name", plan.Name)
+				_ = table.Append("GUID", plan.GUID)
+				_ = table.Append("Description", plan.Description)
+				_ = table.Append("Free", fmt.Sprintf("%t", plan.Free))
+				_ = table.Append("Available", fmt.Sprintf("%t", plan.Available))
+				_ = table.Append("Visibility", plan.VisibilityType)
+				_ = table.Append("Created", plan.CreatedAt.Format("2006-01-02 15:04:05"))
+
+				// Get service offering name
+				if plan.Relationships.ServiceOffering.Data != nil {
+					offering, _ := client.ServiceOfferings().Get(ctx, plan.Relationships.ServiceOffering.Data.GUID)
+					if offering != nil {
+						_ = table.Append("Offering", offering.Name)
+					}
+				}
+
+				fmt.Printf("Service Plan: %s\n\n", plan.Name)
+				_ = table.Render()
+			}
+
+			return nil
+		},
+	}
+}
+
+func newServicesPlansVisibilityCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "visibility",
+		Short: "Manage service plan visibility",
+		Long:  "Manage service plan visibility including getting, updating, and applying visibility settings",
+	}
+
+	cmd.AddCommand(newServicesPlansVisibilityGetCommand())
+	cmd.AddCommand(newServicesPlansVisibilityUpdateCommand())
+	cmd.AddCommand(newServicesPlansVisibilityApplyCommand())
+	cmd.AddCommand(newServicesPlansVisibilityRemoveOrgCommand())
+
+	return cmd
+}
+
+func newServicesPlansVisibilityGetCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get SERVICE_PLAN_NAME_OR_GUID",
+		Short: "Get service plan visibility",
+		Long:  "Get the current visibility settings for a service plan",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			planNameOrGUID := args[0]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find service plan
+			plan, err := client.ServicePlans().Get(ctx, planNameOrGUID)
+			if err != nil {
+				// If not found by GUID, try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", planNameOrGUID)
+				plans, err := client.ServicePlans().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find service plan: %w", err)
+				}
+				if len(plans.Resources) == 0 {
+					return fmt.Errorf("service plan '%s' not found", planNameOrGUID)
+				}
+				plan = &plans.Resources[0]
+			}
+
+			visibility, err := client.ServicePlans().GetVisibility(ctx, plan.GUID)
+			if err != nil {
+				return fmt.Errorf("getting service plan visibility: %w", err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(visibility)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(visibility)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("Type", visibility.Type)
+				if len(visibility.Organizations) > 0 {
+					var orgNames []string
+					for _, org := range visibility.Organizations {
+						if org.Name != "" {
+							orgNames = append(orgNames, fmt.Sprintf("%s (%s)", org.Name, org.GUID))
+						} else {
+							orgNames = append(orgNames, org.GUID)
+						}
+					}
+					_ = table.Append("Organizations", strings.Join(orgNames, ", "))
+				}
+				if visibility.Space != nil {
+					spaceName := visibility.Space.GUID
+					if visibility.Space.Name != "" {
+						spaceName = fmt.Sprintf("%s (%s)", visibility.Space.Name, visibility.Space.GUID)
+					}
+					_ = table.Append("Space", spaceName)
+				}
+
+				fmt.Printf("Visibility for service plan '%s':\n\n", plan.Name)
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
 				}
 			}
 
+			return nil
+		},
+	}
+}
+
+func newServicesPlansVisibilityUpdateCommand() *cobra.Command {
+	var (
+		visibilityType string
+		organizations  []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "update SERVICE_PLAN_NAME_OR_GUID",
+		Short: "Update service plan visibility",
+		Long:  "Update the visibility settings for a service plan",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			planNameOrGUID := args[0]
+
+			if visibilityType == "" {
+				return fmt.Errorf("visibility type is required (--type)")
+			}
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find service plan
+			plan, err := client.ServicePlans().Get(ctx, planNameOrGUID)
+			if err != nil {
+				// If not found by GUID, try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", planNameOrGUID)
+				plans, err := client.ServicePlans().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find service plan: %w", err)
+				}
+				if len(plans.Resources) == 0 {
+					return fmt.Errorf("service plan '%s' not found", planNameOrGUID)
+				}
+				plan = &plans.Resources[0]
+			}
+
+			request := &capi.ServicePlanVisibilityUpdateRequest{
+				Type:          visibilityType,
+				Organizations: organizations,
+			}
+
+			visibility, err := client.ServicePlans().UpdateVisibility(ctx, plan.GUID, request)
+			if err != nil {
+				return fmt.Errorf("updating service plan visibility: %w", err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(visibility)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(visibility)
+			default:
+				fmt.Printf("✓ Service plan '%s' visibility updated to '%s'\n", plan.Name, visibilityType)
+				if len(organizations) > 0 {
+					fmt.Printf("Organizations: %s\n", strings.Join(organizations, ", "))
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&visibilityType, "type", "t", "", "Visibility type (public, admin, organization, space)")
+	cmd.Flags().StringSliceVarP(&organizations, "orgs", "o", []string{}, "Organization GUIDs (for organization visibility)")
+
+	return cmd
+}
+
+func newServicesPlansVisibilityApplyCommand() *cobra.Command {
+	var (
+		visibilityType string
+		organizations  []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "apply SERVICE_PLAN_NAME_OR_GUID",
+		Short: "Apply service plan visibility",
+		Long:  "Apply visibility settings to a service plan",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			planNameOrGUID := args[0]
+
+			if visibilityType == "" {
+				return fmt.Errorf("visibility type is required (--type)")
+			}
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find service plan
+			plan, err := client.ServicePlans().Get(ctx, planNameOrGUID)
+			if err != nil {
+				// If not found by GUID, try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", planNameOrGUID)
+				plans, err := client.ServicePlans().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find service plan: %w", err)
+				}
+				if len(plans.Resources) == 0 {
+					return fmt.Errorf("service plan '%s' not found", planNameOrGUID)
+				}
+				plan = &plans.Resources[0]
+			}
+
+			request := &capi.ServicePlanVisibilityApplyRequest{
+				Type:          visibilityType,
+				Organizations: organizations,
+			}
+
+			visibility, err := client.ServicePlans().ApplyVisibility(ctx, plan.GUID, request)
+			if err != nil {
+				return fmt.Errorf("applying service plan visibility: %w", err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(visibility)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(visibility)
+			default:
+				fmt.Printf("✓ Service plan '%s' visibility applied as '%s'\n", plan.Name, visibilityType)
+				if len(organizations) > 0 {
+					fmt.Printf("Organizations: %s\n", strings.Join(organizations, ", "))
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&visibilityType, "type", "t", "", "Visibility type (public, admin, organization, space)")
+	cmd.Flags().StringSliceVarP(&organizations, "orgs", "o", []string{}, "Organization GUIDs (for organization visibility)")
+
+	return cmd
+}
+
+func newServicesPlansVisibilityRemoveOrgCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove-org SERVICE_PLAN_NAME_OR_GUID ORG_GUID",
+		Short: "Remove organization from service plan visibility",
+		Long:  "Remove an organization from service plan visibility",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			planNameOrGUID := args[0]
+			orgGUID := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find service plan
+			plan, err := client.ServicePlans().Get(ctx, planNameOrGUID)
+			if err != nil {
+				// If not found by GUID, try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", planNameOrGUID)
+				plans, err := client.ServicePlans().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find service plan: %w", err)
+				}
+				if len(plans.Resources) == 0 {
+					return fmt.Errorf("service plan '%s' not found", planNameOrGUID)
+				}
+				plan = &plans.Resources[0]
+			}
+
+			err = client.ServicePlans().RemoveOrgFromVisibility(ctx, plan.GUID, orgGUID)
+			if err != nil {
+				return fmt.Errorf("removing organization from service plan visibility: %w", err)
+			}
+
+			fmt.Printf("✓ Organization '%s' removed from service plan '%s' visibility\n", orgGUID, plan.Name)
 			return nil
 		},
 	}

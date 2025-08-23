@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -143,27 +144,40 @@ func newAPIsListCommand() *cobra.Command {
 				return encoder.Encode(config.APIs)
 
 			default:
-				fmt.Println("Configured APIs:")
+				if len(config.APIs) == 0 {
+					fmt.Println("No APIs configured. Use 'capi apis add' to add one.")
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Domain", "Endpoint", "User", "Org", "Space", "Current")
+
 				for domain, apiConfig := range config.APIs {
 					current := ""
 					if domain == config.CurrentAPI {
-						current = " (current)"
+						current = "✓"
 					}
-					fmt.Printf("  %s%s\n", domain, current)
-					fmt.Printf("    Endpoint: %s\n", apiConfig.Endpoint)
-					if apiConfig.Username != "" {
-						fmt.Printf("    User:     %s\n", apiConfig.Username)
+
+					user := apiConfig.Username
+					if user == "" {
+						user = "-"
 					}
-					if apiConfig.Organization != "" {
-						fmt.Printf("    Org:      %s\n", apiConfig.Organization)
+
+					org := apiConfig.Organization
+					if org == "" {
+						org = "-"
 					}
-					if apiConfig.Space != "" {
-						fmt.Printf("    Space:    %s\n", apiConfig.Space)
+
+					space := apiConfig.Space
+					if space == "" {
+						space = "-"
 					}
-					if apiConfig.SkipSSLValidation {
-						fmt.Printf("    Skip SSL: %v\n", apiConfig.SkipSSLValidation)
-					}
-					fmt.Println()
+
+					_ = table.Append(domain, apiConfig.Endpoint, user, org, space, current)
+				}
+
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
 				}
 			}
 

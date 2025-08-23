@@ -23,81 +23,186 @@ This command group provides comprehensive user management capabilities including
 All commands interact with the UAA service to manage users, groups, and authentication.`,
 		Example: `  # Quick start - set UAA target and authenticate
   capi uaa target https://uaa.your-domain.com
-  capi uaa get-client-credentials-token --client-id admin --client-secret secret
+  capi uaa token get-client-credentials --client-id admin --client-secret secret
 
   # Check authentication status
   capi uaa context
 
-  # User management
-  capi uaa create-user john.doe --email john@example.com
-  capi uaa list-users --filter 'active eq true'
-  capi uaa get-user john.doe
+  # User management (new structure)
+  capi uaa user create john.doe --email john@example.com
+  capi uaa user list --filter 'active eq true'
+  capi uaa user get john.doe
 
-  # Group management
-  capi uaa create-group developers --description "Development team"
-  capi uaa add-member developers john.doe
+  # Group management (new structure)
+  capi uaa group create developers --description "Development team"
+  capi uaa group add-member developers john.doe
 
-  # Get help for any specific command
-  capi uaa create-user --help`,
+  # Client management (new structure)
+  capi uaa client create myapp --secret mysecret
+  capi uaa client list
+
+  # Token management (new structure)
+  capi uaa token get-password --username john.doe
+
+  # Get help for any specific command group
+  capi uaa user --help
+  capi uaa token --help`,
 		Run: func(cmd *cobra.Command, args []string) {
 			_ = cmd.Help()
 		},
 	}
 
-	// Context Management Commands
+	// Resource Management Sub-Commands (New Structure)
+	cmd.AddCommand(NewUAAUserCommand())
+	cmd.AddCommand(NewUAAGroupCommand())
+	cmd.AddCommand(NewUAAClientCommand())
+	cmd.AddCommand(NewUAATokenCommand())
+	cmd.AddCommand(NewUAABatchCommand())
+	cmd.AddCommand(NewUAAIntegrationCommand())
+
+	// Context Management Commands (remain at top level)
 	cmd.AddCommand(createUsersContextCommand())
 	cmd.AddCommand(createUsersTargetCommand())
 	cmd.AddCommand(createUsersInfoCommand())
 	cmd.AddCommand(createUsersVersionCommand())
 
-	// Token Management Commands
-	cmd.AddCommand(createUsersGetAuthcodeTokenCommand())
-	cmd.AddCommand(createUsersGetClientCredentialsTokenCommand())
-	cmd.AddCommand(createUsersGetImplicitTokenCommand())
-	cmd.AddCommand(createUsersGetPasswordTokenCommand())
-	cmd.AddCommand(createUsersRefreshTokenCommand())
-	cmd.AddCommand(createUsersGetTokenKeyCommand())
-	cmd.AddCommand(createUsersGetTokenKeysCommand())
-
-	// User Management Commands
-	cmd.AddCommand(createUsersCreateUserCommand())
-	cmd.AddCommand(createUsersGetUserCommand())
-	cmd.AddCommand(createUsersListUsersCommand())
-	cmd.AddCommand(createUsersUpdateUserCommand())
-	cmd.AddCommand(createUsersActivateUserCommand())
-	cmd.AddCommand(createUsersDeactivateUserCommand())
-	cmd.AddCommand(createUsersDeleteUserCommand())
-
-	// Group Management Commands
-	cmd.AddCommand(createUsersCreateGroupCommand())
-	cmd.AddCommand(createUsersGetGroupCommand())
-	cmd.AddCommand(createUsersListGroupsCommand())
-	cmd.AddCommand(createUsersAddMemberCommand())
-	cmd.AddCommand(createUsersRemoveMemberCommand())
-	cmd.AddCommand(createUsersMapGroupCommand())
-	cmd.AddCommand(createUsersUnmapGroupCommand())
-	cmd.AddCommand(createUsersListGroupMappingsCommand())
-
-	// Client Management Commands
-	cmd.AddCommand(createUsersCreateClientCommand())
-	cmd.AddCommand(createUsersGetClientCommand())
-	cmd.AddCommand(createUsersListClientsCommand())
-	cmd.AddCommand(createUsersUpdateClientCommand())
-	cmd.AddCommand(createUsersSetClientSecretCommand())
-	cmd.AddCommand(createUsersDeleteClientCommand())
-
-	// Utility Commands
+	// Utility Commands (remain at top level)
 	cmd.AddCommand(createUsersCurlCommand())
 	cmd.AddCommand(createUsersUserinfoCommand())
 
-	// Performance and Batch Commands
-	cmd.AddCommand(createUsersBatchImportCommand())
-	cmd.AddCommand(createUsersPerformanceCommand())
-	cmd.AddCommand(createUsersCacheCommand())
+	// Legacy Commands (maintain backward compatibility with aliases)
+	// These will be deprecated but kept for compatibility
+	legacyUserCmd := createUsersCreateUserCommand()
+	legacyUserCmd.Hidden = true
+	cmd.AddCommand(legacyUserCmd)
 
-	// Compatibility and Integration Commands
-	cmd.AddCommand(createUsersCompatibilityCommand())
-	cmd.AddCommand(createUsersCFIntegrationCommand())
+	legacyGetUserCmd := createUsersGetUserCommand()
+	legacyGetUserCmd.Hidden = true
+	cmd.AddCommand(legacyGetUserCmd)
+
+	legacyListUsersCmd := createUsersListUsersCommand()
+	legacyListUsersCmd.Hidden = true
+	cmd.AddCommand(legacyListUsersCmd)
+
+	legacyUpdateUserCmd := createUsersUpdateUserCommand()
+	legacyUpdateUserCmd.Hidden = true
+	cmd.AddCommand(legacyUpdateUserCmd)
+
+	legacyActivateUserCmd := createUsersActivateUserCommand()
+	legacyActivateUserCmd.Hidden = true
+	cmd.AddCommand(legacyActivateUserCmd)
+
+	legacyDeactivateUserCmd := createUsersDeactivateUserCommand()
+	legacyDeactivateUserCmd.Hidden = true
+	cmd.AddCommand(legacyDeactivateUserCmd)
+
+	legacyDeleteUserCmd := createUsersDeleteUserCommand()
+	legacyDeleteUserCmd.Hidden = true
+	cmd.AddCommand(legacyDeleteUserCmd)
+
+	legacyCreateGroupCmd := createUsersCreateGroupCommand()
+	legacyCreateGroupCmd.Hidden = true
+	cmd.AddCommand(legacyCreateGroupCmd)
+
+	legacyGetGroupCmd := createUsersGetGroupCommand()
+	legacyGetGroupCmd.Hidden = true
+	cmd.AddCommand(legacyGetGroupCmd)
+
+	legacyListGroupsCmd := createUsersListGroupsCommand()
+	legacyListGroupsCmd.Hidden = true
+	cmd.AddCommand(legacyListGroupsCmd)
+
+	legacyAddMemberCmd := createUsersAddMemberCommand()
+	legacyAddMemberCmd.Hidden = true
+	cmd.AddCommand(legacyAddMemberCmd)
+
+	legacyRemoveMemberCmd := createUsersRemoveMemberCommand()
+	legacyRemoveMemberCmd.Hidden = true
+	cmd.AddCommand(legacyRemoveMemberCmd)
+
+	legacyMapGroupCmd := createUsersMapGroupCommand()
+	legacyMapGroupCmd.Hidden = true
+	cmd.AddCommand(legacyMapGroupCmd)
+
+	legacyUnmapGroupCmd := createUsersUnmapGroupCommand()
+	legacyUnmapGroupCmd.Hidden = true
+	cmd.AddCommand(legacyUnmapGroupCmd)
+
+	legacyListGroupMappingsCmd := createUsersListGroupMappingsCommand()
+	legacyListGroupMappingsCmd.Hidden = true
+	cmd.AddCommand(legacyListGroupMappingsCmd)
+
+	legacyCreateClientCmd := createUsersCreateClientCommand()
+	legacyCreateClientCmd.Hidden = true
+	cmd.AddCommand(legacyCreateClientCmd)
+
+	legacyGetClientCmd := createUsersGetClientCommand()
+	legacyGetClientCmd.Hidden = true
+	cmd.AddCommand(legacyGetClientCmd)
+
+	legacyListClientsCmd := createUsersListClientsCommand()
+	legacyListClientsCmd.Hidden = true
+	cmd.AddCommand(legacyListClientsCmd)
+
+	legacyUpdateClientCmd := createUsersUpdateClientCommand()
+	legacyUpdateClientCmd.Hidden = true
+	cmd.AddCommand(legacyUpdateClientCmd)
+
+	legacySetClientSecretCmd := createUsersSetClientSecretCommand()
+	legacySetClientSecretCmd.Hidden = true
+	cmd.AddCommand(legacySetClientSecretCmd)
+
+	legacyDeleteClientCmd := createUsersDeleteClientCommand()
+	legacyDeleteClientCmd.Hidden = true
+	cmd.AddCommand(legacyDeleteClientCmd)
+
+	legacyGetAuthcodeTokenCmd := createUsersGetAuthcodeTokenCommand()
+	legacyGetAuthcodeTokenCmd.Hidden = true
+	cmd.AddCommand(legacyGetAuthcodeTokenCmd)
+
+	legacyGetClientCredentialsTokenCmd := createUsersGetClientCredentialsTokenCommand()
+	legacyGetClientCredentialsTokenCmd.Hidden = true
+	cmd.AddCommand(legacyGetClientCredentialsTokenCmd)
+
+	legacyGetImplicitTokenCmd := createUsersGetImplicitTokenCommand()
+	legacyGetImplicitTokenCmd.Hidden = true
+	cmd.AddCommand(legacyGetImplicitTokenCmd)
+
+	legacyGetPasswordTokenCmd := createUsersGetPasswordTokenCommand()
+	legacyGetPasswordTokenCmd.Hidden = true
+	cmd.AddCommand(legacyGetPasswordTokenCmd)
+
+	legacyRefreshTokenCmd := createUsersRefreshTokenCommand()
+	legacyRefreshTokenCmd.Hidden = true
+	cmd.AddCommand(legacyRefreshTokenCmd)
+
+	legacyGetTokenKeyCmd := createUsersGetTokenKeyCommand()
+	legacyGetTokenKeyCmd.Hidden = true
+	cmd.AddCommand(legacyGetTokenKeyCmd)
+
+	legacyGetTokenKeysCmd := createUsersGetTokenKeysCommand()
+	legacyGetTokenKeysCmd.Hidden = true
+	cmd.AddCommand(legacyGetTokenKeysCmd)
+
+	legacyBatchImportCmd := createUsersBatchImportCommand()
+	legacyBatchImportCmd.Hidden = true
+	cmd.AddCommand(legacyBatchImportCmd)
+
+	legacyPerformanceCmd := createUsersPerformanceCommand()
+	legacyPerformanceCmd.Hidden = true
+	cmd.AddCommand(legacyPerformanceCmd)
+
+	legacyCacheCmd := createUsersCacheCommand()
+	legacyCacheCmd.Hidden = true
+	cmd.AddCommand(legacyCacheCmd)
+
+	legacyCompatibilityCmd := createUsersCompatibilityCommand()
+	legacyCompatibilityCmd.Hidden = true
+	cmd.AddCommand(legacyCompatibilityCmd)
+
+	legacyCFIntegrationCmd := createUsersCFIntegrationCommand()
+	legacyCFIntegrationCmd.Hidden = true
+	cmd.AddCommand(legacyCFIntegrationCmd)
 
 	return cmd
 }

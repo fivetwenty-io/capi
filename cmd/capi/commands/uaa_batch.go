@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -64,7 +65,7 @@ processing for improved performance.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -210,6 +211,9 @@ and server info to reduce API calls and improve response times.`,
 		Example: `  # Show cache statistics
   capi uaa cache --stats
 
+  # Show cache statistics in JSON format
+  capi uaa cache --stats --output json
+
   # Clear all cached data
   capi uaa cache --clear`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -222,24 +226,43 @@ and server info to reduce API calls and improve response times.`,
 			if stats {
 				metrics := performanceMetrics.GetMetrics()
 
-				fmt.Printf("Cache Statistics:\n")
-				fmt.Printf("  Cache Hits: %v\n", metrics["cache_hits"])
-				fmt.Printf("  Cache Misses: %v\n", metrics["cache_misses"])
-				fmt.Printf("  Hit Rate: %.2f%%\n", metrics["cache_hit_rate"])
-				fmt.Printf("  Total Operations: %v\n", metrics["total_operations"])
-
-				return nil
+				output := viper.GetString("output")
+				switch output {
+				case "json":
+					encoder := json.NewEncoder(os.Stdout)
+					encoder.SetIndent("", "  ")
+					return encoder.Encode(metrics)
+				case "yaml":
+					encoder := yaml.NewEncoder(os.Stdout)
+					return encoder.Encode(metrics)
+				default:
+					return displayCacheStatistics(metrics)
+				}
 			}
 
 			// Default: show cache status
-			fmt.Println("UAA Cache Status:")
-			fmt.Println("  Status: Active")
-			fmt.Println("  TTL: 10 minutes")
-			fmt.Println("  Auto-cleanup: Enabled")
-			fmt.Println("\nUse --stats to see detailed statistics")
-			fmt.Println("Use --clear to clear cached data")
-
-			return nil
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				cacheInfo := map[string]interface{}{
+					"status":       "active",
+					"ttl":          "10 minutes",
+					"auto_cleanup": true,
+				}
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(cacheInfo)
+			case "yaml":
+				cacheInfo := map[string]interface{}{
+					"status":       "active",
+					"ttl":          "10 minutes",
+					"auto_cleanup": true,
+				}
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(cacheInfo)
+			default:
+				return displayCacheStatus()
+			}
 		},
 	}
 
@@ -252,27 +275,89 @@ and server info to reduce API calls and improve response times.`,
 // Helper function to display performance metrics in table format
 func displayPerformanceMetrics(metrics map[string]interface{}) error {
 	fmt.Println("UAA Performance Metrics:")
-	fmt.Println("========================")
+	fmt.Println()
 
-	fmt.Printf("Total Operations: %v\n", metrics["total_operations"])
-	fmt.Printf("Cache Hits: %v\n", metrics["cache_hits"])
-	fmt.Printf("Cache Misses: %v\n", metrics["cache_misses"])
-	fmt.Printf("Cache Hit Rate: %.2f%%\n", metrics["cache_hit_rate"])
+	// Create summary table for overall metrics
+	summaryTable := tablewriter.NewWriter(os.Stdout)
+	summaryTable.Header("Metric", "Value")
 
-	fmt.Println("\nOperation Statistics:")
-	fmt.Println("--------------------")
+	_ = summaryTable.Append("Total Operations", fmt.Sprintf("%v", metrics["total_operations"]))
+	_ = summaryTable.Append("Cache Hits", fmt.Sprintf("%v", metrics["cache_hits"]))
+	_ = summaryTable.Append("Cache Misses", fmt.Sprintf("%v", metrics["cache_misses"]))
 
-	if operations, ok := metrics["operations"].(map[string]interface{}); ok {
+	if cacheHitRate, ok := metrics["cache_hit_rate"].(float64); ok {
+		_ = summaryTable.Append("Cache Hit Rate", fmt.Sprintf("%.2f%%", cacheHitRate))
+	} else {
+		_ = summaryTable.Append("Cache Hit Rate", "N/A")
+	}
+
+	_ = summaryTable.Render()
+
+	// Create operations statistics table if we have operations data
+	if operations, ok := metrics["operations"].(map[string]interface{}); ok && len(operations) > 0 {
+		fmt.Println("\nOperation Statistics:")
+		fmt.Println()
+
+		operationsTable := tablewriter.NewWriter(os.Stdout)
+		operationsTable.Header("Operation", "Count", "Average", "Min", "Max")
+
 		for op, stats := range operations {
 			if opStats, ok := stats.(map[string]interface{}); ok {
-				fmt.Printf("\n%s:\n", op)
-				fmt.Printf("  Count: %v\n", opStats["count"])
-				fmt.Printf("  Average: %v\n", opStats["average"])
-				fmt.Printf("  Min: %v\n", opStats["min"])
-				fmt.Printf("  Max: %v\n", opStats["max"])
+				count := fmt.Sprintf("%v", opStats["count"])
+				average := fmt.Sprintf("%v", opStats["average"])
+				min := fmt.Sprintf("%v", opStats["min"])
+				max := fmt.Sprintf("%v", opStats["max"])
+
+				_ = operationsTable.Append(op, count, average, min, max)
 			}
 		}
+
+		_ = operationsTable.Render()
 	}
+
+	return nil
+}
+
+// displayCacheStatus displays the cache status in table format
+func displayCacheStatus() error {
+	fmt.Println("UAA Cache Status:")
+	fmt.Println()
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	_ = table.Append("Status", "Active")
+	_ = table.Append("TTL", "10 minutes")
+	_ = table.Append("Auto-cleanup", "Enabled")
+
+	_ = table.Render()
+
+	fmt.Println("\nUse --stats to see detailed statistics")
+	fmt.Println("Use --clear to clear cached data")
+
+	return nil
+}
+
+// displayCacheStatistics displays cache statistics in table format
+func displayCacheStatistics(metrics map[string]interface{}) error {
+	fmt.Println("Cache Statistics:")
+	fmt.Println()
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Metric", "Value")
+
+	_ = table.Append("Cache Hits", fmt.Sprintf("%v", metrics["cache_hits"]))
+	_ = table.Append("Cache Misses", fmt.Sprintf("%v", metrics["cache_misses"]))
+
+	if cacheHitRate, ok := metrics["cache_hit_rate"].(float64); ok {
+		_ = table.Append("Hit Rate", fmt.Sprintf("%.2f%%", cacheHitRate))
+	} else {
+		_ = table.Append("Hit Rate", "N/A")
+	}
+
+	_ = table.Append("Total Operations", fmt.Sprintf("%v", metrics["total_operations"]))
+
+	_ = table.Render()
 
 	return nil
 }

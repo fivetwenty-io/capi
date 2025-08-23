@@ -593,11 +593,17 @@ func (pm *PerformanceMetrics) GetMetrics() map[string]interface{} {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
 
+	var cacheHitRate float64
+	totalCacheOps := pm.cacheHits + pm.cacheMisses
+	if totalCacheOps > 0 {
+		cacheHitRate = float64(pm.cacheHits) / float64(totalCacheOps) * 100
+	}
+
 	metrics := map[string]interface{}{
 		"total_operations": pm.totalOperations,
 		"cache_hits":       pm.cacheHits,
 		"cache_misses":     pm.cacheMisses,
-		"cache_hit_rate":   float64(pm.cacheHits) / float64(pm.cacheHits+pm.cacheMisses) * 100,
+		"cache_hit_rate":   cacheHitRate,
 		"operations":       make(map[string]interface{}),
 	}
 

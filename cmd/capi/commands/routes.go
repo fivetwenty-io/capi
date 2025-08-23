@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -26,6 +26,10 @@ func NewRoutesCommand() *cobra.Command {
 	cmd.AddCommand(newRoutesListCommand())
 	cmd.AddCommand(newRoutesCreateCommand())
 	cmd.AddCommand(newRoutesDeleteCommand())
+	cmd.AddCommand(newRoutesShareCommand())
+	cmd.AddCommand(newRoutesUnshareCommand())
+	cmd.AddCommand(newRoutesTransferCommand())
+	cmd.AddCommand(newRoutesListSharedCommand())
 
 	return cmd
 }
@@ -354,4 +358,270 @@ func newRoutesDeleteCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "force deletion without confirmation")
 
 	return cmd
+}
+
+func newRoutesShareCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "share ROUTE_GUID_OR_URL SPACE_GUID [SPACE_GUID...]",
+		Short: "Share route with spaces",
+		Long:  "Share a route with one or more spaces",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			routeIdentifier := args[0]
+			spaceGUIDs := args[1:]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Try to find route by GUID first, then by URL
+			route, err := client.Routes().Get(ctx, routeIdentifier)
+			if err != nil {
+				// Try to find by URL
+				params := capi.NewQueryParams()
+				routes, err := client.Routes().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to list routes: %w", err)
+				}
+
+				for _, r := range routes.Resources {
+					if r.URL == routeIdentifier {
+						route = &r
+						break
+					}
+				}
+
+				if route == nil {
+					return fmt.Errorf("route '%s' not found", routeIdentifier)
+				}
+			}
+
+			// Share with spaces
+			relationship, err := client.Routes().ShareWithSpace(ctx, route.GUID, spaceGUIDs)
+			if err != nil {
+				return fmt.Errorf("sharing route: %w", err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(relationship)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(relationship)
+			default:
+				fmt.Printf("✓ Route '%s' shared with %d space(s)\n", route.URL, len(spaceGUIDs))
+				for _, spaceGUID := range spaceGUIDs {
+					fmt.Printf("  - %s\n", spaceGUID)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func newRoutesUnshareCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "unshare ROUTE_GUID_OR_URL SPACE_GUID",
+		Short: "Unshare route from space",
+		Long:  "Remove sharing of a route from a space",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			routeIdentifier := args[0]
+			spaceGUID := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Try to find route by GUID first, then by URL
+			route, err := client.Routes().Get(ctx, routeIdentifier)
+			if err != nil {
+				// Try to find by URL
+				params := capi.NewQueryParams()
+				routes, err := client.Routes().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to list routes: %w", err)
+				}
+
+				for _, r := range routes.Resources {
+					if r.URL == routeIdentifier {
+						route = &r
+						break
+					}
+				}
+
+				if route == nil {
+					return fmt.Errorf("route '%s' not found", routeIdentifier)
+				}
+			}
+
+			// Unshare from space
+			err = client.Routes().UnshareFromSpace(ctx, route.GUID, spaceGUID)
+			if err != nil {
+				return fmt.Errorf("unsharing route: %w", err)
+			}
+
+			fmt.Printf("✓ Route '%s' unshared from space '%s'\n", route.URL, spaceGUID)
+			return nil
+		},
+	}
+}
+
+func newRoutesTransferCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "transfer ROUTE_GUID_OR_URL SPACE_GUID",
+		Short: "Transfer route ownership to space",
+		Long:  "Transfer ownership of a route to a different space",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			routeIdentifier := args[0]
+			spaceGUID := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Try to find route by GUID first, then by URL
+			route, err := client.Routes().Get(ctx, routeIdentifier)
+			if err != nil {
+				// Try to find by URL
+				params := capi.NewQueryParams()
+				routes, err := client.Routes().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to list routes: %w", err)
+				}
+
+				for _, r := range routes.Resources {
+					if r.URL == routeIdentifier {
+						route = &r
+						break
+					}
+				}
+
+				if route == nil {
+					return fmt.Errorf("route '%s' not found", routeIdentifier)
+				}
+			}
+
+			// Transfer ownership
+			updatedRoute, err := client.Routes().TransferOwnership(ctx, route.GUID, spaceGUID)
+			if err != nil {
+				return fmt.Errorf("transferring route ownership: %w", err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(updatedRoute)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(updatedRoute)
+			default:
+				fmt.Printf("✓ Route '%s' ownership transferred to space '%s'\n", route.URL, spaceGUID)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newRoutesListSharedCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list-shared ROUTE_GUID_OR_URL",
+		Short: "List spaces that a route is shared with",
+		Long:  "List all spaces that a route is shared with",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			routeIdentifier := args[0]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Try to find route by GUID first, then by URL
+			route, err := client.Routes().Get(ctx, routeIdentifier)
+			if err != nil {
+				// Try to find by URL
+				params := capi.NewQueryParams()
+				routes, err := client.Routes().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to list routes: %w", err)
+				}
+
+				for _, r := range routes.Resources {
+					if r.URL == routeIdentifier {
+						route = &r
+						break
+					}
+				}
+
+				if route == nil {
+					return fmt.Errorf("route '%s' not found", routeIdentifier)
+				}
+			}
+
+			// List shared spaces
+			sharedSpaces, err := client.Routes().ListSharedSpaces(ctx, route.GUID)
+			if err != nil {
+				return fmt.Errorf("listing shared spaces: %w", err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(sharedSpaces)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(sharedSpaces)
+			default:
+				if len(sharedSpaces.Resources) == 0 {
+					fmt.Printf("Route '%s' is not shared with any spaces\n", route.URL)
+					return nil
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Space Name", "Space GUID", "Organization")
+
+				for _, space := range sharedSpaces.Resources {
+					orgName := ""
+					if space.Relationships.Organization.Data != nil {
+						// Try to get org name - if it fails, just use GUID
+						if org, err := client.Organizations().Get(ctx, space.Relationships.Organization.Data.GUID); err == nil {
+							orgName = org.Name
+						} else {
+							orgName = space.Relationships.Organization.Data.GUID
+						}
+					}
+					_ = table.Append(space.Name, space.GUID, orgName)
+				}
+
+				fmt.Printf("Shared spaces for route '%s':\n\n", route.URL)
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
+			}
+
+			return nil
+		},
+	}
 }

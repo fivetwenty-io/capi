@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -171,73 +171,111 @@ func newOrgQuotasGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(quota)
 			default:
-				fmt.Printf("Organization Quota: %s\n", quota.Name)
-				fmt.Printf("  GUID: %s\n", quota.GUID)
-				fmt.Printf("  Created: %s\n", quota.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated: %s\n", quota.UpdatedAt.Format("2006-01-02 15:04:05"))
+				// Basic quota information
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
 
+				_ = table.Append("Name", quota.Name)
+				_ = table.Append("GUID", quota.GUID)
+				_ = table.Append("Created", quota.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", quota.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+				fmt.Printf("Organization Quota Details:\n\n")
+				_ = table.Render()
+
+				// App limits
 				if quota.Apps != nil {
-					fmt.Println("  App Limits:")
+					fmt.Println("\nApp Limits:")
+					appTable := tablewriter.NewWriter(os.Stdout)
+					appTable.Header("Limit", "Value")
+
+					totalMemory := "unlimited"
 					if quota.Apps.TotalMemoryInMB != nil {
-						fmt.Printf("    Total Memory: %d MB\n", *quota.Apps.TotalMemoryInMB)
-					} else {
-						fmt.Printf("    Total Memory: unlimited\n")
+						totalMemory = fmt.Sprintf("%d MB", *quota.Apps.TotalMemoryInMB)
 					}
+					_ = appTable.Append("Total Memory", totalMemory)
+
+					instanceMemory := "unlimited"
 					if quota.Apps.TotalInstanceMemoryInMB != nil {
-						fmt.Printf("    Instance Memory: %d MB\n", *quota.Apps.TotalInstanceMemoryInMB)
-					} else {
-						fmt.Printf("    Instance Memory: unlimited\n")
+						instanceMemory = fmt.Sprintf("%d MB", *quota.Apps.TotalInstanceMemoryInMB)
 					}
+					_ = appTable.Append("Instance Memory", instanceMemory)
+
+					totalInstances := "unlimited"
 					if quota.Apps.TotalInstances != nil {
-						fmt.Printf("    Total Instances: %d\n", *quota.Apps.TotalInstances)
-					} else {
-						fmt.Printf("    Total Instances: unlimited\n")
+						totalInstances = fmt.Sprintf("%d", *quota.Apps.TotalInstances)
 					}
+					_ = appTable.Append("Total Instances", totalInstances)
+
+					totalAppTasks := "unlimited"
 					if quota.Apps.TotalAppTasks != nil {
-						fmt.Printf("    Total App Tasks: %d\n", *quota.Apps.TotalAppTasks)
-					} else {
-						fmt.Printf("    Total App Tasks: unlimited\n")
+						totalAppTasks = fmt.Sprintf("%d", *quota.Apps.TotalAppTasks)
 					}
+					_ = appTable.Append("Total App Tasks", totalAppTasks)
+
+					_ = appTable.Render()
 				}
 
+				// Service limits
 				if quota.Services != nil {
-					fmt.Println("  Service Limits:")
+					fmt.Println("\nService Limits:")
+					serviceTable := tablewriter.NewWriter(os.Stdout)
+					serviceTable.Header("Limit", "Value")
+
 					if quota.Services.PaidServicesAllowed != nil {
-						fmt.Printf("    Paid Services: %t\n", *quota.Services.PaidServicesAllowed)
+						paidServices := fmt.Sprintf("%t", *quota.Services.PaidServicesAllowed)
+						_ = serviceTable.Append("Paid Services Allowed", paidServices)
 					}
+
+					totalServiceInstances := "unlimited"
 					if quota.Services.TotalServiceInstances != nil {
-						fmt.Printf("    Total Service Instances: %d\n", *quota.Services.TotalServiceInstances)
-					} else {
-						fmt.Printf("    Total Service Instances: unlimited\n")
+						totalServiceInstances = fmt.Sprintf("%d", *quota.Services.TotalServiceInstances)
 					}
+					_ = serviceTable.Append("Total Service Instances", totalServiceInstances)
+
+					totalServiceKeys := "unlimited"
 					if quota.Services.TotalServiceKeys != nil {
-						fmt.Printf("    Total Service Keys: %d\n", *quota.Services.TotalServiceKeys)
-					} else {
-						fmt.Printf("    Total Service Keys: unlimited\n")
+						totalServiceKeys = fmt.Sprintf("%d", *quota.Services.TotalServiceKeys)
 					}
+					_ = serviceTable.Append("Total Service Keys", totalServiceKeys)
+
+					_ = serviceTable.Render()
 				}
 
+				// Route limits
 				if quota.Routes != nil {
-					fmt.Println("  Route Limits:")
+					fmt.Println("\nRoute Limits:")
+					routeTable := tablewriter.NewWriter(os.Stdout)
+					routeTable.Header("Limit", "Value")
+
+					totalRoutes := "unlimited"
 					if quota.Routes.TotalRoutes != nil {
-						fmt.Printf("    Total Routes: %d\n", *quota.Routes.TotalRoutes)
-					} else {
-						fmt.Printf("    Total Routes: unlimited\n")
+						totalRoutes = fmt.Sprintf("%d", *quota.Routes.TotalRoutes)
 					}
+					_ = routeTable.Append("Total Routes", totalRoutes)
+
+					totalReservedPorts := "unlimited"
 					if quota.Routes.TotalReservedPorts != nil {
-						fmt.Printf("    Total Reserved Ports: %d\n", *quota.Routes.TotalReservedPorts)
-					} else {
-						fmt.Printf("    Total Reserved Ports: unlimited\n")
+						totalReservedPorts = fmt.Sprintf("%d", *quota.Routes.TotalReservedPorts)
 					}
+					_ = routeTable.Append("Total Reserved Ports", totalReservedPorts)
+
+					_ = routeTable.Render()
 				}
 
+				// Domain limits
 				if quota.Domains != nil {
-					fmt.Println("  Domain Limits:")
+					fmt.Println("\nDomain Limits:")
+					domainTable := tablewriter.NewWriter(os.Stdout)
+					domainTable.Header("Limit", "Value")
+
+					totalDomains := "unlimited"
 					if quota.Domains.TotalDomains != nil {
-						fmt.Printf("    Total Domains: %d\n", *quota.Domains.TotalDomains)
-					} else {
-						fmt.Printf("    Total Domains: unlimited\n")
+						totalDomains = fmt.Sprintf("%d", *quota.Domains.TotalDomains)
 					}
+					_ = domainTable.Append("Total Domains", totalDomains)
+
+					_ = domainTable.Render()
 				}
 			}
 

@@ -16,12 +16,12 @@ func TestNewAuditEventsCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 2)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "list")
 	assert.Contains(t, commandNames, "get")
 }
@@ -35,19 +35,19 @@ func TestAuditEventsListCommand(t *testing.T) {
 
 	// Check filtering flags
 	flags := []string{
-		"all", "per-page", "event-types", "target-types", "actor-types", 
+		"all", "per-page", "event-types", "target-types", "actor-types",
 		"space-name", "org-name", "start-time", "end-time",
 	}
-	
+
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
 		assert.NotNil(t, flag, "Flag %s should exist", flagName)
 	}
-	
+
 	// Check default values
 	perPageFlag := cmd.Flags().Lookup("per-page")
 	assert.Equal(t, "50", perPageFlag.DefValue)
-	
+
 	allFlag := cmd.Flags().Lookup("all")
 	assert.Equal(t, "false", allFlag.DefValue)
 }

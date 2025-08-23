@@ -2,6 +2,19 @@
 
 This directory contains practical examples for using the `capi uaa` commands to manage UAA (User Account and Authentication) resources.
 
+## New Command Structure (v2.0)
+
+**Important: These examples use the new hierarchical command structure introduced in v2.0.**
+
+- **`capi uaa user`** - User management operations
+- **`capi uaa group`** - Group management operations  
+- **`capi uaa client`** - OAuth client management
+- **`capi uaa token`** - Token operations
+- **`capi uaa batch`** - Batch operations and utilities
+- **`capi uaa integration`** - Integration and compatibility utilities
+
+**Legacy hyphenated commands are deprecated but still functional.** Examples show both new and legacy formats where applicable.
+
 ## Prerequisites
 
 1. Access to a UAA server (typically part of a Cloud Foundry deployment)
@@ -28,16 +41,20 @@ This directory contains practical examples for using the `capi uaa` commands to 
 # Set UAA endpoint
 capi uaa target https://uaa.your-cf-domain.com
 
-# Option 1: Admin client credentials
-capi uaa get-client-credentials-token \
+# Option 1: Admin client credentials - NEW STRUCTURE
+capi uaa token get-client-credentials \
     --client-id admin \
     --client-secret admin-secret
 
-# Option 2: User password authentication
-capi uaa get-password-token \
+# Option 2: User password authentication - NEW STRUCTURE
+capi uaa token get-password \
     --username admin \
     --password admin-password \
     --client-id cf
+
+# Legacy commands (deprecated):
+# capi uaa get-client-credentials-token --client-id admin --client-secret admin-secret
+# capi uaa get-password-token --username admin --password admin-password --client-id cf
 
 # Verify authentication
 capi uaa context
@@ -55,11 +72,14 @@ export UAA_ENDPOINT="https://uaa.your-cf-domain.com"
 export UAA_CLIENT_ID="admin"
 export UAA_CLIENT_SECRET="admin-secret"
 
-# Authenticate using environment variables
+# Authenticate using environment variables - NEW STRUCTURE
 capi uaa target "$UAA_ENDPOINT"
-capi uaa get-client-credentials-token \
+capi uaa token get-client-credentials \
     --client-id "$UAA_CLIENT_ID" \
     --client-secret "$UAA_CLIENT_SECRET"
+
+# Legacy command (deprecated):
+# capi uaa get-client-credentials-token --client-id "$UAA_CLIENT_ID" --client-secret "$UAA_CLIENT_SECRET"
 
 echo "Authenticated with client: $UAA_CLIENT_ID"
 ```
@@ -79,7 +99,8 @@ EMAIL="john.doe@example.com"
 TEMP_PASSWORD="TempPass123!"
 
 echo "Creating user: $USERNAME"
-capi uaa create-user "$USERNAME" \
+# NEW STRUCTURE
+capi uaa user create "$USERNAME" \
     --email "$EMAIL" \
     --password "$TEMP_PASSWORD" \
     --given-name "John" \
@@ -88,21 +109,28 @@ capi uaa create-user "$USERNAME" \
 
 echo "User created successfully!"
 
-# Get user details
+# Get user details - NEW STRUCTURE
 echo "User details:"
-capi uaa get-user "$USERNAME"
+capi uaa user get "$USERNAME"
 
-# Update user
+# Update user - NEW STRUCTURE
 echo "Updating user phone number..."
-capi uaa update-user "$USERNAME" --phone-number "+1-555-9999"
+capi uaa user update "$USERNAME" --phone-number "+1-555-9999"
 
-# Deactivate user
+# Deactivate user - NEW STRUCTURE
 echo "Deactivating user..."
-capi uaa deactivate-user "$USERNAME"
+capi uaa user deactivate "$USERNAME"
 
-# Reactivate user
+# Reactivate user - NEW STRUCTURE
 echo "Reactivating user..."
-capi uaa activate-user "$USERNAME"
+capi uaa user activate "$USERNAME"
+
+# Legacy commands (deprecated):
+# capi uaa create-user "$USERNAME" --email "$EMAIL" --password "$TEMP_PASSWORD"
+# capi uaa get-user "$USERNAME"
+# capi uaa update-user "$USERNAME" --phone-number "+1-555-9999"
+# capi uaa deactivate-user "$USERNAME"
+# capi uaa activate-user "$USERNAME"
 
 echo "User lifecycle demo complete!"
 ```
@@ -135,7 +163,8 @@ while IFS=, read -r username email firstname lastname phone; do
     
     echo "Creating user: $username ($email)"
     
-    if capi uaa create-user "$username" \
+    # NEW STRUCTURE
+    if capi uaa user create "$username" \
         --email "$email" \
         --given-name "$firstname" \
         --family-name "$lastname" \
@@ -150,7 +179,15 @@ done < "$CSV_FILE"
 
 echo "Bulk user creation complete!"
 echo "Users created:"
-capi uaa list-users --filter 'email co "example.com"'
+# NEW STRUCTURE
+capi uaa user list --filter 'email co "example.com"'
+
+# Alternative: Use batch import - NEW STRUCTURE
+# capi uaa batch import --file "$CSV_FILE"
+
+# Legacy commands (deprecated):
+# capi uaa create-user "$username" --email "$email" --given-name "$firstname"
+# capi uaa list-users --filter 'email co "example.com"'
 ```
 
 ### User Search and Filtering
@@ -161,13 +198,17 @@ capi uaa list-users --filter 'email co "example.com"'
 
 echo "=== User Search Examples ==="
 
-# Find active users
+# Find active users - NEW STRUCTURE
 echo "1. Active users:"
-capi uaa list-users --filter 'active eq true' --attributes userName,email,active
+capi uaa user list --filter 'active eq true' --attributes userName,email,active
 
-# Find users by email domain
+# Find users by email domain - NEW STRUCTURE
 echo -e "\n2. Users with example.com email:"
-capi uaa list-users --filter 'email co "example.com"' --attributes userName,email
+capi uaa user list --filter 'email co "example.com"' --attributes userName,email
+
+# Legacy commands (deprecated):
+# capi uaa list-users --filter 'active eq true' --attributes userName,email,active
+# capi uaa list-users --filter 'email co "example.com"' --attributes userName,email
 
 # Find recently created users (last 30 days)
 THIRTY_DAYS_AGO=$(date -d '30 days ago' -u '+%Y-%m-%dT%H:%M:%S.000Z')

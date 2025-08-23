@@ -129,7 +129,7 @@ func createUsersInfoCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -169,7 +169,7 @@ func createUsersVersionCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if config.UAAEndpoint == "" {
+			if GetEffectiveUAAEndpoint(config) == "" {
 				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
 			}
 
@@ -197,7 +197,7 @@ func createUsersVersionCommand() *cobra.Command {
 			case "json":
 				result := map[string]string{
 					"version":  version,
-					"endpoint": config.UAAEndpoint,
+					"endpoint": GetEffectiveUAAEndpoint(config),
 				}
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
@@ -205,13 +205,18 @@ func createUsersVersionCommand() *cobra.Command {
 			case "yaml":
 				result := map[string]string{
 					"version":  version,
-					"endpoint": config.UAAEndpoint,
+					"endpoint": GetEffectiveUAAEndpoint(config),
 				}
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(result)
 			default:
-				fmt.Printf("UAA Version: %s\n", version)
-				fmt.Printf("Endpoint: %s\n", config.UAAEndpoint)
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Version", version)
+				_ = table.Append("Endpoint", GetEffectiveUAAEndpoint(config))
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
 				return nil
 			}
 		},
@@ -252,12 +257,25 @@ func showContextYAML(config *Config, clientError error) error {
 }
 
 func showContextTable(config *Config, clientError error) error {
-	fmt.Println("UAA Context:")
-	fmt.Printf("  Endpoint:       %s\n", getValueOrEmpty(config.UAAEndpoint))
-	fmt.Printf("  Authenticated:  %v\n", config.UAAToken != "" || config.Token != "")
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	_ = table.Append("Endpoint", getValueOrEmpty(config.UAAEndpoint))
+
+	authenticated := "false"
+	if config.UAAToken != "" || config.Token != "" {
+		authenticated = "true"
+	}
+	_ = table.Append("Authenticated", authenticated)
 
 	if clientError != nil {
-		fmt.Printf("  Error:          %s\n", clientError.Error())
+		_ = table.Append("Error", clientError.Error())
+	}
+
+	fmt.Println("UAA Context:")
+	fmt.Println()
+	if err := table.Render(); err != nil {
+		return fmt.Errorf("failed to render table: %w", err)
 	}
 
 	return nil
@@ -265,7 +283,7 @@ func showContextTable(config *Config, clientError error) error {
 
 func showContextWithServerInfoJSON(config *Config, client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
 	context := map[string]interface{}{
-		"uaa_endpoint":      config.UAAEndpoint,
+		"uaa_endpoint":      client.Endpoint(),
 		"authenticated":     client.IsAuthenticated(),
 		"connection_status": connectionError == nil,
 		"server_info":       serverInfo,
@@ -282,7 +300,7 @@ func showContextWithServerInfoJSON(config *Config, client *UAAClientWrapper, ser
 
 func showContextWithServerInfoYAML(config *Config, client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
 	context := map[string]interface{}{
-		"uaa_endpoint":      config.UAAEndpoint,
+		"uaa_endpoint":      client.Endpoint(),
 		"authenticated":     client.IsAuthenticated(),
 		"connection_status": connectionError == nil,
 		"server_info":       serverInfo,
@@ -297,31 +315,50 @@ func showContextWithServerInfoYAML(config *Config, client *UAAClientWrapper, ser
 }
 
 func showContextWithServerInfoTable(config *Config, client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
-	fmt.Println("UAA Context:")
-	fmt.Printf("  Endpoint:       %s\n", getValueOrEmpty(config.UAAEndpoint))
-	fmt.Printf("  Authenticated:  %v\n", client.IsAuthenticated())
-	fmt.Printf("  Connected:      %v\n", connectionError == nil)
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	// Add basic context information
+	_ = table.Append("Endpoint", getValueOrEmpty(client.Endpoint()))
+
+	authenticated := "false"
+	if client.IsAuthenticated() {
+		authenticated = "true"
+	}
+	_ = table.Append("Authenticated", authenticated)
+
+	connected := "true"
+	if connectionError != nil {
+		connected = "false"
+	}
+	_ = table.Append("Connected", connected)
 
 	if connectionError != nil {
-		fmt.Printf("  Error:          %s\n", connectionError.Error())
+		_ = table.Append("Connection Error", connectionError.Error())
 	}
 
+	// Add server information if available
 	if len(serverInfo) > 0 {
-		fmt.Println("\nServer Information:")
 		if app, ok := serverInfo["app"].(map[string]interface{}); ok {
-			if name, ok := app["name"].(string); ok {
-				fmt.Printf("  Name:           %s\n", name)
+			if name, ok := app["name"].(string); ok && name != "" {
+				_ = table.Append("Server Name", name)
 			}
-			if version, ok := app["version"].(string); ok {
-				fmt.Printf("  Version:        %s\n", version)
+			if version, ok := app["version"].(string); ok && version != "" {
+				_ = table.Append("Server Version", version)
 			}
 		}
 		if commitID, ok := serverInfo["commit_id"].(string); ok && commitID != "" {
-			fmt.Printf("  Commit ID:      %s\n", commitID)
+			_ = table.Append("Commit ID", commitID)
 		}
 		if zoneName, ok := serverInfo["zone_name"].(string); ok && zoneName != "" {
-			fmt.Printf("  Zone Name:      %s\n", zoneName)
+			_ = table.Append("Zone Name", zoneName)
 		}
+	}
+
+	fmt.Println("UAA Context:")
+	fmt.Println()
+	if err := table.Render(); err != nil {
+		return fmt.Errorf("failed to render table: %w", err)
 	}
 
 	return nil
@@ -345,7 +382,9 @@ func displayServerInfoTable(serverInfo map[string]interface{}) error {
 		}
 	}
 
-	_ = table.Render()
+	if err := table.Render(); err != nil {
+		return fmt.Errorf("failed to render table: %w", err)
+	}
 	return nil
 }
 

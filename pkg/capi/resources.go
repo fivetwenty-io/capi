@@ -61,6 +61,23 @@ type AppPermissions struct {
 	ReadSensitiveData bool `json:"read_sensitive_data"`
 }
 
+// AppFeature represents a single app feature
+type AppFeature struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
+}
+
+// AppFeatures represents a collection of app features
+type AppFeatures struct {
+	Resources []AppFeature `json:"resources"`
+}
+
+// AppFeatureUpdateRequest represents a request to update an app feature
+type AppFeatureUpdateRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // Organization represents a Cloud Foundry organization
 type Organization struct {
 	Resource
@@ -238,11 +255,6 @@ type RouteReservationRequest struct {
 	Host string `json:"host,omitempty"`
 	Path string `json:"path,omitempty"`
 	Port *int   `json:"port,omitempty"`
-}
-
-// ManifestDiff represents a manifest diff
-type ManifestDiff struct {
-	Diff string `json:"diff"`
 }
 
 // User represents a user
@@ -1276,6 +1288,31 @@ type LogMessage struct {
 // AppLogs represents a collection of log messages for an app
 type AppLogs struct {
 	Messages []LogMessage `json:"messages"`
+}
+
+// LogCacheEnvelope represents a log cache response envelope
+type LogCacheEnvelope struct {
+	Timestamp  string               `json:"timestamp"`
+	SourceID   string               `json:"source_id"`
+	InstanceID string               `json:"instance_id"`
+	Tags       map[string]string    `json:"tags"`
+	Log        *LogCacheLogEnvelope `json:"log,omitempty"`
+}
+
+// LogCacheLogEnvelope represents the log content within a log cache envelope
+type LogCacheLogEnvelope struct {
+	Payload []byte `json:"payload"`
+	Type    string `json:"type"`
+}
+
+// LogCacheResponse represents the response from log cache API
+type LogCacheResponse struct {
+	Envelopes LogCacheEnvelopesWrapper `json:"envelopes"`
+}
+
+// LogCacheEnvelopesWrapper wraps the batch array in the log cache response
+type LogCacheEnvelopesWrapper struct {
+	Batch []LogCacheEnvelope `json:"batch"`
 }
 
 // OrganizationQuota represents an organization quota

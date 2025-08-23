@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fivetwenty-io/capi-client/internal/auth"
-	"github.com/fivetwenty-io/capi-client/internal/http"
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/internal/auth"
+	"github.com/fivetwenty-io/capi/internal/http"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 )
 
 // Client implements the capi.Client interface
@@ -54,6 +54,7 @@ type Client struct {
 	serviceUsageEvents        capi.ServiceUsageEventsClient
 	auditEvents               capi.AuditEventsClient
 	resourceMatches           capi.ResourceMatchesClient
+	manifests                 capi.ManifestsClient
 }
 
 // New creates a new CF API client
@@ -225,6 +226,7 @@ func (c *Client) initializeResourceClients() {
 	c.serviceUsageEvents = NewServiceUsageEventsClient(c.httpClient)
 	c.auditEvents = NewAuditEventsClient(c.httpClient)
 	c.resourceMatches = NewResourceMatchesClient(c.httpClient)
+	c.manifests = NewManifestsClient(c.httpClient)
 }
 
 // GetInfo implements capi.Client.GetInfo
@@ -457,6 +459,11 @@ func (c *Client) AuditEvents() capi.AuditEventsClient {
 // ResourceMatches implements capi.Client.ResourceMatches
 func (c *Client) ResourceMatches() capi.ResourceMatchesClient {
 	return c.resourceMatches
+}
+
+// Manifests implements capi.Client.Manifests
+func (c *Client) Manifests() capi.ManifestsClient {
+	return c.manifests
 }
 
 // GetToken returns the current access token from the token manager

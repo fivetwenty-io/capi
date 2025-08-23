@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -166,29 +166,40 @@ func newOrgsGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(org)
 			default:
-				fmt.Printf("Organization: %s\n", org.Name)
-				fmt.Printf("  GUID:       %s\n", org.GUID)
-				fmt.Printf("  Status:     %s\n", func() string {
-					if org.Suspended {
-						return "suspended"
-					}
-					return "active"
-				}())
-				fmt.Printf("  Created:    %s\n", org.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:    %s\n", org.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("Name", org.Name)
+				_ = table.Append("GUID", org.GUID)
+				status := "active"
+				if org.Suspended {
+					status = "suspended"
+				}
+				_ = table.Append("Status", status)
+				_ = table.Append("Created", org.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", org.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+				fmt.Printf("Organization details:\n\n")
+				_ = table.Render()
 
 				if len(org.Metadata.Labels) > 0 {
-					fmt.Println("  Labels:")
+					fmt.Println("\nLabels:")
+					labelTable := tablewriter.NewWriter(os.Stdout)
+					labelTable.Header("Key", "Value")
 					for k, v := range org.Metadata.Labels {
-						fmt.Printf("    %s: %s\n", k, v)
+						_ = labelTable.Append(k, v)
 					}
+					_ = labelTable.Render()
 				}
 
 				if len(org.Metadata.Annotations) > 0 {
-					fmt.Println("  Annotations:")
+					fmt.Println("\nAnnotations:")
+					annotationTable := tablewriter.NewWriter(os.Stdout)
+					annotationTable.Header("Key", "Value")
 					for k, v := range org.Metadata.Annotations {
-						fmt.Printf("    %s: %s\n", k, v)
+						_ = annotationTable.Append(k, v)
 					}
+					_ = annotationTable.Render()
 				}
 			}
 
@@ -403,8 +414,105 @@ func newOrgsSetQuotaCommand() *cobra.Command {
 		Long:  "Assign a quota to an organization",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement when quota management API is available
-			fmt.Println("Organization quota management is not yet implemented in the client library")
+			orgNameOrGUID := args[0]
+			quotaNameOrGUID := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			quotaClient := client.OrganizationQuotas()
+			orgsClient := client.Organizations()
+
+			// Find organization
+			var orgGUID string
+			var orgName string
+			org, err := orgsClient.Get(ctx, orgNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", orgNameOrGUID)
+				orgs, err := orgsClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find organization '%s': %w", orgNameOrGUID, err)
+				}
+				if len(orgs.Resources) == 0 {
+					return fmt.Errorf("organization '%s' not found", orgNameOrGUID)
+				}
+				orgGUID = orgs.Resources[0].GUID
+				orgName = orgs.Resources[0].Name
+			} else {
+				orgGUID = org.GUID
+				orgName = org.Name
+			}
+
+			// Find quota
+			var quotaGUID string
+			var quotaName string
+			quota, err := quotaClient.Get(ctx, quotaNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", quotaNameOrGUID)
+				quotas, err := quotaClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find organization quota '%s': %w", quotaNameOrGUID, err)
+				}
+				if len(quotas.Resources) == 0 {
+					return fmt.Errorf("organization quota '%s' not found", quotaNameOrGUID)
+				}
+				quotaGUID = quotas.Resources[0].GUID
+				quotaName = quotas.Resources[0].Name
+			} else {
+				quotaGUID = quota.GUID
+				quotaName = quota.Name
+			}
+
+			// Apply quota to organization
+			_, err = quotaClient.ApplyToOrganizations(ctx, quotaGUID, []string{orgGUID})
+			if err != nil {
+				return fmt.Errorf("failed to set quota for organization: %w", err)
+			}
+
+			type QuotaAssignmentResult struct {
+				OrganizationName string `json:"organization_name" yaml:"organization_name"`
+				OrganizationGUID string `json:"organization_guid" yaml:"organization_guid"`
+				QuotaName        string `json:"quota_name" yaml:"quota_name"`
+				QuotaGUID        string `json:"quota_guid" yaml:"quota_guid"`
+				Operation        string `json:"operation" yaml:"operation"`
+			}
+
+			result := QuotaAssignmentResult{
+				OrganizationName: orgName,
+				OrganizationGUID: orgGUID,
+				QuotaName:        quotaName,
+				QuotaGUID:        quotaGUID,
+				Operation:        "set-quota",
+			}
+
+			// Output results
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(result)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(result)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Organization", orgName)
+				_ = table.Append("Quota", quotaName)
+				_ = table.Append("Operation", "set-quota")
+
+				fmt.Printf("Successfully set quota for organization:\n\n")
+				_ = table.Render()
+			}
+
 			return nil
 		},
 	}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -177,20 +177,26 @@ func newRolesGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(role)
 			default:
-				fmt.Printf("Role: %s\n", role.GUID)
-				fmt.Printf("  Type:      %s\n", role.Type)
-				fmt.Printf("  User GUID: %s\n", role.Relationships.User.Data.GUID)
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+
+				_ = table.Append("GUID", role.GUID)
+				_ = table.Append("Type", role.Type)
+				_ = table.Append("User GUID", role.Relationships.User.Data.GUID)
 
 				if role.Relationships.Organization != nil {
-					fmt.Printf("  Org GUID:  %s\n", role.Relationships.Organization.Data.GUID)
+					_ = table.Append("Organization GUID", role.Relationships.Organization.Data.GUID)
 				}
 
 				if role.Relationships.Space != nil {
-					fmt.Printf("  Space GUID: %s\n", role.Relationships.Space.Data.GUID)
+					_ = table.Append("Space GUID", role.Relationships.Space.Data.GUID)
 				}
 
-				fmt.Printf("  Created:   %s\n", role.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:   %s\n", role.UpdatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Created", role.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", role.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+				fmt.Printf("Role details:\n\n")
+				_ = table.Render()
 			}
 
 			return nil

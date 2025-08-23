@@ -16,12 +16,12 @@ func TestNewSidecarsCommand(t *testing.T) {
 	// Check subcommands are added
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 4)
-	
+
 	var commandNames []string
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
-	
+
 	assert.Contains(t, commandNames, "get")
 	assert.Contains(t, commandNames, "update")
 	assert.Contains(t, commandNames, "delete")
@@ -79,7 +79,7 @@ func TestSidecarsListForProcessCommand(t *testing.T) {
 	// Check pagination flags
 	assert.NotNil(t, cmd.Flags().Lookup("all"))
 	assert.NotNil(t, cmd.Flags().Lookup("per-page"))
-	
+
 	perPageFlag := cmd.Flags().Lookup("per-page")
 	assert.Equal(t, "50", perPageFlag.DefValue)
 }

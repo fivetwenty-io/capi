@@ -5,14 +5,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
+
+func validateFilePathSpaces(filePath string) error {
+	// Clean the path to resolve any path traversal attempts
+	cleanPath := filepath.Clean(filePath)
+
+	// Check for path traversal attempts
+	if filepath.IsAbs(filePath) {
+		// Allow absolute paths but ensure they're clean
+		if cleanPath != filePath {
+			return fmt.Errorf("invalid file path: potential path traversal attempt")
+		}
+	} else {
+		// For relative paths, ensure they don't escape the current directory
+		if len(cleanPath) > 0 && cleanPath[0] == '.' && len(cleanPath) > 1 && cleanPath[1] == '.' {
+			return fmt.Errorf("invalid file path: path traversal not allowed")
+		}
+	}
+
+	return nil
+}
 
 // NewSpacesCommand creates the spaces command group
 func NewSpacesCommand() *cobra.Command {
@@ -28,6 +49,7 @@ func NewSpacesCommand() *cobra.Command {
 	cmd.AddCommand(newSpacesCreateCommand())
 	cmd.AddCommand(newSpacesUpdateCommand())
 	cmd.AddCommand(newSpacesDeleteCommand())
+	cmd.AddCommand(newSpacesFeaturesCommand())
 	cmd.AddCommand(newSpacesSetQuotaCommand())
 	cmd.AddCommand(newSpacesListUsersCommand())
 	cmd.AddCommand(newSpacesSetRoleCommand())
@@ -192,29 +214,45 @@ func newSpacesGetCommand() *cobra.Command {
 				encoder := yaml.NewEncoder(os.Stdout)
 				return encoder.Encode(space)
 			default:
-				fmt.Printf("Space: %s\n", space.Name)
-				fmt.Printf("  GUID:       %s\n", space.GUID)
-				fmt.Printf("  Created:    %s\n", space.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated:    %s\n", space.UpdatedAt.Format("2006-01-02 15:04:05"))
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Name", space.Name)
+				_ = table.Append("GUID", space.GUID)
+				_ = table.Append("Created", space.CreatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Updated", space.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 				if space.Relationships.Organization.Data != nil {
 					org, _ := client.Organizations().Get(ctx, space.Relationships.Organization.Data.GUID)
 					if org != nil {
-						fmt.Printf("  Organization: %s (%s)\n", org.Name, org.GUID)
+						_ = table.Append("Organization", fmt.Sprintf("%s (%s)", org.Name, org.GUID))
 					}
 				}
 
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
+
 				if len(space.Metadata.Labels) > 0 {
-					fmt.Println("  Labels:")
+					fmt.Println("\nLabels:")
+					labelTable := tablewriter.NewWriter(os.Stdout)
+					labelTable.Header("Key", "Value")
 					for k, v := range space.Metadata.Labels {
-						fmt.Printf("    %s: %s\n", k, v)
+						_ = labelTable.Append(k, v)
+					}
+					if err := labelTable.Render(); err != nil {
+						return fmt.Errorf("failed to render label table: %w", err)
 					}
 				}
 
 				if len(space.Metadata.Annotations) > 0 {
-					fmt.Println("  Annotations:")
+					fmt.Println("\nAnnotations:")
+					annotationTable := tablewriter.NewWriter(os.Stdout)
+					annotationTable.Header("Key", "Value")
 					for k, v := range space.Metadata.Annotations {
-						fmt.Printf("    %s: %s\n", k, v)
+						_ = annotationTable.Append(k, v)
+					}
+					if err := annotationTable.Render(); err != nil {
+						return fmt.Errorf("failed to render annotation table: %w", err)
 					}
 				}
 			}
@@ -448,8 +486,73 @@ func newSpacesSetQuotaCommand() *cobra.Command {
 		Long:  "Assign a quota to a space",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement when quota management API is available
-			fmt.Println("Space quota management is not yet implemented in the client library")
+			spaceNameOrGUID := args[0]
+			quotaNameOrGUID := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			quotaClient := client.SpaceQuotas()
+			spacesClient := client.Spaces()
+
+			// Find space
+			var spaceGUID string
+			var spaceName string
+			space, err := spacesClient.Get(ctx, spaceNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", spaceNameOrGUID)
+				// Add org filter if targeted
+				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+					params.WithFilter("organization_guids", orgGUID)
+				}
+				spaces, err := spacesClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find space '%s': %w", spaceNameOrGUID, err)
+				}
+				if len(spaces.Resources) == 0 {
+					return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
+				}
+				spaceGUID = spaces.Resources[0].GUID
+				spaceName = spaces.Resources[0].Name
+			} else {
+				spaceGUID = space.GUID
+				spaceName = space.Name
+			}
+
+			// Find quota
+			var quotaGUID string
+			var quotaName string
+			quota, err := quotaClient.Get(ctx, quotaNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", quotaNameOrGUID)
+				quotas, err := quotaClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find space quota '%s': %w", quotaNameOrGUID, err)
+				}
+				if len(quotas.Resources) == 0 {
+					return fmt.Errorf("space quota '%s' not found", quotaNameOrGUID)
+				}
+				quotaGUID = quotas.Resources[0].GUID
+				quotaName = quotas.Resources[0].Name
+			} else {
+				quotaGUID = quota.GUID
+				quotaName = quota.Name
+			}
+
+			// Apply quota to space
+			_, err = quotaClient.ApplyToSpaces(ctx, quotaGUID, []string{spaceGUID})
+			if err != nil {
+				return fmt.Errorf("failed to set quota for space: %w", err)
+			}
+
+			fmt.Printf("Successfully set quota '%s' for space '%s'\n", quotaName, spaceName)
 			return nil
 		},
 	}
@@ -996,8 +1099,342 @@ func newSpacesApplyManifestCommand() *cobra.Command {
 		Long:  "Apply an application manifest to a space",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement when manifest API is available
-			fmt.Println("Manifest application is not yet implemented in the client library")
+			spaceNameOrGUID := args[0]
+			manifestPath := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			spacesClient := client.Spaces()
+
+			// Find space
+			var spaceGUID string
+			var spaceName string
+			space, err := spacesClient.Get(ctx, spaceNameOrGUID)
+			if err != nil {
+				// Try by name
+				params := capi.NewQueryParams()
+				params.WithFilter("names", spaceNameOrGUID)
+				// Add org filter if targeted
+				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+					params.WithFilter("organization_guids", orgGUID)
+				}
+				spaces, err := spacesClient.List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find space '%s': %w", spaceNameOrGUID, err)
+				}
+				if len(spaces.Resources) == 0 {
+					return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
+				}
+				spaceGUID = spaces.Resources[0].GUID
+				spaceName = spaces.Resources[0].Name
+			} else {
+				spaceGUID = space.GUID
+				spaceName = space.Name
+			}
+
+			// Validate and read manifest file
+			if err := validateFilePathSpaces(manifestPath); err != nil {
+				return fmt.Errorf("invalid manifest file: %w", err)
+			}
+			manifestContent, err := os.ReadFile(filepath.Clean(manifestPath))
+			if err != nil {
+				return fmt.Errorf("failed to read manifest file '%s': %w", manifestPath, err)
+			}
+
+			// Apply manifest
+			job, err := spacesClient.ApplyManifest(ctx, spaceGUID, string(manifestContent))
+			if err != nil {
+				return fmt.Errorf("failed to apply manifest: %w", err)
+			}
+
+			fmt.Printf("Successfully applied manifest to space '%s'\n", spaceName)
+			if job != nil {
+				fmt.Printf("Job GUID: %s\n", job.GUID)
+				fmt.Printf("Monitor job status with: capi jobs get %s\n", job.GUID)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newSpacesFeaturesCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "features",
+		Short: "Manage space features",
+		Long:  "Manage space features including listing, getting, enabling, and disabling features",
+	}
+
+	cmd.AddCommand(newSpacesFeaturesListCommand())
+	cmd.AddCommand(newSpacesFeaturesGetCommand())
+	cmd.AddCommand(newSpacesFeaturesEnableCommand())
+	cmd.AddCommand(newSpacesFeaturesDisableCommand())
+
+	return cmd
+}
+
+func newSpacesFeaturesListCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list SPACE_NAME_OR_GUID",
+		Short: "List space features",
+		Long:  "List all features for a space",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			spaceNameOrGUID := args[0]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find space
+			space, err := client.Spaces().Get(ctx, spaceNameOrGUID)
+			if err != nil {
+				// Try by name in targeted org
+				params := capi.NewQueryParams()
+				params.WithFilter("names", spaceNameOrGUID)
+				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+					params.WithFilter("organization_guids", orgGUID)
+				}
+				spaces, err := client.Spaces().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find space: %w", err)
+				}
+				if len(spaces.Resources) == 0 {
+					return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
+				}
+				space = &spaces.Resources[0]
+			}
+
+			features, err := client.Spaces().GetFeatures(ctx, space.GUID)
+			if err != nil {
+				return fmt.Errorf("getting space features: %w", err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(features)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(features)
+			default:
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Feature", "Status")
+
+				status := "disabled"
+				if features.SSHEnabled {
+					status = "enabled"
+				}
+				_ = table.Append("ssh", status)
+
+				fmt.Printf("Features for space '%s':\n\n", space.Name)
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func newSpacesFeaturesGetCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get SPACE_NAME_OR_GUID FEATURE_NAME",
+		Short: "Get details for a specific space feature",
+		Long:  "Get detailed information about a specific space feature",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			spaceNameOrGUID := args[0]
+			featureName := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find space
+			space, err := client.Spaces().Get(ctx, spaceNameOrGUID)
+			if err != nil {
+				// Try by name in targeted org
+				params := capi.NewQueryParams()
+				params.WithFilter("names", spaceNameOrGUID)
+				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+					params.WithFilter("organization_guids", orgGUID)
+				}
+				spaces, err := client.Spaces().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find space: %w", err)
+				}
+				if len(spaces.Resources) == 0 {
+					return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
+				}
+				space = &spaces.Resources[0]
+			}
+
+			feature, err := client.Spaces().GetFeature(ctx, space.GUID, featureName)
+			if err != nil {
+				return fmt.Errorf("getting space feature '%s': %w", featureName, err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(feature)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(feature)
+			default:
+				status := "disabled"
+				if feature.Enabled {
+					status = "enabled"
+				}
+
+				table := tablewriter.NewWriter(os.Stdout)
+				table.Header("Property", "Value")
+				_ = table.Append("Name", feature.Name)
+				_ = table.Append("Status", status)
+				if feature.Description != "" {
+					_ = table.Append("Description", feature.Description)
+				}
+
+				fmt.Printf("Feature '%s' for space '%s':\n\n", featureName, space.Name)
+				if err := table.Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func newSpacesFeaturesEnableCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "enable SPACE_NAME_OR_GUID FEATURE_NAME",
+		Short: "Enable a specific space feature",
+		Long:  "Enable a specific space feature",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			spaceNameOrGUID := args[0]
+			featureName := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find space
+			space, err := client.Spaces().Get(ctx, spaceNameOrGUID)
+			if err != nil {
+				// Try by name in targeted org
+				params := capi.NewQueryParams()
+				params.WithFilter("names", spaceNameOrGUID)
+				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+					params.WithFilter("organization_guids", orgGUID)
+				}
+				spaces, err := client.Spaces().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find space: %w", err)
+				}
+				if len(spaces.Resources) == 0 {
+					return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
+				}
+				space = &spaces.Resources[0]
+			}
+
+			updatedFeature, err := client.Spaces().UpdateFeature(ctx, space.GUID, featureName, true)
+			if err != nil {
+				return fmt.Errorf("enabling space feature '%s': %w", featureName, err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(updatedFeature)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(updatedFeature)
+			default:
+				fmt.Printf("✓ Feature '%s' has been enabled for space '%s'\n", featureName, space.Name)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newSpacesFeaturesDisableCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "disable SPACE_NAME_OR_GUID FEATURE_NAME",
+		Short: "Disable a specific space feature",
+		Long:  "Disable a specific space feature",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			spaceNameOrGUID := args[0]
+			featureName := args[1]
+
+			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+
+			// Find space
+			space, err := client.Spaces().Get(ctx, spaceNameOrGUID)
+			if err != nil {
+				// Try by name in targeted org
+				params := capi.NewQueryParams()
+				params.WithFilter("names", spaceNameOrGUID)
+				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+					params.WithFilter("organization_guids", orgGUID)
+				}
+				spaces, err := client.Spaces().List(ctx, params)
+				if err != nil {
+					return fmt.Errorf("failed to find space: %w", err)
+				}
+				if len(spaces.Resources) == 0 {
+					return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
+				}
+				space = &spaces.Resources[0]
+			}
+
+			updatedFeature, err := client.Spaces().UpdateFeature(ctx, space.GUID, featureName, false)
+			if err != nil {
+				return fmt.Errorf("disabling space feature '%s': %w", featureName, err)
+			}
+
+			output := viper.GetString("output")
+			switch output {
+			case "json":
+				encoder := json.NewEncoder(os.Stdout)
+				encoder.SetIndent("", "  ")
+				return encoder.Encode(updatedFeature)
+			case "yaml":
+				encoder := yaml.NewEncoder(os.Stdout)
+				return encoder.Encode(updatedFeature)
+			default:
+				fmt.Printf("✓ Feature '%s' has been disabled for space '%s'\n", featureName, space.Name)
+			}
+
 			return nil
 		},
 	}

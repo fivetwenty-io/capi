@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/fivetwenty-io/capi-client/internal/http"
-	"github.com/fivetwenty-io/capi-client/pkg/capi"
+	internalhttp "github.com/fivetwenty-io/capi/internal/http"
+	"github.com/fivetwenty-io/capi/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

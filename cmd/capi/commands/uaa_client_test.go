@@ -134,7 +134,7 @@ func TestUAAClientWrapper_InferUAAEndpoint(t *testing.T) {
 					API: tt.cfAPIURL,
 				},
 			}
-			url := wrapper.inferUAAEndpoint()
+			url := wrapper.inferUAAEndpointFromAPI(tt.cfAPIURL)
 			assert.Equal(t, tt.expectedURL, url)
 		})
 	}
