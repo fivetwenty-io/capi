@@ -2,9 +2,19 @@
 
 ## Installation
 
+### Install as a Library
+
 ```bash
 go get github.com/fivetwenty-io/capi/v3@v3.199.0
 ```
+
+### Install the CLI Tool
+
+```bash
+go install github.com/fivetwenty-io/capi/v3/cmd/capi@v3.199.0
+```
+
+After installation, the `capi` command will be available in your `$GOPATH/bin` or `$HOME/go/bin`.
 
 ## Basic Usage
 

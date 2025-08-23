@@ -27,17 +27,20 @@ A Go client library and CLI for interacting with Cloud Foundry API v3.
 ### Go Library
 
 ```bash
-go get github.com/fivetwenty-io/capi-client
+go get github.com/fivetwenty-io/capi/v3@v3.199.0
 ```
 
 ### CLI Tool
 
 ```bash
 # Install from source
-go install github.com/fivetwenty-io/capi-client/cmd/capi@latest
+go install github.com/fivetwenty-io/capi/v3/cmd/capi@v3.199.0
 
-# Or download binary from releases
-curl -L https://github.com/fivetwenty-io/capi-client/releases/latest/download/capi-linux-amd64 -o capi
+# Or install latest version
+go install github.com/fivetwenty-io/capi/v3/cmd/capi@latest
+
+# Or download binary from releases (when available)
+curl -L https://github.com/fivetwenty-io/capi/releases/latest/download/capi-linux-amd64 -o capi
 chmod +x capi
 ```
 
@@ -53,17 +56,20 @@ import (
     "fmt"
     "log"
 
-    "github.com/fivetwenty-io/capi-client/pkg/cfclient"
-    "github.com/fivetwenty-io/capi-client/pkg/capi"
+    "github.com/fivetwenty-io/capi/v3/pkg/capi"
+    "github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 )
 
 func main() {
-    // Create client with username/password authentication
-    client, err := cfclient.NewWithPassword(
-        "https://api.your-cf-domain.com",
-        "username",
-        "password",
-    )
+    // Create client configuration
+    config := &capi.Config{
+        APIEndpoint: "https://api.your-cf-domain.com",
+        Username:    "username",
+        Password:    "password",
+    }
+    
+    // Create client
+    client, err := cfclient.New(config)
     if err != nil {
         log.Fatal(err)
     }
