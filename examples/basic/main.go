@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/fivetwenty-io/capi/pkg/capi"
-	"github.com/fivetwenty-io/capi/pkg/cfclient"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
+	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 )
 
 func main() {

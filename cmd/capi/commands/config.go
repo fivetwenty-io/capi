@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fivetwenty-io/capi/pkg/capi"
-	"github.com/fivetwenty-io/capi/pkg/cfclient"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
+	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

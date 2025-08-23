@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
 func TestPackagesClient_Create(t *testing.T) {

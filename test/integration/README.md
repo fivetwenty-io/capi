@@ -7,7 +7,7 @@ This directory contains integration tests for the UAA user management functional
 ### UAA Server
 You need access to a running UAA server for integration testing. This can be:
 - A local UAA development server
-- A Cloud Foundry UAA instance 
+- A Cloud Foundry UAA instance
 - A dedicated UAA test environment
 
 ### Environment Variables
@@ -21,7 +21,7 @@ Set the following environment variables before running integration tests:
 
 **Option 1: Admin User Credentials**
 - `UAA_ADMIN_USER` - Admin username
-- `UAA_ADMIN_PASSWORD` - Admin password  
+- `UAA_ADMIN_PASSWORD` - Admin password
 - `UAA_CLIENT_ID` - Client ID for password grant
 - `UAA_CLIENT_SECRET` - Client secret for password grant
 
@@ -46,7 +46,7 @@ export UAA_ADMIN_PASSWORD="admin-password"
 
 ### Build the capi binary first:
 ```bash
-cd /Users/wayneeseguin/w/fivetwenty-io/capi-client-go
+cd ~/w/fivetwenty-io/capi
 make build
 # or
 go build -o capi ./cmd/capi
@@ -62,7 +62,7 @@ go test ./test/integration/... -tags=integration -v
 # UAA integration tests only
 go test ./test/integration/... -tags=integration -run TestUAAIntegrationSuite -v
 
-# Command help tests only  
+# Command help tests only
 go test ./test/integration/... -tags=integration -run TestUAACommandHelp -v
 ```
 

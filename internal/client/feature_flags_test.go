@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/fivetwenty-io/capi/internal/http"
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

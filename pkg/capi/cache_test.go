@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

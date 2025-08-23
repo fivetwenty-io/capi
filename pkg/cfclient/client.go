@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fivetwenty-io/capi/internal/client"
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/v3/internal/client"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
 // New creates a new Cloud Foundry API client with automatic UAA discovery

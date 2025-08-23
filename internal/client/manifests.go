@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	internalhttp "github.com/fivetwenty-io/capi/internal/http"
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
 // ManifestsClient implements capi.ManifestsClient

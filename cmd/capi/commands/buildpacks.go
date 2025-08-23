@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

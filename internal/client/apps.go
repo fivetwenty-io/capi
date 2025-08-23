@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	internalhttp "github.com/fivetwenty-io/capi/internal/http"
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
 // AppsClient implements capi.AppsClient

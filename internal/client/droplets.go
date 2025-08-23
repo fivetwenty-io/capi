@@ -9,8 +9,8 @@ import (
 	"mime/multipart"
 	"net/url"
 
-	"github.com/fivetwenty-io/capi/internal/http"
-	"github.com/fivetwenty-io/capi/pkg/capi"
+	"github.com/fivetwenty-io/capi/v3/internal/http"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
 // DropletsClient implements the capi.DropletsClient interface

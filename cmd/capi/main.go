@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fivetwenty-io/capi/cmd/capi/commands"
+	"github.com/fivetwenty-io/capi/v3/cmd/capi/commands"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
