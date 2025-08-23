@@ -1,6 +1,6 @@
 # Cloud Foundry API v3 Client for Go
 
-A comprehensive Go client library and CLI for interacting with Cloud Foundry API v3.
+A Go client library and CLI for interacting with Cloud Foundry API v3.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/fivetwenty-io/capi-client.svg)](https://pkg.go.dev/github.com/fivetwenty-io/capi-client)
 [![Go Report Card](https://goreportcard.com/badge/github.com/fivetwenty-io/capi-client)](https://goreportcard.com/report/github.com/fivetwenty-io/capi-client)
@@ -13,13 +13,13 @@ A comprehensive Go client library and CLI for interacting with Cloud Foundry API
 - **Authentication Support**: Multiple auth methods including OAuth2, client credentials, and user credentials
 - **Quota Management**: Organization and space quota creation, management, and enforcement
 - **Usage Monitoring**: Application and service usage event tracking for billing and analytics
-- **Audit Logging**: Comprehensive audit event tracking for security and compliance
+- **Audit Logging**: audit event tracking for security and compliance
 - **Application Lifecycle**: Advanced features like revisions, sidecars, and environment management
 - **Pagination Handling**: Automatic handling of paginated responses
 - **Rate Limiting**: Built-in rate limiting with configurable policies
 - **Caching**: Pluggable caching backends (memory, Redis, NATS)
 - **CLI Tool**: Full-featured command-line interface for CF operations
-- **Comprehensive Testing**: Unit tests, integration tests, and mocks
+- **Testing**: Unit tests, integration tests, and mocks
 - **Rich Error Handling**: Detailed error types and context
 
 ## Installation
@@ -393,7 +393,7 @@ capi app-usage-events list --app-name my-app --start-time 2023-01-01T00:00:00Z
 capi app-usage-events get event-guid
 capi app-usage-events purge-and-reseed
 
-# Service usage events  
+# Service usage events
 capi service-usage-events list
 capi service-usage-events get event-guid
 capi service-usage-events purge-and-reseed
@@ -430,7 +430,7 @@ capi resource-matches create resource-list.json
 
 ### UAA User Management
 
-The CLI includes comprehensive UAA (User Account and Authentication) user management functionality:
+The CLI includes UAA (User Account and Authentication) user management functionality:
 
 ```bash
 # Set UAA endpoint
@@ -467,7 +467,7 @@ capi uaa userinfo
 capi uaa curl /users --method GET
 ```
 
-For comprehensive UAA documentation, see [docs/uaa-commands.md](./docs/uaa-commands.md).
+For UAA documentation, see [docs/uaa-commands.md](./docs/uaa-commands.md).
 
 ### Output Formats
 
@@ -502,7 +502,7 @@ capi config clear
 
 ## Examples
 
-See the [examples](./examples) directory for comprehensive examples:
+See the [examples](./examples) directory for examples:
 
 - [Basic Usage](./examples/basic/)
 - [Authentication](./examples/auth/)
