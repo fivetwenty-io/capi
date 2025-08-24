@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/auth"
+	"github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 	"github.com/olekukonko/tablewriter"
@@ -48,7 +51,9 @@ type Config struct {
 type APIConfig struct {
 	Endpoint          string            `json:"endpoint" yaml:"endpoint"`
 	Token             string            `json:"token,omitempty" yaml:"token,omitempty"`
+	TokenExpiresAt    *time.Time        `json:"token_expires_at,omitempty" yaml:"token_expires_at,omitempty"`
 	RefreshToken      string            `json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
+	LastRefreshed     *time.Time        `json:"last_refreshed,omitempty" yaml:"last_refreshed,omitempty"`
 	Username          string            `json:"username,omitempty" yaml:"username,omitempty"`
 	Organization      string            `json:"organization,omitempty" yaml:"organization,omitempty"`
 	OrganizationGUID  string            `json:"organization_guid,omitempty" yaml:"organization_guid,omitempty"`
@@ -297,6 +302,17 @@ func loadConfig() *Config {
 				}
 				if uaaClientSecret, ok := apiMap["uaa_client_secret"].(string); ok {
 					apiConfig.UAAClientSecret = uaaClientSecret
+				}
+				// Parse timestamp fields
+				if tokenExpiresAtStr, ok := apiMap["token_expires_at"].(string); ok && tokenExpiresAtStr != "" {
+					if t, err := time.Parse(time.RFC3339, tokenExpiresAtStr); err == nil {
+						apiConfig.TokenExpiresAt = &t
+					}
+				}
+				if lastRefreshedStr, ok := apiMap["last_refreshed"].(string); ok && lastRefreshedStr != "" {
+					if t, err := time.Parse(time.RFC3339, lastRefreshedStr); err == nil {
+						apiConfig.LastRefreshed = &t
+					}
 				}
 				config.APIs[domain] = apiConfig
 			}
@@ -580,8 +596,26 @@ func GetEffectiveUAAEndpoint(config *Config) string {
 	return ""
 }
 
+// discoverUAAEndpoint discovers the UAA endpoint from a CF API endpoint
+func discoverUAAEndpoint(apiEndpoint string, skipSSLValidation bool) (string, error) {
+	// This is a simplified implementation - in a real scenario you'd make an HTTP request
+	// to the API root and parse the UAA link from the response
+	// For now, use a common pattern
+	if strings.Contains(apiEndpoint, "api.") {
+		return strings.Replace(apiEndpoint, "api.", "uaa.", 1), nil
+	}
+
+	// Fallback: assume UAA is at the same domain with /uaa path
+	return strings.TrimSuffix(apiEndpoint, "/") + "/uaa", nil
+}
+
 // CreateClientWithAPI creates a CAPI client using the specified API or current API
 func CreateClientWithAPI(apiFlag string) (capi.Client, error) {
+	return CreateClientWithTokenRefresh(apiFlag)
+}
+
+// CreateClientWithTokenRefresh creates a CAPI client with automatic token refresh
+func CreateClientWithTokenRefresh(apiFlag string) (capi.Client, error) {
 	// Get API config based on flag or current API
 	apiConfig, err := getAPIConfigByFlag(apiFlag)
 	if err != nil {
@@ -590,6 +624,19 @@ func CreateClientWithAPI(apiFlag string) (capi.Client, error) {
 
 	if apiConfig.Endpoint == "" {
 		return nil, fmt.Errorf("no API endpoint configured, use 'capi apis add' first")
+	}
+
+	// Determine the API domain key for this config
+	config := loadConfig()
+	var apiDomain string
+	for domain, cfg := range config.APIs {
+		if cfg == apiConfig {
+			apiDomain = domain
+			break
+		}
+	}
+	if apiDomain == "" {
+		return nil, fmt.Errorf("could not determine API domain for configuration")
 	}
 
 	// Set the API config values in viper so other commands can access them
@@ -601,19 +648,75 @@ func CreateClientWithAPI(apiFlag string) (capi.Client, error) {
 	viper.Set("username", apiConfig.Username)
 	viper.Set("uaa_endpoint", apiConfig.UAAEndpoint)
 
-	config := &capi.Config{
-		APIEndpoint:   apiConfig.Endpoint,
-		AccessToken:   apiConfig.Token,
-		SkipTLSVerify: apiConfig.SkipSSLValidation,
-		Username:      apiConfig.Username,
+	// Create token manager if we have authentication information
+	var tokenManager auth.TokenManager
+
+	if apiConfig.Token != "" || apiConfig.RefreshToken != "" || apiConfig.Username != "" {
+		// Discover UAA endpoint if not set
+		uaaEndpoint := apiConfig.UAAEndpoint
+		if uaaEndpoint == "" {
+			// Try to discover from API endpoint
+			uaaURL, err := discoverUAAEndpoint(apiConfig.Endpoint, apiConfig.SkipSSLValidation)
+			if err == nil {
+				uaaEndpoint = uaaURL
+			} else {
+				// Fallback to common UAA pattern
+				uaaEndpoint = strings.Replace(apiConfig.Endpoint, "api.", "uaa.", 1)
+			}
+		}
+
+		// Create OAuth2 config
+		oauth2Config := &auth.OAuth2Config{
+			TokenURL:     strings.TrimSuffix(uaaEndpoint, "/") + "/oauth/token",
+			ClientID:     "cf", // Default CF CLI client ID
+			ClientSecret: "",
+			Username:     apiConfig.Username,
+			RefreshToken: apiConfig.RefreshToken,
+			AccessToken:  apiConfig.Token,
+		}
+
+		// Create config persister
+		configPersister := NewConfigPersister()
+
+		// Determine initial token expiry
+		var initialExpiry time.Time
+		if apiConfig.TokenExpiresAt != nil {
+			initialExpiry = *apiConfig.TokenExpiresAt
+		}
+
+		// Create config token manager
+		tokenManager = auth.NewConfigTokenManager(oauth2Config, configPersister, apiDomain, apiConfig.Token, initialExpiry)
 	}
 
-	// If we have no token and no username, require authentication
-	if config.AccessToken == "" && config.Username == "" {
+	// Create CAPI config
+	capiConfig := &capi.Config{
+		APIEndpoint:   apiConfig.Endpoint,
+		SkipTLSVerify: apiConfig.SkipSSLValidation,
+		Username:      apiConfig.Username,
+		TokenURL:      strings.TrimSuffix(apiConfig.UAAEndpoint, "/") + "/oauth/token",
+	}
+
+	// If we have a token manager, we don't need to set AccessToken directly
+	if tokenManager != nil {
+		// The client will use the token manager for authentication
+	} else if apiConfig.Token != "" {
+		capiConfig.AccessToken = apiConfig.Token
+	} else {
 		return nil, fmt.Errorf("not authenticated, use 'capi login' first")
 	}
 
-	return cfclient.New(config)
+	// Create the client using the internal client package for token manager support
+	if tokenManager != nil {
+		return createClientWithTokenManager(capiConfig, tokenManager)
+	}
+
+	return cfclient.New(capiConfig)
+}
+
+// createClientWithTokenManager creates a client with a custom token manager
+func createClientWithTokenManager(config *capi.Config, tokenManager auth.TokenManager) (capi.Client, error) {
+	// Use the internal client package to create a client with token manager
+	return client.NewWithTokenManager(config, tokenManager)
 }
 
 // setGlobalConfig sets a global configuration value
@@ -773,7 +876,9 @@ func clearAPISpecificConfig(config *Config, apiDomain string) error {
 
 	// Clear all configuration except the endpoint
 	apiConfig.Token = ""
+	apiConfig.TokenExpiresAt = nil
 	apiConfig.RefreshToken = ""
+	apiConfig.LastRefreshed = nil
 	apiConfig.Username = ""
 	apiConfig.Organization = ""
 	apiConfig.OrganizationGUID = ""

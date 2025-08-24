@@ -122,6 +122,11 @@ func (m *OAuth2TokenManager) refreshToken(ctx context.Context) (string, error) {
 	return newToken.AccessToken, nil
 }
 
+// GetTokenStore returns the token store for this manager
+func (m *OAuth2TokenManager) GetTokenStore() *TokenStore {
+	return m.store
+}
+
 // doClientCredentialsGrant performs client credentials OAuth2 flow
 func (m *OAuth2TokenManager) doClientCredentialsGrant(ctx context.Context) (*Token, error) {
 	data := url.Values{

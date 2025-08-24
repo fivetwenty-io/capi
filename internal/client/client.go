@@ -170,6 +170,66 @@ func New(config *capi.Config) (*Client, error) {
 	return client, nil
 }
 
+// NewWithTokenManager creates a new CF API client with a custom token manager
+func NewWithTokenManager(config *capi.Config, tokenManager auth.TokenManager) (*Client, error) {
+	if config.APIEndpoint == "" {
+		return nil, fmt.Errorf("API endpoint is required")
+	}
+
+	// Create HTTP client options
+	httpOpts := []http.Option{}
+
+	if config.Logger != nil {
+		httpOpts = append(httpOpts, http.WithLogger(&loggerAdapter{logger: config.Logger}))
+	}
+
+	if config.Debug {
+		httpOpts = append(httpOpts, http.WithDebug(true))
+	}
+
+	if config.UserAgent != "" {
+		httpOpts = append(httpOpts, http.WithUserAgent(config.UserAgent))
+	}
+
+	if config.RetryMax > 0 {
+		retryWaitMin := 1 * time.Second
+		retryWaitMax := 30 * time.Second
+		if config.RetryWaitMin > 0 {
+			retryWaitMin = config.RetryWaitMin
+		}
+		if config.RetryWaitMax > 0 {
+			retryWaitMax = config.RetryWaitMax
+		}
+		httpOpts = append(httpOpts, http.WithRetryConfig(config.RetryMax, retryWaitMin, retryWaitMax))
+	}
+
+	// Create HTTP client with the provided token manager
+	httpClient := http.NewClient(config.APIEndpoint, tokenManager, httpOpts...)
+
+	client := &Client{
+		httpClient:   httpClient,
+		tokenManager: tokenManager,
+		baseURL:      config.APIEndpoint,
+		logger:       config.Logger,
+	}
+
+	// Initialize resource clients
+	client.initializeResourceClients()
+
+	// Fetch API links if requested
+	if config.FetchAPILinksOnInit {
+		ctx := context.Background()
+		_ = client.FetchAPILinks(ctx) // Ignore error as it's optional
+	}
+
+	return client, nil
+}
+
+// GetTokenManager returns the token manager for this client
+func (c *Client) GetTokenManager() auth.TokenManager {
+	return c.tokenManager
+}
+
 // FetchAPILinks fetches and caches API links from /v3
 func (c *Client) FetchAPILinks(ctx context.Context) error {
 	rootInfo, err := c.GetRootInfo(ctx)

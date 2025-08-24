@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
@@ -170,12 +171,20 @@ func NewLoginCommand() *cobra.Command {
 			apiConfig.Username = username
 			apiConfig.SkipSSLValidation = skipSSL
 
-			// Save token if available
+			// Save token and token metadata if available
 			if tokenGetter, ok := client.(interface {
 				GetToken(context.Context) (string, error)
 			}); ok {
 				if token, err := tokenGetter.GetToken(ctx); err == nil && token != "" {
 					apiConfig.Token = token
+
+					// For now, we'll have basic token storage
+					// The ConfigTokenManager will be used when the client is created via CreateClientWithTokenRefresh
+					// Token expiration will be handled by the token refresh mechanism
+
+					// Set last refreshed to now
+					now := time.Now()
+					apiConfig.LastRefreshed = &now
 				}
 			}
 

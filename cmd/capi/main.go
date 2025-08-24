@@ -51,6 +51,7 @@ func init() {
 	rootCmd.AddCommand(commands.NewVersionCommand(version, commit, date))
 	rootCmd.AddCommand(commands.NewLoginCommand())
 	rootCmd.AddCommand(commands.NewLogoutCommand())
+	rootCmd.AddCommand(commands.NewTokenCommand())
 	rootCmd.AddCommand(commands.NewConfigCommand())
 	rootCmd.AddCommand(commands.NewAPIsCommand())
 	rootCmd.AddCommand(commands.NewOrgsCommand())
