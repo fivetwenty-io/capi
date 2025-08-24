@@ -630,7 +630,7 @@ func CreateClientWithTokenRefresh(apiFlag string) (capi.Client, error) {
 	config := loadConfig()
 	var apiDomain string
 	for domain, cfg := range config.APIs {
-		if cfg == apiConfig {
+		if cfg.Endpoint == apiConfig.Endpoint {
 			apiDomain = domain
 			break
 		}
