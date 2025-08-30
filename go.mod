@@ -3,7 +3,7 @@ module github.com/fivetwenty-io/capi/v3
 go 1.23.0
 
 require (
-	github.com/cloudfoundry-community/go-uaa v0.3.5
+	github.com/cloudfoundry/go-uaa v0.3.5
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/nats-io/nats.go v1.45.0
 	github.com/olekukonko/tablewriter v1.0.9

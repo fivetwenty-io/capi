@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/cloudfoundry/go-uaa"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -28,7 +28,7 @@ func createUsersCreateUserCommand() *cobra.Command {
 		Long: `Create a new user in the UAA database.
 
 The username is required as a positional argument. Other user attributes
-can be specified using flags. If not provided via flags, you will be 
+can be specified using flags. If not provided via flags, you will be
 prompted for required information.`,
 		Example: `  # Create user with minimal information
   capi uaa create-user john.doe --email john@example.com

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/cloudfoundry/go-uaa"
 )
 
 // CacheEntry represents a cached item with expiry

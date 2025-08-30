@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/cloudfoundry/go-uaa"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -58,7 +58,7 @@ func createUsersCompatibilityCommand() *cobra.Command {
 		Use:   "compatibility",
 		Short: "Test UAA compatibility and features",
 		Long: `Test compatibility with the current UAA endpoint and version.
-		
+
 This command performs a series of tests to verify that the UAA endpoint
 supports the required features and operations for full compatibility
 with the capi CLI UAA commands.`,
@@ -116,7 +116,7 @@ func createUsersCFIntegrationCommand() *cobra.Command {
 		Use:   "cf-integration",
 		Short: "Test Cloud Foundry integration",
 		Long: `Test integration with Cloud Foundry API and authentication.
-		
+
 This command verifies that the UAA configuration is compatible with
 Cloud Foundry and can properly authenticate CF API requests.`,
 		Example: `  # Test CF integration
