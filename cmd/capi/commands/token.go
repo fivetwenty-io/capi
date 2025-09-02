@@ -40,7 +40,7 @@ func newTokenStatusCommand() *cobra.Command {
 		Long:  "Display information about the current authentication token including expiration time",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
-			
+
 			// If --all flag is specified, show all APIs
 			if showAll {
 				if len(config.APIs) == 0 {
@@ -48,24 +48,24 @@ func newTokenStatusCommand() *cobra.Command {
 				}
 				return displayAllTokenStatus(config)
 			}
-			
+
 			// If no API specified, show current API or all APIs
 			if apiFlag == "" {
 				if len(config.APIs) == 0 {
 					return fmt.Errorf("no APIs configured, use 'capi apis add' to add one")
 				}
-				
+
 				// If there's a current API, show just that one, otherwise show all
 				if config.CurrentAPI != "" {
 					if apiConfig, exists := config.APIs[config.CurrentAPI]; exists {
 						return displayTokenStatus(apiConfig, config.CurrentAPI)
 					}
 				}
-				
+
 				// Show all APIs
 				return displayAllTokenStatus(config)
 			}
-			
+
 			// Get specific API config
 			apiConfig, err := getAPIConfigByFlag(apiFlag)
 			if err != nil {
@@ -74,7 +74,7 @@ func newTokenStatusCommand() *cobra.Command {
 
 			// Find the API domain key by matching the endpoint or using the flag directly
 			var apiDomain string
-			
+
 			// First try to use the flag directly as domain
 			if _, exists := config.APIs[apiFlag]; exists {
 				apiDomain = apiFlag
@@ -87,7 +87,7 @@ func newTokenStatusCommand() *cobra.Command {
 					}
 				}
 			}
-			
+
 			if apiDomain == "" {
 				return fmt.Errorf("could not determine API domain for '%s'", apiFlag)
 			}
@@ -124,7 +124,7 @@ func newTokenRefreshCommand() *cobra.Command {
 			// Find the API domain key by matching the endpoint or using the flag directly
 			config := loadConfig()
 			var apiDomain string
-			
+
 			// First try to use the flag directly as domain
 			if apiFlag != "" {
 				if _, exists := config.APIs[apiFlag]; exists {
@@ -144,7 +144,7 @@ func newTokenRefreshCommand() *cobra.Command {
 					apiDomain = config.CurrentAPI
 				}
 			}
-			
+
 			if apiDomain == "" {
 				return fmt.Errorf("could not determine API domain for '%s'", apiFlag)
 			}
@@ -224,7 +224,7 @@ func displayTokenStatusTable(tokenStatus map[string]interface{}) error {
 
 func displayAllTokenStatus(config *Config) error {
 	output := viper.GetString("output")
-	
+
 	if output == "json" || output == "yaml" {
 		// For structured output, show all APIs in one object
 		allStatus := make(map[string]interface{})
@@ -232,7 +232,7 @@ func displayAllTokenStatus(config *Config) error {
 			tokenStatus := buildTokenStatusData(apiConfig, domain)
 			allStatus[domain] = tokenStatus
 		}
-		
+
 		switch output {
 		case "json":
 			encoder := json.NewEncoder(os.Stdout)
@@ -243,7 +243,7 @@ func displayAllTokenStatus(config *Config) error {
 			return encoder.Encode(allStatus)
 		}
 	}
-	
+
 	// For table output, show each API separately
 	first := true
 	for domain, apiConfig := range config.APIs {
@@ -251,12 +251,12 @@ func displayAllTokenStatus(config *Config) error {
 			fmt.Println() // Add spacing between APIs
 		}
 		first = false
-		
+
 		if err := displayTokenStatus(apiConfig, domain); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -284,7 +284,7 @@ func buildTokenStatusData(apiConfig *APIConfig, apiDomain string) map[string]int
 				expiresAt = jwtExp
 			}
 		}
-		
+
 		if expiresAt != nil {
 			tokenStatus["expires_at"] = expiresAt.Format(time.RFC3339)
 
@@ -323,33 +323,33 @@ func decodeJWTExpiration(token string) (*time.Time, error) {
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid JWT format")
 	}
-	
+
 	// Decode the payload (second part)
 	payload := parts[1]
-	
+
 	// Add padding if necessary
 	if len(payload)%4 != 0 {
 		payload += strings.Repeat("=", 4-len(payload)%4)
 	}
-	
+
 	payloadBytes, err := base64.URLEncoding.DecodeString(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode JWT payload: %w", err)
 	}
-	
+
 	// Parse the JSON payload
 	var claims struct {
 		Exp int64 `json:"exp"`
 	}
-	
+
 	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
 		return nil, fmt.Errorf("failed to parse JWT claims: %w", err)
 	}
-	
+
 	if claims.Exp == 0 {
 		return nil, fmt.Errorf("no expiration claim found")
 	}
-	
+
 	expTime := time.Unix(claims.Exp, 0)
 	return &expTime, nil
 }

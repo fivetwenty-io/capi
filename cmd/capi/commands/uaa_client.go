@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry/go-uaa"
+	"github.com/cloudfoundry-community/go-uaa"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
