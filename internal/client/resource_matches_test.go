@@ -18,7 +18,7 @@ func TestResourceMatchesClient_Create(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.ResourceMatchesRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Len(t, req.Resources, 2)
 		assert.Equal(t, "file1.txt", req.Resources[0].Path)
 		assert.Equal(t, "checksum1", req.Resources[0].SHA1)
@@ -39,7 +39,7 @@ func TestResourceMatchesClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -77,7 +77,7 @@ func TestResourceMatchesClient_CreateEmpty(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.ResourceMatchesRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Len(t, req.Resources, 2)
 
 		// Mock response - no files match
@@ -87,7 +87,7 @@ func TestResourceMatchesClient_CreateEmpty(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

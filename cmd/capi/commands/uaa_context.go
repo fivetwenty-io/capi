@@ -33,11 +33,12 @@ func createUsersContextCommand() *cobra.Command {
 			uaaClient, err := NewUAAClient(config)
 			if err != nil {
 				// Show basic context even if UAA client creation fails
-				if output == "json" {
+				switch output {
+				case "json":
 					return showContextJSON(config, err)
-				} else if output == "yaml" {
+				case "yaml":
 					return showContextYAML(config, err)
-				} else {
+				default:
 					return showContextTable(config, err)
 				}
 			}

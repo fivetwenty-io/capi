@@ -42,7 +42,7 @@ func TestJobsClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -80,7 +80,7 @@ func TestJobsClient_Get_Processing(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -125,7 +125,7 @@ func TestJobsClient_Get_Failed(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -192,7 +192,7 @@ func TestJobsClient_PollUntilComplete_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -261,7 +261,7 @@ func TestJobsClient_PollUntilComplete_Failed(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -303,7 +303,7 @@ func TestJobsClient_PollUntilComplete_Timeout(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 

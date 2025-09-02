@@ -141,7 +141,7 @@ func CreateCommonUAAError(operation string, cause error, endpoint string) error 
 	enhancedErr := NewEnhancedError(operation, cause)
 
 	if endpoint != "" {
-		enhancedErr.AddContext("UAA Endpoint", endpoint)
+		_ = enhancedErr.AddContext("UAA Endpoint", endpoint)
 	}
 
 	// Add common suggestions based on error type
@@ -149,39 +149,39 @@ func CreateCommonUAAError(operation string, cause error, endpoint string) error 
 
 	switch {
 	case strings.Contains(errMsg, "not authenticated") || strings.Contains(errMsg, "unauthorized"):
-		enhancedErr.AddSuggestion("Run 'capi uaa get-client-credentials-token' to authenticate")
-		enhancedErr.AddSuggestion("Or run 'capi uaa get-password-token' for user authentication")
-		enhancedErr.AddSuggestion("Check that your client has the required scopes/authorities")
+		_ = enhancedErr.AddSuggestion("Run 'capi uaa get-client-credentials-token' to authenticate")
+		_ = enhancedErr.AddSuggestion("Or run 'capi uaa get-password-token' for user authentication")
+		_ = enhancedErr.AddSuggestion("Check that your client has the required scopes/authorities")
 
 	case strings.Contains(errMsg, "forbidden") || strings.Contains(errMsg, "insufficient"):
-		enhancedErr.AddSuggestion("Your client may not have sufficient authorities for this operation")
-		enhancedErr.AddSuggestion("Contact your UAA administrator to grant additional permissions")
-		enhancedErr.AddSuggestion("Try using a client with 'uaa.admin' authority")
+		_ = enhancedErr.AddSuggestion("Your client may not have sufficient authorities for this operation")
+		_ = enhancedErr.AddSuggestion("Contact your UAA administrator to grant additional permissions")
+		_ = enhancedErr.AddSuggestion("Try using a client with 'uaa.admin' authority")
 
 	case strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "404"):
-		enhancedErr.AddSuggestion("Verify the resource name/ID is correct")
-		enhancedErr.AddSuggestion("Use list commands to find available resources")
-		enhancedErr.AddSuggestion("Check that the UAA endpoint is correct")
+		_ = enhancedErr.AddSuggestion("Verify the resource name/ID is correct")
+		_ = enhancedErr.AddSuggestion("Use list commands to find available resources")
+		_ = enhancedErr.AddSuggestion("Check that the UAA endpoint is correct")
 
 	case strings.Contains(errMsg, "connection") || strings.Contains(errMsg, "timeout"):
-		enhancedErr.AddSuggestion("Check network connectivity to the UAA endpoint")
-		enhancedErr.AddSuggestion("Verify the UAA endpoint URL is correct")
-		enhancedErr.AddSuggestion("Try using --skip-ssl-validation for development environments")
+		_ = enhancedErr.AddSuggestion("Check network connectivity to the UAA endpoint")
+		_ = enhancedErr.AddSuggestion("Verify the UAA endpoint URL is correct")
+		_ = enhancedErr.AddSuggestion("Try using --skip-ssl-validation for development environments")
 
 	case strings.Contains(errMsg, "certificate") || strings.Contains(errMsg, "ssl") || strings.Contains(errMsg, "tls"):
-		enhancedErr.AddSuggestion("SSL certificate verification failed")
-		enhancedErr.AddSuggestion("Use --skip-ssl-validation flag for development environments")
-		enhancedErr.AddSuggestion("Ensure the UAA endpoint has a valid SSL certificate")
+		_ = enhancedErr.AddSuggestion("SSL certificate verification failed")
+		_ = enhancedErr.AddSuggestion("Use --skip-ssl-validation flag for development environments")
+		_ = enhancedErr.AddSuggestion("Ensure the UAA endpoint has a valid SSL certificate")
 
 	case strings.Contains(errMsg, "invalid") || strings.Contains(errMsg, "bad request"):
-		enhancedErr.AddSuggestion("Check that all required parameters are provided")
-		enhancedErr.AddSuggestion("Verify parameter formats and values")
-		enhancedErr.AddSuggestion("Use 'capi uaa <command> --help' for usage examples")
+		_ = enhancedErr.AddSuggestion("Check that all required parameters are provided")
+		_ = enhancedErr.AddSuggestion("Verify parameter formats and values")
+		_ = enhancedErr.AddSuggestion("Use 'capi uaa <command> --help' for usage examples")
 
 	default:
-		enhancedErr.AddSuggestion("Check 'capi uaa context' to verify authentication status")
-		enhancedErr.AddSuggestion("Ensure the UAA endpoint is accessible")
-		enhancedErr.AddSuggestion("Try re-authenticating with fresh credentials")
+		_ = enhancedErr.AddSuggestion("Check 'capi uaa context' to verify authentication status")
+		_ = enhancedErr.AddSuggestion("Ensure the UAA endpoint is accessible")
+		_ = enhancedErr.AddSuggestion("Try re-authenticating with fresh credentials")
 	}
 
 	return enhancedErr

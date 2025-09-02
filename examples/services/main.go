@@ -480,10 +480,11 @@ func waitForServiceInstanceReady(client capi.Client, ctx context.Context, instan
 			return nil
 		}
 
-		if instance.LastOperation.State == "succeeded" {
+		switch instance.LastOperation.State {
+		case "succeeded":
 			fmt.Printf("Service instance is ready!\n")
 			return instance
-		} else if instance.LastOperation.State == "failed" {
+		case "failed":
 			fmt.Printf("Service instance creation failed: %s\n", instance.LastOperation.Description)
 			return instance
 		}
@@ -506,10 +507,11 @@ func waitForServiceBindingReady(client capi.Client, ctx context.Context, binding
 			return nil
 		}
 
-		if binding.LastOperation.State == "succeeded" {
+		switch binding.LastOperation.State {
+		case "succeeded":
 			fmt.Printf("Service binding is ready!\n")
 			return binding
-		} else if binding.LastOperation.State == "failed" {
+		case "failed":
 			description := ""
 			if binding.LastOperation.Description != nil {
 				description = *binding.LastOperation.Description

@@ -34,7 +34,7 @@ func TestFeatureFlagsClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ff)
+		_ = json.NewEncoder(w).Encode(ff)
 	}))
 	defer server.Close()
 
@@ -69,7 +69,7 @@ func TestFeatureFlagsClient_Get_NotConfigured(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ff)
+		_ = json.NewEncoder(w).Encode(ff)
 	}))
 	defer server.Close()
 
@@ -129,7 +129,7 @@ func TestFeatureFlagsClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -180,7 +180,7 @@ func TestFeatureFlagsClient_Update(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ff)
+		_ = json.NewEncoder(w).Encode(ff)
 	}))
 	defer server.Close()
 
@@ -229,7 +229,7 @@ func TestFeatureFlagsClient_Update_EnableOnly(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ff)
+		_ = json.NewEncoder(w).Encode(ff)
 	}))
 	defer server.Close()
 

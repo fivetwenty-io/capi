@@ -51,7 +51,7 @@ prompted for required information.`,
 
 			if GetEffectiveUAAEndpoint(config) == "" {
 				err := NewEnhancedError("create user", fmt.Errorf("no UAA endpoint configured"))
-				err.AddSuggestion("Run 'capi uaa target <url>' to set UAA endpoint")
+				_ = err.AddSuggestion("Run 'capi uaa target <url>' to set UAA endpoint")
 				return err
 			}
 
@@ -132,12 +132,12 @@ prompted for required information.`,
 			})
 			if err != nil {
 				enhancedErr := NewEnhancedError("create user", err)
-				enhancedErr.AddContext("UAA Endpoint", config.UAAEndpoint)
-				enhancedErr.AddContext("Username", username)
-				enhancedErr.AddContext("Email", email)
-				enhancedErr.AddSuggestion("Verify that the username is unique")
-				enhancedErr.AddSuggestion("Check that all required fields are provided")
-				enhancedErr.AddSuggestion("Ensure your client has 'scim.write' authority")
+				_ = enhancedErr.AddContext("UAA Endpoint", config.UAAEndpoint)
+				_ = enhancedErr.AddContext("Username", username)
+				_ = enhancedErr.AddContext("Email", email)
+				_ = enhancedErr.AddSuggestion("Verify that the username is unique")
+				_ = enhancedErr.AddSuggestion("Check that all required fields are provided")
+				_ = enhancedErr.AddSuggestion("Ensure your client has 'scim.write' authority")
 				return enhancedErr
 			}
 

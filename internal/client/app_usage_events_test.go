@@ -58,7 +58,7 @@ func TestAppUsageEventsClient_Get(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(event)
+		_ = json.NewEncoder(w).Encode(event)
 	}))
 	defer server.Close()
 
@@ -120,7 +120,7 @@ func TestAppUsageEventsClient_List(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -144,7 +144,7 @@ func TestAppUsageEventsClient_PurgeAndReseed(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		w.WriteHeader(http.StatusAccepted)
-		w.Write([]byte("{}"))
+		_, _ = w.Write([]byte("{}"))
 	}))
 	defer server.Close()
 

@@ -27,7 +27,7 @@ func TestEnvironmentVariableGroupsClient_GetRunning(t *testing.T) {
 			UpdatedAt: &time.Time{},
 		}
 
-		json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(w).Encode(envVarGroup)
 	}))
 	defer server.Close()
 
@@ -55,7 +55,7 @@ func TestEnvironmentVariableGroupsClient_GetStaging(t *testing.T) {
 			UpdatedAt: &time.Time{},
 		}
 
-		json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(w).Encode(envVarGroup)
 	}))
 	defer server.Close()
 
@@ -75,7 +75,7 @@ func TestEnvironmentVariableGroupsClient_UpdateRunning(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req map[string]interface{}
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		varMap := req["var"].(map[string]interface{})
 		assert.Equal(t, "debug", varMap["LOG_LEVEL"])
 		assert.Equal(t, float64(60), varMap["TIMEOUT"])
@@ -85,7 +85,7 @@ func TestEnvironmentVariableGroupsClient_UpdateRunning(t *testing.T) {
 			Var:  varMap,
 		}
 
-		json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(w).Encode(envVarGroup)
 	}))
 	defer server.Close()
 
@@ -109,7 +109,7 @@ func TestEnvironmentVariableGroupsClient_UpdateStaging(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req map[string]interface{}
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		varMap := req["var"].(map[string]interface{})
 		assert.Equal(t, "development", varMap["BUILD_ENV"])
 		assert.Equal(t, false, varMap["CACHE"])
@@ -119,7 +119,7 @@ func TestEnvironmentVariableGroupsClient_UpdateStaging(t *testing.T) {
 			Var:  varMap,
 		}
 
-		json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(w).Encode(envVarGroup)
 	}))
 	defer server.Close()
 

@@ -32,7 +32,7 @@ func TestSidecarsClient_Get(t *testing.T) {
 			Origin:       "user",
 		}
 
-		json.NewEncoder(w).Encode(sidecar)
+		_ = json.NewEncoder(w).Encode(sidecar)
 	}))
 	defer server.Close()
 
@@ -54,7 +54,7 @@ func TestSidecarsClient_Update(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.SidecarUpdateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "updated-sidecar", *req.Name)
 		assert.Equal(t, "echo updated", *req.Command)
 
@@ -64,7 +64,7 @@ func TestSidecarsClient_Update(t *testing.T) {
 			Command:  *req.Command,
 		}
 
-		json.NewEncoder(w).Encode(sidecar)
+		_ = json.NewEncoder(w).Encode(sidecar)
 	}))
 	defer server.Close()
 
@@ -133,7 +133,7 @@ func TestSidecarsClient_ListForProcess(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

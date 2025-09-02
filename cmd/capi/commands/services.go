@@ -309,9 +309,10 @@ func newServicesCreateCommand() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   "create [service-offering] [flags]",
 		Short: "Create a service instance",
-		Long:  "Create a new service instance (managed or user-provided)",
+		Long:  "Create a new service instance (managed or user-provided)\n\nFor managed services, you can optionally specify the service offering name as the first argument.\nIf provided, it will filter the plan search to that specific service offering.",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if serviceName == "" {
 				return fmt.Errorf("service instance name is required")
@@ -385,14 +386,41 @@ func newServicesCreateCommand() *cobra.Command {
 					return fmt.Errorf("service plan is required for managed services")
 				}
 
+				// If service offering is provided, find it first
+				var serviceOfferingGUID string
+				if len(args) > 0 && args[0] != "" {
+					serviceOfferingName := args[0]
+
+					// Try to find service offering by name
+					offeringParams := capi.NewQueryParams()
+					offeringParams.WithFilter("names", serviceOfferingName)
+					offerings, err := client.ServiceOfferings().List(ctx, offeringParams)
+					if err != nil {
+						return fmt.Errorf("failed to find service offering: %w", err)
+					}
+					if len(offerings.Resources) == 0 {
+						return fmt.Errorf("service offering '%s' not found", serviceOfferingName)
+					}
+					serviceOfferingGUID = offerings.Resources[0].GUID
+				}
+
 				// Find service plan by name
 				planParams := capi.NewQueryParams()
 				planParams.WithFilter("names", planName)
+
+				// If service offering was specified, filter plans by it
+				if serviceOfferingGUID != "" {
+					planParams.WithFilter("service_offering_guids", serviceOfferingGUID)
+				}
+
 				plans, err := client.ServicePlans().List(ctx, planParams)
 				if err != nil {
 					return fmt.Errorf("failed to find service plan: %w", err)
 				}
 				if len(plans.Resources) == 0 {
+					if serviceOfferingGUID != "" {
+						return fmt.Errorf("service plan '%s' not found for the specified service offering", planName)
+					}
 					return fmt.Errorf("service plan '%s' not found", planName)
 				}
 

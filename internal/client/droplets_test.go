@@ -120,7 +120,7 @@ func TestDropletsClient_Create(t *testing.T) {
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.statusCode)
-				json.NewEncoder(w).Encode(tt.response)
+				_ = json.NewEncoder(w).Encode(tt.response)
 			}))
 			defer server.Close()
 
@@ -215,7 +215,7 @@ func TestDropletsClient_Get(t *testing.T) {
 				assert.Equal(t, "GET", r.Method)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.statusCode)
-				json.NewEncoder(w).Encode(tt.response)
+				_ = json.NewEncoder(w).Encode(tt.response)
 			}))
 			defer server.Close()
 
@@ -292,7 +292,7 @@ func TestDropletsClient_List(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -342,7 +342,7 @@ func TestDropletsClient_ListForApp(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -378,7 +378,7 @@ func TestDropletsClient_ListForPackage(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -413,7 +413,7 @@ func TestDropletsClient_Update(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -474,7 +474,7 @@ func TestDropletsClient_Delete(t *testing.T) {
 				if tt.statusCode == http.StatusNotFound {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(tt.statusCode)
-					json.NewEncoder(w).Encode(map[string]interface{}{
+					_ = json.NewEncoder(w).Encode(map[string]interface{}{
 						"errors": []map[string]interface{}{
 							{
 								"code":   10010,
@@ -536,7 +536,7 @@ func TestDropletsClient_Copy(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -570,7 +570,7 @@ func TestDropletsClient_Download(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/zip")
 		w.WriteHeader(http.StatusOK)
-		w.Write(expectedContent)
+		_, _ = w.Write(expectedContent)
 	}))
 	defer server.Close()
 
@@ -591,7 +591,11 @@ func TestDropletsClient_Upload(t *testing.T) {
 		// Read the uploaded file
 		file, _, err := r.FormFile("bits")
 		require.NoError(t, err)
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				t.Logf("Warning: failed to close file: %v", err)
+			}
+		}()
 
 		uploadedContent, err := io.ReadAll(file)
 		require.NoError(t, err)
@@ -608,7 +612,7 @@ func TestDropletsClient_Upload(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

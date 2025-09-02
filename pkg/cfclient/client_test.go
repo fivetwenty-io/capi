@@ -59,7 +59,7 @@ func TestClientIntegration(t *testing.T) {
 				Name:    "Test CF",
 				Version: 3,
 			}
-			json.NewEncoder(w).Encode(info)
+			_ = json.NewEncoder(w).Encode(info)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

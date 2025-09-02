@@ -135,7 +135,7 @@ func TestServiceBrokersClient_Create(t *testing.T) {
 					w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 				}
 				w.WriteHeader(tt.statusCode)
-				json.NewEncoder(w).Encode(tt.response)
+				_ = json.NewEncoder(w).Encode(tt.response)
 			}))
 			defer server.Close()
 
@@ -226,7 +226,7 @@ func TestServiceBrokersClient_Get(t *testing.T) {
 				assert.Equal(t, "GET", r.Method)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.statusCode)
-				json.NewEncoder(w).Encode(tt.response)
+				_ = json.NewEncoder(w).Encode(tt.response)
 			}))
 			defer server.Close()
 
@@ -303,7 +303,7 @@ func TestServiceBrokersClient_List(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -434,7 +434,7 @@ func TestServiceBrokersClient_Update(t *testing.T) {
 					w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 				}
 				w.WriteHeader(tt.statusCode)
-				json.NewEncoder(w).Encode(tt.response)
+				_ = json.NewEncoder(w).Encode(tt.response)
 			}))
 			defer server.Close()
 
@@ -476,7 +476,7 @@ func TestServiceBrokersClient_Delete(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 

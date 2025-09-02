@@ -84,7 +84,12 @@ func discoverUAAEndpoint(apiEndpoint string, skipTLS bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("getting root info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log error but don't return it to avoid masking original error
+			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

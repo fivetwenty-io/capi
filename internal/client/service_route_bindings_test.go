@@ -38,7 +38,7 @@ func TestServiceRouteBindingsClient_Create(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -112,7 +112,7 @@ func TestServiceRouteBindingsClient_CreateSync(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(binding)
+		_ = json.NewEncoder(w).Encode(binding)
 	}))
 	defer server.Close()
 
@@ -178,7 +178,7 @@ func TestServiceRouteBindingsClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(binding)
+		_ = json.NewEncoder(w).Encode(binding)
 	}))
 	defer server.Close()
 
@@ -229,7 +229,7 @@ func TestServiceRouteBindingsClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -273,7 +273,7 @@ func TestServiceRouteBindingsClient_Update(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(binding)
+		_ = json.NewEncoder(w).Encode(binding)
 	}))
 	defer server.Close()
 
@@ -313,7 +313,7 @@ func TestServiceRouteBindingsClient_Delete(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -340,7 +340,7 @@ func TestServiceRouteBindingsClient_GetParameters(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(params)
+		_ = json.NewEncoder(w).Encode(params)
 	}))
 	defer server.Close()
 

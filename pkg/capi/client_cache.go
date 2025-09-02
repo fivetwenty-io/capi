@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -74,6 +75,7 @@ func (c *ClientWithCache) Execute(ctx context.Context, req *CachedRequest) ([]by
 		if err := c.manager.Set(ctx, cacheKey, data, ttl); err != nil {
 			// Log cache error but don't fail the request
 			// In production, you'd want proper logging here
+			fmt.Fprintf(os.Stderr, "Warning: failed to cache response: %v\n", err)
 		}
 	}
 
@@ -226,12 +228,8 @@ func CacheInvalidationInterceptor(manager *CacheManager) ResponseInterceptor {
 // CacheMetricsInterceptor collects cache metrics
 func CacheMetricsInterceptor(manager *CacheManager) ResponseInterceptor {
 	return func(ctx context.Context, req *Request, resp *Response) error {
-		// Check if response was served from cache
-		if cachedData := req.Context.Value(contextKey("cached_response")); cachedData != nil {
-			// This was a cache hit, metrics already updated by manager.Get()
-		} else {
-			// This was a cache miss, metrics already updated by manager.Get()
-		}
+		// Metrics are automatically updated by manager.Get() for both hits and misses
+		_ = req.Context.Value(contextKey("cached_response"))
 
 		return nil
 	}

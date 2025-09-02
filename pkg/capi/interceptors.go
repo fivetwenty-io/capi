@@ -387,13 +387,14 @@ func CircuitBreakerResponseInterceptor(breaker *CircuitBreaker) ResponseIntercep
 			}
 		} else {
 			// Record success
-			if breaker.state == "half-open" {
+			switch breaker.state {
+			case "half-open":
 				breaker.successes++
 				if breaker.successes >= breaker.config.SuccessThreshold {
 					breaker.state = "closed"
 					breaker.failures = 0
 				}
-			} else if breaker.state == "closed" {
+			case "closed":
 				breaker.failures = 0
 			}
 		}

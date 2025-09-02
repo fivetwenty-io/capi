@@ -48,7 +48,7 @@ func TestIsolationSegmentsClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(is)
+		_ = json.NewEncoder(w).Encode(is)
 	}))
 	defer server.Close()
 
@@ -101,7 +101,7 @@ func TestIsolationSegmentsClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(is)
+		_ = json.NewEncoder(w).Encode(is)
 	}))
 	defer server.Close()
 
@@ -151,7 +151,7 @@ func TestIsolationSegmentsClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -200,7 +200,7 @@ func TestIsolationSegmentsClient_Update(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(is)
+		_ = json.NewEncoder(w).Encode(is)
 	}))
 	defer server.Close()
 
@@ -258,7 +258,7 @@ func TestIsolationSegmentsClient_EntitleOrganizations(t *testing.T) {
 		response := capi.ToManyRelationship(request)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -324,7 +324,7 @@ func TestIsolationSegmentsClient_ListOrganizations(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -374,7 +374,7 @@ func TestIsolationSegmentsClient_ListSpaces(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/auth"
@@ -194,7 +195,12 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		if err := httpResp.Body.Close(); err != nil {
+			// Log error but don't return it to avoid masking original error
+			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	// Read response body
 	respBody, err := io.ReadAll(httpResp.Body)
@@ -323,7 +329,12 @@ func (c *Client) PostRaw(ctx context.Context, path string, body []byte, contentT
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log error but don't return it to avoid masking original error
+			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)

@@ -42,7 +42,7 @@ func TestUsersClient_Create_WithGUID(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(user)
+		_ = json.NewEncoder(w).Encode(user)
 	}))
 	defer server.Close()
 
@@ -94,7 +94,7 @@ func TestUsersClient_Create_WithUsernameAndOrigin(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(user)
+		_ = json.NewEncoder(w).Encode(user)
 	}))
 	defer server.Close()
 
@@ -148,7 +148,7 @@ func TestUsersClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(user)
+		_ = json.NewEncoder(w).Encode(user)
 	}))
 	defer server.Close()
 
@@ -217,7 +217,7 @@ func TestUsersClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -277,7 +277,7 @@ func TestUsersClient_Update(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(user)
+		_ = json.NewEncoder(w).Encode(user)
 	}))
 	defer server.Close()
 
@@ -326,7 +326,7 @@ func TestUsersClient_Delete(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 

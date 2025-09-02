@@ -39,7 +39,7 @@ func TestOAuth2TokenManager_GetToken(t *testing.T) {
 				ExpiresIn:    3600,
 				TokenType:    "bearer",
 			}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 		}))
 		defer server.Close()
 
@@ -80,7 +80,7 @@ func TestOAuth2TokenManager_GetToken(t *testing.T) {
 				ExpiresIn:   3600,
 				TokenType:   "bearer",
 			}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 		}))
 		defer server.Close()
 
@@ -112,7 +112,7 @@ func TestOAuth2TokenManager_GetToken(t *testing.T) {
 				ExpiresIn:    3600,
 				TokenType:    "bearer",
 			}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 		}))
 		defer server.Close()
 
@@ -134,7 +134,7 @@ func TestOAuth2TokenManager_GetToken(t *testing.T) {
 				"error":             "invalid_client",
 				"error_description": "Client authentication failed",
 			}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 		}))
 		defer server.Close()
 
@@ -186,7 +186,7 @@ func TestOAuth2TokenManager_RefreshToken(t *testing.T) {
 			ExpiresIn:   3600,
 			TokenType:   "bearer",
 		}
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

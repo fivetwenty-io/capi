@@ -19,7 +19,7 @@ func TestSpacesClient_Create(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.SpaceCreateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "test-space", req.Name)
 
 		space := capi.Space{
@@ -33,7 +33,7 @@ func TestSpacesClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(space)
+		_ = json.NewEncoder(w).Encode(space)
 	}))
 	defer server.Close()
 
@@ -66,7 +66,7 @@ func TestSpacesClient_Get(t *testing.T) {
 			Name: "test-space",
 		}
 
-		json.NewEncoder(w).Encode(space)
+		_ = json.NewEncoder(w).Encode(space)
 	}))
 	defer server.Close()
 
@@ -105,7 +105,7 @@ func TestSpacesClient_List(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -127,7 +127,7 @@ func TestSpacesClient_Update(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.SpaceUpdateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "updated-space", *req.Name)
 
 		space := capi.Space{
@@ -135,7 +135,7 @@ func TestSpacesClient_Update(t *testing.T) {
 			Name:     *req.Name,
 		}
 
-		json.NewEncoder(w).Encode(space)
+		_ = json.NewEncoder(w).Encode(space)
 	}))
 	defer server.Close()
 
@@ -163,7 +163,7 @@ func TestSpacesClient_Delete(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -185,7 +185,7 @@ func TestSpacesClient_GetIsolationSegment(t *testing.T) {
 			Data: &capi.RelationshipData{GUID: "iso-seg-guid"},
 		}
 
-		json.NewEncoder(w).Encode(relationship)
+		_ = json.NewEncoder(w).Encode(relationship)
 	}))
 	defer server.Close()
 
@@ -204,14 +204,14 @@ func TestSpacesClient_SetIsolationSegment(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.Relationship
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "new-iso-seg-guid", req.Data.GUID)
 
 		relationship := capi.Relationship{
 			Data: req.Data,
 		}
 
-		json.NewEncoder(w).Encode(relationship)
+		_ = json.NewEncoder(w).Encode(relationship)
 	}))
 	defer server.Close()
 
@@ -248,7 +248,7 @@ func TestSpacesClient_ListUsers(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -276,7 +276,7 @@ func TestSpacesClient_ListManagers(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -303,7 +303,7 @@ func TestSpacesClient_ListDevelopers(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -327,7 +327,7 @@ func TestSpacesClient_GetFeature(t *testing.T) {
 			Description: "Enable SSH access to apps",
 		}
 
-		json.NewEncoder(w).Encode(feature)
+		_ = json.NewEncoder(w).Encode(feature)
 	}))
 	defer server.Close()
 
@@ -346,7 +346,7 @@ func TestSpacesClient_UpdateFeature(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req map[string]bool
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.False(t, req["enabled"])
 
 		feature := capi.SpaceFeature{
@@ -355,7 +355,7 @@ func TestSpacesClient_UpdateFeature(t *testing.T) {
 			Description: "Enable SSH access to apps",
 		}
 
-		json.NewEncoder(w).Encode(feature)
+		_ = json.NewEncoder(w).Encode(feature)
 	}))
 	defer server.Close()
 
@@ -384,7 +384,7 @@ func TestSpacesClient_GetQuota(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(w).Encode(quota)
 	}))
 	defer server.Close()
 
@@ -404,14 +404,14 @@ func TestSpacesClient_ApplyQuota(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.Relationship
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "quota-guid", req.Data.GUID)
 
 		relationship := capi.Relationship{
 			Data: req.Data,
 		}
 
-		json.NewEncoder(w).Encode(relationship)
+		_ = json.NewEncoder(w).Encode(relationship)
 	}))
 	defer server.Close()
 
@@ -430,14 +430,14 @@ func TestSpacesClient_RemoveQuota(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.Relationship
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Nil(t, req.Data)
 
 		relationship := capi.Relationship{
 			Data: nil,
 		}
 
-		json.NewEncoder(w).Encode(relationship)
+		_ = json.NewEncoder(w).Encode(relationship)
 	}))
 	defer server.Close()
 

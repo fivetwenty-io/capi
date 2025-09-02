@@ -44,7 +44,7 @@ func TestRevisionsClient_Get(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(revision)
+		_ = json.NewEncoder(w).Encode(revision)
 	}))
 	defer server.Close()
 
@@ -66,7 +66,7 @@ func TestRevisionsClient_Update(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.RevisionUpdateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.NotNil(t, req.Metadata)
 		assert.Equal(t, "value1", req.Metadata.Labels["key1"])
 
@@ -76,7 +76,7 @@ func TestRevisionsClient_Update(t *testing.T) {
 			Metadata: req.Metadata,
 		}
 
-		json.NewEncoder(w).Encode(revision)
+		_ = json.NewEncoder(w).Encode(revision)
 	}))
 	defer server.Close()
 
@@ -111,7 +111,7 @@ func TestRevisionsClient_GetEnvironmentVariables(t *testing.T) {
 			"var": envVars,
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

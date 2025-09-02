@@ -19,7 +19,7 @@ func TestOrganizationQuotasClient_Create(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.OrganizationQuotaCreateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "test-quota", req.Name)
 
 		totalMemory := 1024
@@ -37,7 +37,7 @@ func TestOrganizationQuotasClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(w).Encode(quota)
 	}))
 	defer server.Close()
 
@@ -74,7 +74,7 @@ func TestOrganizationQuotasClient_Get(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(w).Encode(quota)
 	}))
 	defer server.Close()
 
@@ -120,7 +120,7 @@ func TestOrganizationQuotasClient_List(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -142,7 +142,7 @@ func TestOrganizationQuotasClient_Update(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.OrganizationQuotaUpdateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "updated-quota", *req.Name)
 
 		quota := capi.OrganizationQuota{
@@ -150,7 +150,7 @@ func TestOrganizationQuotasClient_Update(t *testing.T) {
 			Name:     *req.Name,
 		}
 
-		json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(w).Encode(quota)
 	}))
 	defer server.Close()
 
@@ -188,7 +188,7 @@ func TestOrganizationQuotasClient_ApplyToOrganizations(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.ToManyRelationship
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Len(t, req.Data, 2)
 		assert.Equal(t, "org-1", req.Data[0].GUID)
 		assert.Equal(t, "org-2", req.Data[1].GUID)
@@ -197,7 +197,7 @@ func TestOrganizationQuotasClient_ApplyToOrganizations(t *testing.T) {
 			Data: req.Data,
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

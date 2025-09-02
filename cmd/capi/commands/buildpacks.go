@@ -526,7 +526,11 @@ func newBuildpacksUploadCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to open buildpack file: %w", err)
 			}
-			defer buildpackBits.Close()
+			defer func() {
+				if err := buildpackBits.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to close buildpack file: %v\n", err)
+				}
+			}()
 
 			// Upload buildpack
 			updatedBP, err := client.Buildpacks().Upload(ctx, bpGUID, buildpackBits)

@@ -84,7 +84,7 @@ func TestClient_GetInfo(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(info)
+		_ = json.NewEncoder(w).Encode(info)
 	}))
 	defer server.Close()
 
@@ -123,7 +123,7 @@ func TestClient_GetRootInfo(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(rootInfo)
+		_ = json.NewEncoder(w).Encode(rootInfo)
 	}))
 	defer server.Close()
 
@@ -158,7 +158,7 @@ func TestClient_GetUsageSummary(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(summary)
+		_ = json.NewEncoder(w).Encode(summary)
 	}))
 	defer server.Close()
 
@@ -191,7 +191,7 @@ func TestClient_ClearBuildpackCache(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 

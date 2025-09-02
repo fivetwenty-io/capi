@@ -19,7 +19,7 @@ func TestSpaceQuotasClient_Create(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.SpaceQuotaV3CreateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "test-space-quota", req.Name)
 
 		totalMemory := 512
@@ -37,7 +37,7 @@ func TestSpaceQuotasClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(w).Encode(quota)
 	}))
 	defer server.Close()
 
@@ -79,7 +79,7 @@ func TestSpaceQuotasClient_Get(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(w).Encode(quota)
 	}))
 	defer server.Close()
 
@@ -125,7 +125,7 @@ func TestSpaceQuotasClient_List(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -147,7 +147,7 @@ func TestSpaceQuotasClient_Update(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.SpaceQuotaV3UpdateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "updated-space-quota", *req.Name)
 
 		quota := capi.SpaceQuotaV3{
@@ -155,7 +155,7 @@ func TestSpaceQuotasClient_Update(t *testing.T) {
 			Name:     *req.Name,
 		}
 
-		json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(w).Encode(quota)
 	}))
 	defer server.Close()
 
@@ -193,7 +193,7 @@ func TestSpaceQuotasClient_ApplyToSpaces(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.ToManyRelationship
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Len(t, req.Data, 2)
 		assert.Equal(t, "space-1", req.Data[0].GUID)
 		assert.Equal(t, "space-2", req.Data[1].GUID)
@@ -202,7 +202,7 @@ func TestSpaceQuotasClient_ApplyToSpaces(t *testing.T) {
 			Data: req.Data,
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

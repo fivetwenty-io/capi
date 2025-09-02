@@ -109,7 +109,7 @@ func TestProcessesClient_Get(t *testing.T) {
 				assert.Equal(t, "GET", r.Method)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.statusCode)
-				json.NewEncoder(w).Encode(tt.response)
+				_ = json.NewEncoder(w).Encode(tt.response)
 			}))
 			defer server.Close()
 
@@ -192,7 +192,7 @@ func TestProcessesClient_List(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -247,7 +247,7 @@ func TestProcessesClient_Update(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -333,7 +333,7 @@ func TestProcessesClient_Scale(t *testing.T) {
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusAccepted)
-				json.NewEncoder(w).Encode(response)
+				_ = json.NewEncoder(w).Encode(response)
 			}))
 			defer server.Close()
 
@@ -345,11 +345,12 @@ func TestProcessesClient_Scale(t *testing.T) {
 			require.NotNil(t, process)
 			assert.Equal(t, tt.guid, process.GUID)
 
-			if tt.name == "scale instances and resources" {
+			switch tt.name {
+			case "scale instances and resources":
 				assert.Equal(t, 10, process.Instances)
 				assert.Equal(t, 512, process.MemoryInMB)
 				assert.Equal(t, 2048, process.DiskInMB)
-			} else if tt.name == "scale with log rate limit" {
+			case "scale with log rate limit":
 				assert.Equal(t, 5, process.Instances)
 				assert.Equal(t, 2048, *process.LogRateLimitInBytesPerSecond)
 			}
@@ -418,7 +419,7 @@ func TestProcessesClient_GetStats(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -504,7 +505,7 @@ func TestProcessesClient_TerminateInstance(t *testing.T) {
 							},
 						},
 					}
-					json.NewEncoder(w).Encode(response)
+					_ = json.NewEncoder(w).Encode(response)
 				}
 			}))
 			defer server.Close()

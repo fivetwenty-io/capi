@@ -51,7 +51,7 @@ func TestSecurityGroupsClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(sg)
+		_ = json.NewEncoder(w).Encode(sg)
 	}))
 	defer server.Close()
 
@@ -132,7 +132,7 @@ func TestSecurityGroupsClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(sg)
+		_ = json.NewEncoder(w).Encode(sg)
 	}))
 	defer server.Close()
 
@@ -196,7 +196,7 @@ func TestSecurityGroupsClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -247,7 +247,7 @@ func TestSecurityGroupsClient_Update(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(sg)
+		_ = json.NewEncoder(w).Encode(sg)
 	}))
 	defer server.Close()
 
@@ -295,7 +295,7 @@ func TestSecurityGroupsClient_Delete(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -325,7 +325,7 @@ func TestSecurityGroupsClient_BindRunningSpaces(t *testing.T) {
 		response := capi.ToManyRelationship(request)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -369,7 +369,7 @@ func TestSecurityGroupsClient_BindStagingSpaces(t *testing.T) {
 		response := capi.ToManyRelationship(request)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

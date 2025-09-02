@@ -62,7 +62,7 @@ func TestClient_Do(t *testing.T) {
 			assert.Equal(t, "application/json", r.Header.Get("Accept"))
 
 			response := map[string]string{"guid": "app-guid", "name": "test-app"}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 		}))
 		defer server.Close()
 
@@ -112,7 +112,7 @@ func TestClient_Do(t *testing.T) {
 			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 			var body map[string]string
-			json.NewDecoder(r.Body).Decode(&body)
+			_ = json.NewDecoder(r.Body).Decode(&body)
 			assert.Equal(t, "test-app", body["name"])
 
 			w.WriteHeader(http.StatusCreated)
@@ -144,7 +144,7 @@ func TestClient_Do(t *testing.T) {
 					},
 				},
 			}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 		}))
 		defer server.Close()
 
@@ -190,7 +190,7 @@ func TestClient_Do(t *testing.T) {
 	t.Run("with debug logging", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"result": "ok"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"result": "ok"})
 		}))
 		defer server.Close()
 

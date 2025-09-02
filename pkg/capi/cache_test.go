@@ -90,7 +90,7 @@ func TestMemoryCache_Clear(t *testing.T) {
 			Data:      []byte("test data"),
 			ExpiresAt: time.Now().Add(1 * time.Hour),
 		}
-		cache.Set(ctx, string(rune('a'+i)), entry)
+		_ = cache.Set(ctx, string(rune('a'+i)), entry)
 	}
 
 	// Verify entries exist
@@ -118,7 +118,7 @@ func TestMemoryCache_MaxSize(t *testing.T) {
 			Data:      []byte("test data"),
 			ExpiresAt: time.Now().Add(time.Duration(i+1) * time.Hour),
 		}
-		cache.Set(ctx, string(rune('a'+i)), entry)
+		_ = cache.Set(ctx, string(rune('a'+i)), entry)
 	}
 
 	// The cache should have evicted the oldest entry
@@ -146,8 +146,8 @@ func TestMemoryCache_Cleanup(t *testing.T) {
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
-	cache.Set(ctx, "expired", expiredEntry)
-	cache.Set(ctx, "valid", validEntry)
+	_ = cache.Set(ctx, "expired", expiredEntry)
+	_ = cache.Set(ctx, "valid", validEntry)
 
 	// Run cleanup
 	cache.Cleanup()

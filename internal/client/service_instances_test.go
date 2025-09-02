@@ -40,7 +40,7 @@ func TestServiceInstancesClient_Create_Managed(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -121,7 +121,7 @@ func TestServiceInstancesClient_Create_UserProvided(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(instance)
+		_ = json.NewEncoder(w).Encode(instance)
 	}))
 	defer server.Close()
 
@@ -201,7 +201,7 @@ func TestServiceInstancesClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(instance)
+		_ = json.NewEncoder(w).Encode(instance)
 	}))
 	defer server.Close()
 
@@ -256,7 +256,7 @@ func TestServiceInstancesClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -302,7 +302,7 @@ func TestServiceInstancesClient_Update_Managed(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -352,7 +352,7 @@ func TestServiceInstancesClient_Update_UserProvided(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(instance)
+		_ = json.NewEncoder(w).Encode(instance)
 	}))
 	defer server.Close()
 
@@ -394,7 +394,7 @@ func TestServiceInstancesClient_Delete(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -422,7 +422,7 @@ func TestServiceInstancesClient_GetParameters(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(params)
+		_ = json.NewEncoder(w).Encode(params)
 	}))
 	defer server.Close()
 
@@ -455,7 +455,7 @@ func TestServiceInstancesClient_ListSharedSpaces(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(relationships)
+		_ = json.NewEncoder(w).Encode(relationships)
 	}))
 	defer server.Close()
 
@@ -489,7 +489,7 @@ func TestServiceInstancesClient_ShareWithSpaces(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(relationships)
+		_ = json.NewEncoder(w).Encode(relationships)
 	}))
 	defer server.Close()
 

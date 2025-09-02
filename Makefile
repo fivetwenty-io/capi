@@ -117,6 +117,16 @@ staticcheck: ## Run staticcheck static analysis
 	@staticcheck $(shell go list ./... | grep -v vendor)
 	@echo "$(GREEN)✓ Staticcheck analysis complete$(RESET)"
 
+.PHONY: golangci-lint
+golangci-lint: ## Run golangci-lint comprehensive linter
+	@echo "$(GREEN)Running golangci-lint...$(RESET)"
+	@command -v golangci-lint >/dev/null 2>&1 || { \
+		echo "$(YELLOW)Installing golangci-lint...$(RESET)"; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin; \
+	}
+	@golangci-lint run ./...
+	@echo "$(GREEN)✓ golangci-lint complete$(RESET)"
+
 .PHONY: trivy
 trivy: ## Run Trivy container and dependency scanner
 	@echo "$(GREEN)Running Trivy scan...$(RESET)"
@@ -283,5 +293,5 @@ ci: lint vet test-race coverage security ## Run all CI checks
 
 # Include all phony targets
 .PHONY: help test test-short test-race test-all coverage coverage-html report benchmark fmt vet lint \
-        govulncheck gosec staticcheck trivy security check check-all docs godoc examples run-example \
+        govulncheck gosec staticcheck golangci-lint trivy security check check-all docs godoc examples run-example \
         clean tag release-notes version deps deps-update deps-tidy deps-graph cli setup ci

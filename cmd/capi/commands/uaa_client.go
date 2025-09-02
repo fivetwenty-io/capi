@@ -241,7 +241,11 @@ func (w *UAAClientWrapper) discoverFromCFAPIEndpoint(apiEndpoint string) (string
 	if err != nil {
 		return "", fmt.Errorf("failed to get CF API root info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("CF API root info request returned status %d", resp.StatusCode)

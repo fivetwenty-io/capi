@@ -19,7 +19,7 @@ func TestOrganizationsClient_Create(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.OrganizationCreateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "test-org", req.Name)
 
 		org := capi.Organization{
@@ -34,7 +34,7 @@ func TestOrganizationsClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(org)
+		_ = json.NewEncoder(w).Encode(org)
 	}))
 	defer server.Close()
 
@@ -63,7 +63,7 @@ func TestOrganizationsClient_Get(t *testing.T) {
 			Suspended: false,
 		}
 
-		json.NewEncoder(w).Encode(org)
+		_ = json.NewEncoder(w).Encode(org)
 	}))
 	defer server.Close()
 
@@ -102,7 +102,7 @@ func TestOrganizationsClient_List(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -124,7 +124,7 @@ func TestOrganizationsClient_Update(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.OrganizationUpdateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "updated-org", *req.Name)
 
 		org := capi.Organization{
@@ -132,7 +132,7 @@ func TestOrganizationsClient_Update(t *testing.T) {
 			Name:     *req.Name,
 		}
 
-		json.NewEncoder(w).Encode(org)
+		_ = json.NewEncoder(w).Encode(org)
 	}))
 	defer server.Close()
 
@@ -160,7 +160,7 @@ func TestOrganizationsClient_Delete(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -182,7 +182,7 @@ func TestOrganizationsClient_GetUsageSummary(t *testing.T) {
 		summary.UsageSummary.StartedInstances = 5
 		summary.UsageSummary.MemoryInMB = 1024
 
-		json.NewEncoder(w).Encode(summary)
+		_ = json.NewEncoder(w).Encode(summary)
 	}))
 	defer server.Close()
 
@@ -219,7 +219,7 @@ func TestOrganizationsClient_ListUsers(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

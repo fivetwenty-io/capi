@@ -233,11 +233,7 @@ func FetchAllPages[T any](
 	currentPage := 1
 	params.Page = currentPage
 
-	for {
-		// Check if we've reached the max pages limit
-		if options.MaxPages > 0 && currentPage > options.MaxPages {
-			break
-		}
+	for options.MaxPages == 0 || currentPage <= options.MaxPages {
 
 		// Fetch the current page
 		response, err := client.ListWithPath(ctx, path, params)

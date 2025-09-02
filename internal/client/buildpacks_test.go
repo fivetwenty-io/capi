@@ -59,7 +59,7 @@ func TestBuildpacksClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(buildpack)
+		_ = json.NewEncoder(w).Encode(buildpack)
 	}))
 	defer server.Close()
 
@@ -113,7 +113,7 @@ func TestBuildpacksClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(buildpack)
+		_ = json.NewEncoder(w).Encode(buildpack)
 	}))
 	defer server.Close()
 
@@ -185,7 +185,7 @@ func TestBuildpacksClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -243,7 +243,7 @@ func TestBuildpacksClient_Update(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(buildpack)
+		_ = json.NewEncoder(w).Encode(buildpack)
 	}))
 	defer server.Close()
 
@@ -286,7 +286,7 @@ func TestBuildpacksClient_Delete(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Location", "/v3/jobs/job-guid")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(job)
+		_ = json.NewEncoder(w).Encode(job)
 	}))
 	defer server.Close()
 
@@ -313,7 +313,11 @@ func TestBuildpacksClient_Upload(t *testing.T) {
 		// Check that bits file is present
 		file, header, err := r.FormFile("bits")
 		require.NoError(t, err)
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				t.Logf("Warning: failed to close file: %v", err)
+			}
+		}()
 
 		assert.NotNil(t, header)
 
@@ -343,7 +347,7 @@ func TestBuildpacksClient_Upload(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(buildpack)
+		_ = json.NewEncoder(w).Encode(buildpack)
 	}))
 	defer server.Close()
 
@@ -409,7 +413,7 @@ func TestBuildpacksClient_CreateWithCNBLifecycle(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(buildpack)
+		_ = json.NewEncoder(w).Encode(buildpack)
 	}))
 	defer server.Close()
 

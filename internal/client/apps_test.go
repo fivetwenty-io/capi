@@ -19,7 +19,7 @@ func TestAppsClient_Create(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 
 		var req capi.AppCreateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "test-app", req.Name)
 		assert.Equal(t, "space-guid", req.Relationships.Space.Data.GUID)
 
@@ -40,7 +40,7 @@ func TestAppsClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(w).Encode(app)
 	}))
 	defer server.Close()
 
@@ -75,7 +75,7 @@ func TestAppsClient_Get(t *testing.T) {
 			State: "STARTED",
 		}
 
-		json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(w).Encode(app)
 	}))
 	defer server.Close()
 
@@ -115,7 +115,7 @@ func TestAppsClient_List(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -137,7 +137,7 @@ func TestAppsClient_Update(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.AppUpdateRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "updated-app", *req.Name)
 
 		app := capi.App{
@@ -146,7 +146,7 @@ func TestAppsClient_Update(t *testing.T) {
 			State:    "STOPPED",
 		}
 
-		json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(w).Encode(app)
 	}))
 	defer server.Close()
 
@@ -189,7 +189,7 @@ func TestAppsClient_Start(t *testing.T) {
 			State:    "STARTED",
 		}
 
-		json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(w).Encode(app)
 	}))
 	defer server.Close()
 
@@ -212,7 +212,7 @@ func TestAppsClient_Stop(t *testing.T) {
 			State:    "STOPPED",
 		}
 
-		json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(w).Encode(app)
 	}))
 	defer server.Close()
 
@@ -235,7 +235,7 @@ func TestAppsClient_Restart(t *testing.T) {
 			State:    "STARTED",
 		}
 
-		json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(w).Encode(app)
 	}))
 	defer server.Close()
 
@@ -272,7 +272,7 @@ func TestAppsClient_GetEnv(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(env)
+		_ = json.NewEncoder(w).Encode(env)
 	}))
 	defer server.Close()
 
@@ -297,7 +297,7 @@ func TestAppsClient_GetEnvVars(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -316,7 +316,7 @@ func TestAppsClient_UpdateEnvVars(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req map[string]interface{}
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "new_value", req["var"].(map[string]interface{})["NEW_KEY"])
 
 		response := map[string]interface{}{
@@ -326,7 +326,7 @@ func TestAppsClient_UpdateEnvVars(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -349,7 +349,7 @@ func TestAppsClient_GetCurrentDroplet(t *testing.T) {
 			Resource: capi.Resource{GUID: "droplet-guid"},
 		}
 
-		json.NewEncoder(w).Encode(droplet)
+		_ = json.NewEncoder(w).Encode(droplet)
 	}))
 	defer server.Close()
 
@@ -367,10 +367,10 @@ func TestAppsClient_SetCurrentDroplet(t *testing.T) {
 		assert.Equal(t, "PATCH", r.Method)
 
 		var req capi.Relationship
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		assert.Equal(t, "droplet-guid", req.Data.GUID)
 
-		json.NewEncoder(w).Encode(req)
+		_ = json.NewEncoder(w).Encode(req)
 	}))
 	defer server.Close()
 
@@ -392,7 +392,7 @@ func TestAppsClient_GetSSHEnabled(t *testing.T) {
 			Reason:  "",
 		}
 
-		json.NewEncoder(w).Encode(sshEnabled)
+		_ = json.NewEncoder(w).Encode(sshEnabled)
 	}))
 	defer server.Close()
 
@@ -414,7 +414,7 @@ func TestAppsClient_GetPermissions(t *testing.T) {
 			ReadSensitiveData: false,
 		}
 
-		json.NewEncoder(w).Encode(permissions)
+		_ = json.NewEncoder(w).Encode(permissions)
 	}))
 	defer server.Close()
 
@@ -455,7 +455,7 @@ func TestAppsClient_GetManifest(t *testing.T) {
   buildpack: nodejs_buildpack`
 
 		w.Header().Set("Content-Type", "application/x-yaml")
-		w.Write([]byte(manifest))
+		_, _ = w.Write([]byte(manifest))
 	}))
 	defer server.Close()
 

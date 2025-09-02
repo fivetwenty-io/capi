@@ -40,7 +40,7 @@ func TestRolesClient_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(role)
+		_ = json.NewEncoder(w).Encode(role)
 	}))
 	defer server.Close()
 
@@ -96,7 +96,7 @@ func TestRolesClient_CreateSpaceRole(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(role)
+		_ = json.NewEncoder(w).Encode(role)
 	}))
 	defer server.Close()
 
@@ -154,7 +154,7 @@ func TestRolesClient_Get(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(role)
+		_ = json.NewEncoder(w).Encode(role)
 	}))
 	defer server.Close()
 
@@ -228,7 +228,7 @@ func TestRolesClient_List(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 

@@ -51,7 +51,7 @@ func TestAuditEventsClient_Get(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(event)
+		_ = json.NewEncoder(w).Encode(event)
 	}))
 	defer server.Close()
 
@@ -132,7 +132,7 @@ func TestAuditEventsClient_List(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
