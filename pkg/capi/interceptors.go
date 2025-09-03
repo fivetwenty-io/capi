@@ -141,9 +141,14 @@ func RateLimitInterceptor(requestsPerSecond int) RequestInterceptor {
 
 // RetryInterceptor adds retry logic for failed requests
 type RetryConfig struct {
-	MaxRetries   int
-	RetryDelay   time.Duration
-	MaxDelay     time.Duration
+	// MaxRetries is the maximum number of retry attempts after the initial try.
+	MaxRetries int
+	// RetryDelay is the base delay between retries (may be jittered/backed off).
+	RetryDelay time.Duration
+	// MaxDelay caps the maximum backoff delay between retries.
+	MaxDelay time.Duration
+	// RetryOnCodes lists HTTP status codes that should trigger a retry
+	// (e.g., 429, 500, 502, 503, 504).
 	RetryOnCodes []int
 }
 

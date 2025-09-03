@@ -246,7 +246,8 @@ type SmartCacheConfig struct {
 	// EnableMetrics enables cache metrics collection
 	EnableMetrics bool
 
-	// ResourceTTLs maps resource types to TTLs
+	// ResourceTTLs maps resource path prefixes (e.g., "/v3/apps") to TTLs
+	// applied when caching responses for matching endpoints.
 	ResourceTTLs map[string]time.Duration
 }
 

@@ -62,30 +62,85 @@ type Logger interface {
 	Error(msg string, fields map[string]interface{})
 }
 
-// Config represents client configuration
+// Config represents client configuration for building a capi.Client.
+//
+// # Authentication precedence
+//
+// The following precedence is applied by the concrete client implementation
+// (see pkg/cfclient and internal/client):
+//  1. AccessToken: if set, it is used directly as a static Bearer token.
+//  2. AccessToken + Username/Password: token is tried first; if it expires or
+//     fails with 401, the client falls back to obtaining a fresh token using
+//     the password grant (useful during migrations).
+//  3. ClientID/ClientSecret: uses the OAuth2 client_credentials grant. If a
+//     RefreshToken, Username, or Password is also provided, the OAuth2 manager
+//     can refresh or use an alternate grant as appropriate.
+//  4. Username/Password: uses the OAuth2 password grant with the default CF
+//     client ID ("cf").
+//  5. No credentials: requests are sent without authentication.
+//
+// # Token URL discovery
+//
+// If authentication is required and TokenURL is not provided, cfclient.New will
+// discover the UAA endpoint from the CF API root ("/" → links.uaa/login) and
+// construct TokenURL automatically as "<uaa>/oauth/token".
+//
+// # Timeouts, retries, and TLS
+//
+// Per-request timeouts should generally be controlled via context passed to
+// client methods. Retry behavior can be tuned via RetryMax/RetryWaitMin/
+// RetryWaitMax. SkipTLSVerify is only honored during UAA discovery and only
+// when the environment variable CAPI_DEV_MODE is set to "true" or "1"; do not
+// use it in production.
 type Config struct {
 	// Required fields
+	// APIEndpoint: base URL for the CF API (e.g., "https://api.example.com").
+	// cfclient.New normalizes this value by trimming a trailing slash and
+	// adding "https://" if no scheme is present.
 	APIEndpoint string
 
 	// Authentication options (provide one)
-	ClientID     string
+	// ClientID: OAuth2 client ID for the UAA client_credentials (or other) grant.
+	ClientID string
+	// ClientSecret: OAuth2 client secret used with ClientID.
 	ClientSecret string
-	Username     string
-	Password     string
+	// Username: account username for the OAuth2 password grant.
+	Username string
+	// Password: account password for the OAuth2 password grant.
+	Password string
+	// RefreshToken: optional refresh token used by the OAuth2 manager to renew access tokens.
 	RefreshToken string
-	AccessToken  string
-	TokenURL     string // OAuth2 token endpoint (auto-discovered if not provided)
+	// AccessToken: if set, used directly as a Bearer token. When combined with
+	// Username/Password, the token is tried first, then the client can fall
+	// back to the password grant if a 401 is encountered.
+	AccessToken string
+	// TokenURL: full OAuth2 token endpoint. If empty and authentication is
+	// required, cfclient.New discovers it from the API root (preferred).
+	TokenURL string
 
 	// Optional configurations
-	HTTPTimeout         time.Duration
-	RetryMax            int
-	RetryWaitMin        time.Duration
-	RetryWaitMax        time.Duration
-	Debug               bool
-	Logger              Logger
-	SkipTLSVerify       bool
-	UserAgent           string
-	FetchAPILinksOnInit bool // Whether to fetch API links during client initialization
+	// HTTPTimeout: optional default HTTP timeout where supported. Most client
+	// calls should rely on context timeouts; this may be used by helpers.
+	HTTPTimeout time.Duration
+	// RetryMax: maximum number of retries for transient failures (>=500, 429,
+	// and connection errors). If 0, a sensible default is used by the client.
+	RetryMax int
+	// RetryWaitMin: minimum backoff between retries. Applied when RetryMax > 0.
+	RetryWaitMin time.Duration
+	// RetryWaitMax: maximum backoff between retries. Applied when RetryMax > 0.
+	RetryWaitMax time.Duration
+	// Debug: enables verbose HTTP request/response logging when a Logger is provided.
+	Debug bool
+	// Logger: optional structured logger used by the HTTP layer and helpers.
+	Logger Logger
+	// SkipTLSVerify: if true, TLS verification is skipped during UAA discovery
+	// only, and only when CAPI_DEV_MODE is set. Intended for local development.
+	SkipTLSVerify bool
+	// UserAgent: overrides the default User-Agent header sent by the client.
+	UserAgent string
+	// FetchAPILinksOnInit: when true, the client fetches /v3 on initialization
+	// to cache API links for nicer logs and link-aware resource clients.
+	FetchAPILinksOnInit bool
 }
 
 // NewClient creates a new CF API client

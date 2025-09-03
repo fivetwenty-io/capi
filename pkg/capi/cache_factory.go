@@ -30,7 +30,7 @@ type CacheConfig struct {
 	// NATS KV cache configuration
 	NATS *NATSKVConfig
 
-	// Common options
+	// Common options applied to any backend. If nil, DefaultCacheOptions() is used.
 	Options *CacheOptions
 }
 

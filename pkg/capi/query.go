@@ -6,18 +6,28 @@ import (
 	"strings"
 )
 
-// QueryParams represents query parameters for list operations
+// QueryParams represents query parameters for list operations. All fields are
+// optional; zero values are omitted when converted to URL values.
 type QueryParams struct {
-	Page          int
-	PerPage       int
-	OrderBy       string
+	// Page: 1-based page index to request.
+	Page int
+	// PerPage: number of items per page. If unset, helpers often default to 50.
+	PerPage int
+	// OrderBy: server-defined sort expression, e.g. "created_at", "-name".
+	OrderBy string
+	// LabelSelector: Kubernetes-style label selector (if supported by endpoint).
 	LabelSelector string
-	Fields        map[string][]string
-	Include       []string
-	Filters       map[string][]string
+	// Fields: per-related-resource field selection, encoded as fields[<name>]=a,b.
+	Fields map[string][]string
+	// Include: related resources to include, encoded as include=a,b.
+	Include []string
+	// Filters: arbitrary filter key → values applied to the endpoint (e.g.,
+	// "names": ["app-a","app-b"], "space_guids": ["..."]). Values are joined
+	// with commas for transmission.
+	Filters map[string][]string
 }
 
-// NewQueryParams creates a new QueryParams with defaults
+// NewQueryParams creates a new QueryParams with initialized maps.
 func NewQueryParams() *QueryParams {
 	return &QueryParams{
 		Fields:  make(map[string][]string),

@@ -15,18 +15,26 @@ type App struct {
 
 // AppCreateRequest represents a request to create an app
 type AppCreateRequest struct {
-	Name                 string                 `json:"name"`
-	Relationships        AppRelationships       `json:"relationships"`
-	Lifecycle            *Lifecycle             `json:"lifecycle,omitempty"`
+	// Name is the app name (unique within a space).
+	Name string `json:"name"`
+	// Relationships must include a Space relationship.
+	Relationships AppRelationships `json:"relationships"`
+	// Lifecycle optionally specifies staging type/config; if nil, the platform default is used.
+	Lifecycle *Lifecycle `json:"lifecycle,omitempty"`
+	// EnvironmentVariables sets initial app-level env vars.
 	EnvironmentVariables map[string]interface{} `json:"environment_variables,omitempty"`
-	Metadata             *Metadata              `json:"metadata,omitempty"`
+	// Metadata sets labels/annotations on the app.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // AppUpdateRequest represents a request to update an app
 type AppUpdateRequest struct {
-	Name      *string    `json:"name,omitempty"`
+	// Name updates the app name; nil leaves it unchanged.
+	Name *string `json:"name,omitempty"`
+	// Lifecycle updates staging config; nil leaves it unchanged.
 	Lifecycle *Lifecycle `json:"lifecycle,omitempty"`
-	Metadata  *Metadata  `json:"metadata,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // AppRelationships represents app relationships
@@ -123,14 +131,19 @@ type Space struct {
 
 // SpaceCreateRequest represents a request to create a space
 type SpaceCreateRequest struct {
-	Name          string             `json:"name"`
+	// Name is the space name (unique within an organization).
+	Name string `json:"name"`
+	// Relationships must include an Organization relationship.
 	Relationships SpaceRelationships `json:"relationships"`
-	Metadata      *Metadata          `json:"metadata,omitempty"`
+	// Metadata sets labels/annotations on the space.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // SpaceUpdateRequest represents a request to update a space
 type SpaceUpdateRequest struct {
-	Name     *string   `json:"name,omitempty"`
+	// Name updates the space name; nil leaves it unchanged.
+	Name *string `json:"name,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -173,15 +186,21 @@ type Domain struct {
 
 // DomainCreateRequest represents a request to create a domain
 type DomainCreateRequest struct {
-	Name          string               `json:"name"`
-	Internal      *bool                `json:"internal,omitempty"`
-	RouterGroup   *string              `json:"router_group,omitempty"`
+	// Name is the domain name (e.g., example.com).
+	Name string `json:"name"`
+	// Internal marks a private domain for internal routing.
+	Internal *bool `json:"internal,omitempty"`
+	// RouterGroup associates a TCP router group when creating TCP domains.
+	RouterGroup *string `json:"router_group,omitempty"`
+	// Relationships optionally set the owning organization or shared orgs.
 	Relationships *DomainRelationships `json:"relationships,omitempty"`
-	Metadata      *Metadata            `json:"metadata,omitempty"`
+	// Metadata sets labels/annotations on the domain.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // DomainUpdateRequest represents a request to update a domain
 type DomainUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -206,15 +225,21 @@ type Route struct {
 
 // RouteCreateRequest represents a request to create a route
 type RouteCreateRequest struct {
-	Host          *string            `json:"host,omitempty"`
-	Path          *string            `json:"path,omitempty"`
-	Port          *int               `json:"port,omitempty"`
+	// Host is required for HTTP routes; omit for TCP routes.
+	Host *string `json:"host,omitempty"`
+	// Path is optional and must begin with "/" when set.
+	Path *string `json:"path,omitempty"`
+	// Port is required for TCP routes and must be unique per domain.
+	Port *int `json:"port,omitempty"`
+	// Relationships must include Space and Domain.
 	Relationships RouteRelationships `json:"relationships"`
-	Metadata      *Metadata          `json:"metadata,omitempty"`
+	// Metadata sets labels/annotations on the route.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // RouteUpdateRequest represents a request to update a route
 type RouteUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -252,9 +277,12 @@ type RouteReservation struct {
 
 // RouteReservationRequest represents a request to check route reservation
 type RouteReservationRequest struct {
+	// Host to check (HTTP routes). Optional for TCP routes.
 	Host string `json:"host,omitempty"`
+	// Path to check; must start with "/" when set.
 	Path string `json:"path,omitempty"`
-	Port *int   `json:"port,omitempty"`
+	// Port to check (TCP routes).
+	Port *int `json:"port,omitempty"`
 }
 
 // User represents a user
@@ -268,14 +296,19 @@ type User struct {
 
 // UserCreateRequest represents a request to create a user
 type UserCreateRequest struct {
-	GUID     string    `json:"guid,omitempty"`
-	Username string    `json:"username,omitempty"`
-	Origin   string    `json:"origin,omitempty"`
+	// GUID references an existing identity in UAA; alternative to Username/Origin.
+	GUID string `json:"guid,omitempty"`
+	// Username creates a user by username when paired with Origin.
+	Username string `json:"username,omitempty"`
+	// Origin identifies the identity provider for Username (e.g., "uaa", "ldap").
+	Origin string `json:"origin,omitempty"`
+	// Metadata sets labels/annotations on the user record.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // UserUpdateRequest represents a request to update a user
 type UserUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -288,7 +321,9 @@ type Role struct {
 
 // RoleCreateRequest represents a request to create a role
 type RoleCreateRequest struct {
-	Type          string            `json:"type"`
+	// Type is the role name (e.g., "organization_manager", "space_developer").
+	Type string `json:"type"`
+	// Relationships specify the target scope (organization or space) and user.
 	Relationships RoleRelationships `json:"relationships"`
 }
 
@@ -333,21 +368,29 @@ type SecurityGroupRelationships struct {
 
 // SecurityGroupCreateRequest represents a request to create a security group
 type SecurityGroupCreateRequest struct {
-	Name            string                        `json:"name"`
+	// Name is the security group name.
+	Name string `json:"name"`
+	// GloballyEnabled toggles default binding to running/staging.
 	GloballyEnabled *SecurityGroupGloballyEnabled `json:"globally_enabled,omitempty"`
-	Rules           []SecurityGroupRule           `json:"rules,omitempty"`
-	Relationships   *SecurityGroupRelationships   `json:"relationships,omitempty"`
+	// Rules is the set of egress/ingress rules.
+	Rules []SecurityGroupRule `json:"rules,omitempty"`
+	// Relationships optionally bind to running/staging spaces.
+	Relationships *SecurityGroupRelationships `json:"relationships,omitempty"`
 }
 
 // SecurityGroupUpdateRequest represents a request to update a security group
 type SecurityGroupUpdateRequest struct {
-	Name            *string                       `json:"name,omitempty"`
+	// Name updates the group name; nil leaves it unchanged.
+	Name *string `json:"name,omitempty"`
+	// GloballyEnabled updates default running/staging enablement.
 	GloballyEnabled *SecurityGroupGloballyEnabled `json:"globally_enabled,omitempty"`
-	Rules           []SecurityGroupRule           `json:"rules,omitempty"`
+	// Rules replaces the ruleset when provided.
+	Rules []SecurityGroupRule `json:"rules,omitempty"`
 }
 
 // SecurityGroupBindRequest represents a request to bind a security group to spaces
 type SecurityGroupBindRequest struct {
+	// Data contains space relationships to bind the group to.
 	Data []RelationshipData `json:"data"`
 }
 
@@ -383,10 +426,14 @@ type PackageRelationships struct {
 
 // PackageCreateRequest represents a request to create a package
 type PackageCreateRequest struct {
-	Type          string               `json:"type"`
+	// Type is the package type ("bits" or "docker").
+	Type string `json:"type"`
+	// Relationships must include App.
 	Relationships PackageRelationships `json:"relationships"`
-	Data          *PackageCreateData   `json:"data,omitempty"`
-	Metadata      *Metadata            `json:"metadata,omitempty"`
+	// Data supplies docker image credentials for docker packages.
+	Data *PackageCreateData `json:"data,omitempty"`
+	// Metadata sets labels/annotations on the package.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // PackageCreateData represents data for creating a package
@@ -398,12 +445,15 @@ type PackageCreateData struct {
 
 // PackageUpdateRequest represents a request to update a package
 type PackageUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // PackageUploadRequest represents a request to upload package bits
 type PackageUploadRequest struct {
-	Bits      []byte            `json:"-"` // The actual file bits
+	// Bits is the ZIP file contents for bits packages. Not JSON-encoded.
+	Bits []byte `json:"-"`
+	// Resources lists matched resources to enable resource-only uploads.
 	Resources []PackageResource `json:"resources,omitempty"`
 }
 
@@ -417,6 +467,7 @@ type PackageResource struct {
 
 // PackageCopyRequest represents a request to copy a package
 type PackageCopyRequest struct {
+	// Relationships identifies the target App for the copied package.
 	Relationships PackageRelationships `json:"relationships"`
 }
 
@@ -457,19 +508,25 @@ type DropletRelationships struct {
 
 // DropletCreateRequest represents a request to create a droplet
 type DropletCreateRequest struct {
+	// Relationships must include App.
 	Relationships DropletRelationships `json:"relationships"`
-	ProcessTypes  map[string]string    `json:"process_types,omitempty"`
+	// ProcessTypes optionally sets default process types for the droplet.
+	ProcessTypes map[string]string `json:"process_types,omitempty"`
 }
 
 // DropletUpdateRequest represents a request to update a droplet
 type DropletUpdateRequest struct {
-	Metadata     *Metadata         `json:"metadata,omitempty"`
-	Image        *string           `json:"image,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
+	Metadata *Metadata `json:"metadata,omitempty"`
+	// Image sets a pre-built OCI image reference (platform-dependent).
+	Image *string `json:"image,omitempty"`
+	// ProcessTypes replaces the droplet's process types.
 	ProcessTypes map[string]string `json:"process_types,omitempty"`
 }
 
 // DropletCopyRequest represents a request to copy a droplet
 type DropletCopyRequest struct {
+	// Relationships identifies the target App for the copied droplet.
 	Relationships DropletRelationships `json:"relationships"`
 }
 
@@ -513,18 +570,26 @@ type BuildRelationships struct {
 
 // BuildCreateRequest represents a request to create a build
 type BuildCreateRequest struct {
-	Package                           *BuildPackageRef `json:"package"`
-	Lifecycle                         *Lifecycle       `json:"lifecycle,omitempty"`
-	StagingMemoryInMB                 *int             `json:"staging_memory_in_mb,omitempty"`
-	StagingDiskInMB                   *int             `json:"staging_disk_in_mb,omitempty"`
-	StagingLogRateLimitBytesPerSecond *int             `json:"staging_log_rate_limit_bytes_per_second,omitempty"`
-	Metadata                          *Metadata        `json:"metadata,omitempty"`
+	// Package references the package to stage.
+	Package *BuildPackageRef `json:"package"`
+	// Lifecycle optionally overrides staging lifecycle configuration.
+	Lifecycle *Lifecycle `json:"lifecycle,omitempty"`
+	// StagingMemoryInMB optionally sets memory for staging.
+	StagingMemoryInMB *int `json:"staging_memory_in_mb,omitempty"`
+	// StagingDiskInMB optionally sets disk for staging.
+	StagingDiskInMB *int `json:"staging_disk_in_mb,omitempty"`
+	// StagingLogRateLimitBytesPerSecond optionally limits staging log rate.
+	StagingLogRateLimitBytesPerSecond *int `json:"staging_log_rate_limit_bytes_per_second,omitempty"`
+	// Metadata sets labels/annotations on the build.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // BuildUpdateRequest represents a request to update a build
 type BuildUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
-	State    *string   `json:"state,omitempty"`
+	// State may be set to cancel builds in certain states.
+	State *string `json:"state,omitempty"`
 }
 
 // Buildpack represents a Cloud Foundry buildpack
@@ -544,22 +609,35 @@ type Buildpack struct {
 
 // BuildpackCreateRequest represents a request to create a buildpack
 type BuildpackCreateRequest struct {
-	Name      string    `json:"name"`
-	Stack     *string   `json:"stack,omitempty"`
-	Position  *int      `json:"position,omitempty"`
-	Lifecycle *string   `json:"lifecycle,omitempty"`
-	Enabled   *bool     `json:"enabled,omitempty"`
-	Locked    *bool     `json:"locked,omitempty"`
-	Metadata  *Metadata `json:"metadata,omitempty"`
+	// Name is the buildpack name.
+	Name string `json:"name"`
+	// Stack limits the buildpack to a specific stack when set.
+	Stack *string `json:"stack,omitempty"`
+	// Position controls buildpack order.
+	Position *int `json:"position,omitempty"`
+	// Lifecycle targets a specific lifecycle when set.
+	Lifecycle *string `json:"lifecycle,omitempty"`
+	// Enabled toggles whether the buildpack is active.
+	Enabled *bool `json:"enabled,omitempty"`
+	// Locked prevents changes or re-upload when true.
+	Locked *bool `json:"locked,omitempty"`
+	// Metadata sets labels/annotations on the buildpack.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // BuildpackUpdateRequest represents a request to update a buildpack
 type BuildpackUpdateRequest struct {
-	Name     *string   `json:"name,omitempty"`
-	Stack    *string   `json:"stack,omitempty"`
-	Position *int      `json:"position,omitempty"`
-	Enabled  *bool     `json:"enabled,omitempty"`
-	Locked   *bool     `json:"locked,omitempty"`
+	// Name updates the buildpack name.
+	Name *string `json:"name,omitempty"`
+	// Stack updates the targeted stack.
+	Stack *string `json:"stack,omitempty"`
+	// Position updates the order.
+	Position *int `json:"position,omitempty"`
+	// Enabled toggles activation.
+	Enabled *bool `json:"enabled,omitempty"`
+	// Locked toggles immutability.
+	Locked *bool `json:"locked,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -649,16 +727,23 @@ type DeploymentRelationships struct {
 
 // DeploymentCreateRequest represents a request to create a deployment
 type DeploymentCreateRequest struct {
-	Droplet       *DeploymentDropletRef   `json:"droplet,omitempty"`
-	Revision      *DeploymentRevisionRef  `json:"revision,omitempty"`
-	Strategy      *string                 `json:"strategy,omitempty"`
-	Options       *DeploymentOptions      `json:"options,omitempty"`
+	// Droplet specifies the droplet to deploy. Exactly one of Droplet or Revision should be set.
+	Droplet *DeploymentDropletRef `json:"droplet,omitempty"`
+	// Revision specifies a revision to deploy. Exactly one of Droplet or Revision should be set.
+	Revision *DeploymentRevisionRef `json:"revision,omitempty"`
+	// Strategy optionally sets the deployment strategy (e.g., "rolling").
+	Strategy *string `json:"strategy,omitempty"`
+	// Options configures rollout settings (in-flight, canary, etc.).
+	Options *DeploymentOptions `json:"options,omitempty"`
+	// Relationships must include App.
 	Relationships DeploymentRelationships `json:"relationships"`
-	Metadata      *Metadata               `json:"metadata,omitempty"`
+	// Metadata sets labels/annotations on the deployment.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // DeploymentUpdateRequest represents a request to update a deployment
 type DeploymentUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -714,17 +799,25 @@ type ReadinessHealthCheckData struct {
 
 // ProcessUpdateRequest represents a request to update a process
 type ProcessUpdateRequest struct {
-	Command              *string               `json:"command,omitempty"`
-	HealthCheck          *HealthCheck          `json:"health_check,omitempty"`
+	// Command overrides the start command; nil leaves unchanged.
+	Command *string `json:"command,omitempty"`
+	// HealthCheck updates liveness health check configuration.
+	HealthCheck *HealthCheck `json:"health_check,omitempty"`
+	// ReadinessHealthCheck updates readiness check configuration.
 	ReadinessHealthCheck *ReadinessHealthCheck `json:"readiness_health_check,omitempty"`
-	Metadata             *Metadata             `json:"metadata,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // ProcessScaleRequest represents a request to scale a process
 type ProcessScaleRequest struct {
-	Instances                    *int `json:"instances,omitempty"`
-	MemoryInMB                   *int `json:"memory_in_mb,omitempty"`
-	DiskInMB                     *int `json:"disk_in_mb,omitempty"`
+	// Instances sets the desired instance count.
+	Instances *int `json:"instances,omitempty"`
+	// MemoryInMB sets memory per instance.
+	MemoryInMB *int `json:"memory_in_mb,omitempty"`
+	// DiskInMB sets disk per instance.
+	DiskInMB *int `json:"disk_in_mb,omitempty"`
+	// LogRateLimitInBytesPerSecond sets per-instance log rate limit.
 	LogRateLimitInBytesPerSecond *int `json:"log_rate_limit_in_bytes_per_second,omitempty"`
 }
 
@@ -797,14 +890,21 @@ type TaskRelationships struct {
 
 // TaskCreateRequest represents a request to create a task
 type TaskCreateRequest struct {
-	Command                      *string       `json:"command,omitempty"`
-	Name                         *string       `json:"name,omitempty"`
-	MemoryInMB                   *int          `json:"memory_in_mb,omitempty"`
-	DiskInMB                     *int          `json:"disk_in_mb,omitempty"`
-	LogRateLimitInBytesPerSecond *int          `json:"log_rate_limit_in_bytes_per_second,omitempty"`
-	Template                     *TaskTemplate `json:"template,omitempty"`
-	Metadata                     *Metadata     `json:"metadata,omitempty"`
-	DropletGUID                  *string       `json:"droplet_guid,omitempty"`
+	// Command is the task command when not using a Template.
+	Command *string `json:"command,omitempty"`
+	// Name optionally sets a friendly task name.
+	Name *string `json:"name,omitempty"`
+	// MemoryInMB and DiskInMB set task resources.
+	MemoryInMB *int `json:"memory_in_mb,omitempty"`
+	DiskInMB   *int `json:"disk_in_mb,omitempty"`
+	// LogRateLimitInBytesPerSecond limits task log rate.
+	LogRateLimitInBytesPerSecond *int `json:"log_rate_limit_in_bytes_per_second,omitempty"`
+	// Template references a process to derive command/env/runtime from.
+	Template *TaskTemplate `json:"template,omitempty"`
+	// Metadata sets labels/annotations on the task.
+	Metadata *Metadata `json:"metadata,omitempty"`
+	// DropletGUID optionally pins the task to a specific droplet.
+	DropletGUID *string `json:"droplet_guid,omitempty"`
 }
 
 // TaskTemplate represents a template for creating a task from a process
@@ -819,6 +919,7 @@ type TaskTemplateProcess struct {
 
 // TaskUpdateRequest represents a request to update a task
 type TaskUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -836,15 +937,20 @@ type Stack struct {
 
 // StackCreateRequest is the request for creating a stack
 type StackCreateRequest struct {
-	Name             string    `json:"name"`
-	Description      string    `json:"description,omitempty"`
-	BuildRootfsImage string    `json:"build_rootfs_image,omitempty"`
-	RunRootfsImage   string    `json:"run_rootfs_image,omitempty"`
-	Metadata         *Metadata `json:"metadata,omitempty"`
+	// Name is the stack name.
+	Name string `json:"name"`
+	// Description describes the stack.
+	Description string `json:"description,omitempty"`
+	// BuildRootfsImage and RunRootfsImage point to OCI images used for staging and running.
+	BuildRootfsImage string `json:"build_rootfs_image,omitempty"`
+	RunRootfsImage   string `json:"run_rootfs_image,omitempty"`
+	// Metadata sets labels/annotations on the stack.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // StackUpdateRequest is the request for updating a stack
 type StackUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -857,13 +963,17 @@ type IsolationSegment struct {
 
 // IsolationSegmentCreateRequest represents a request to create an isolation segment
 type IsolationSegmentCreateRequest struct {
-	Name     string    `json:"name"`
+	// Name is the isolation segment name.
+	Name string `json:"name"`
+	// Metadata sets labels/annotations on the isolation segment.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // IsolationSegmentUpdateRequest represents a request to update an isolation segment
 type IsolationSegmentUpdateRequest struct {
-	Name     *string   `json:"name,omitempty"`
+	// Name updates the isolation segment name; nil leaves it unchanged.
+	Name *string `json:"name,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -881,7 +991,9 @@ type FeatureFlag struct {
 
 // FeatureFlagUpdateRequest represents a request to update a feature flag
 type FeatureFlagUpdateRequest struct {
-	Enabled            bool    `json:"enabled"`
+	// Enabled toggles the feature flag.
+	Enabled bool `json:"enabled"`
+	// CustomErrorMessage optionally overrides the error shown when disabled.
 	CustomErrorMessage *string `json:"custom_error_message,omitempty"`
 }
 
@@ -913,19 +1025,26 @@ type ServiceBrokerAuthenticationCredentials struct {
 
 // ServiceBrokerCreateRequest represents a request to create a service broker
 type ServiceBrokerCreateRequest struct {
-	Name           string                      `json:"name"`
-	URL            string                      `json:"url"`
+	// Name is the broker name; URL is the broker endpoint.
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	// Authentication supplies basic credentials or other supported types.
 	Authentication ServiceBrokerAuthentication `json:"authentication"`
-	Relationships  *ServiceBrokerRelationships `json:"relationships,omitempty"`
-	Metadata       *Metadata                   `json:"metadata,omitempty"`
+	// Relationships optionally scope the broker to a space.
+	Relationships *ServiceBrokerRelationships `json:"relationships,omitempty"`
+	// Metadata sets labels/annotations on the broker.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // ServiceBrokerUpdateRequest represents a request to update a service broker
 type ServiceBrokerUpdateRequest struct {
-	Name           *string                      `json:"name,omitempty"`
-	URL            *string                      `json:"url,omitempty"`
+	// Name/URL update broker identification; nil leaves unchanged.
+	Name *string `json:"name,omitempty"`
+	URL  *string `json:"url,omitempty"`
+	// Authentication updates credentials.
 	Authentication *ServiceBrokerAuthentication `json:"authentication,omitempty"`
-	Metadata       *Metadata                    `json:"metadata,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // ServiceOffering represents a service offering
@@ -1066,13 +1185,17 @@ type ServicePlanVisibilitySpace struct {
 
 // ServicePlanVisibilityUpdateRequest represents a request to update service plan visibility
 type ServicePlanVisibilityUpdateRequest struct {
-	Type          string   `json:"type"`
+	// Type sets visibility (e.g., "public", "organization").
+	Type string `json:"type"`
+	// Organizations lists org GUIDs when type is organization-scoped.
 	Organizations []string `json:"organizations,omitempty"`
 }
 
 // ServicePlanVisibilityApplyRequest represents a request to apply service plan visibility
 type ServicePlanVisibilityApplyRequest struct {
-	Type          string   `json:"type"`
+	// Type sets visibility (e.g., "public", "organization").
+	Type string `json:"type"`
+	// Organizations lists org GUIDs when type is organization-scoped.
 	Organizations []string `json:"organizations,omitempty"`
 }
 
@@ -1115,28 +1238,41 @@ type ServiceInstanceRelationships struct {
 
 // ServiceInstanceCreateRequest represents a request to create a service instance
 type ServiceInstanceCreateRequest struct {
-	Type            string                       `json:"type"` // "managed" or "user-provided"
-	Name            string                       `json:"name"`
-	Tags            []string                     `json:"tags,omitempty"`
-	Parameters      map[string]interface{}       `json:"parameters,omitempty"`        // For managed
-	Credentials     map[string]interface{}       `json:"credentials,omitempty"`       // For user-provided
-	SyslogDrainURL  *string                      `json:"syslog_drain_url,omitempty"`  // For user-provided
-	RouteServiceURL *string                      `json:"route_service_url,omitempty"` // For user-provided
-	Relationships   ServiceInstanceRelationships `json:"relationships"`
-	Metadata        *Metadata                    `json:"metadata,omitempty"`
+	// Type chooses "managed" (brokered) or "user-provided".
+	Type string `json:"type"`
+	// Name is the service instance name.
+	Name string `json:"name"`
+	// Tags are arbitrary labels.
+	Tags []string `json:"tags,omitempty"`
+	// Parameters are passed to the broker for managed instances.
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	// Credentials, SyslogDrainURL, and RouteServiceURL apply to user-provided instances.
+	Credentials     map[string]interface{} `json:"credentials,omitempty"`
+	SyslogDrainURL  *string                `json:"syslog_drain_url,omitempty"`
+	RouteServiceURL *string                `json:"route_service_url,omitempty"`
+	// Relationships must include Space; ServicePlan is required for managed.
+	Relationships ServiceInstanceRelationships `json:"relationships"`
+	// Metadata sets labels/annotations on the instance.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // ServiceInstanceUpdateRequest represents a request to update a service instance
 type ServiceInstanceUpdateRequest struct {
-	Name            *string                       `json:"name,omitempty"`
-	Tags            []string                      `json:"tags,omitempty"`
-	Parameters      map[string]interface{}        `json:"parameters,omitempty"`        // For managed
-	Credentials     map[string]interface{}        `json:"credentials,omitempty"`       // For user-provided
-	SyslogDrainURL  *string                       `json:"syslog_drain_url,omitempty"`  // For user-provided
-	RouteServiceURL *string                       `json:"route_service_url,omitempty"` // For user-provided
-	MaintenanceInfo *ServiceInstanceMaintenance   `json:"maintenance_info,omitempty"`  // For managed
-	Metadata        *Metadata                     `json:"metadata,omitempty"`
-	Relationships   *ServiceInstanceRelationships `json:"relationships,omitempty"`
+	// Name/Tags update identification; nil zero value leaves unchanged.
+	Name *string  `json:"name,omitempty"`
+	Tags []string `json:"tags,omitempty"`
+	// Parameters are passed to the broker for managed instances.
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	// Credentials, SyslogDrainURL, and RouteServiceURL apply to user-provided instances.
+	Credentials     map[string]interface{} `json:"credentials,omitempty"`
+	SyslogDrainURL  *string                `json:"syslog_drain_url,omitempty"`
+	RouteServiceURL *string                `json:"route_service_url,omitempty"`
+	// MaintenanceInfo supplies upgrade target for brokered instances.
+	MaintenanceInfo *ServiceInstanceMaintenance `json:"maintenance_info,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
+	Metadata *Metadata `json:"metadata,omitempty"`
+	// Relationships may be updated for targeted operations (rare).
+	Relationships *ServiceInstanceRelationships `json:"relationships,omitempty"`
 }
 
 // ServiceInstanceParameters represents parameters for a managed service instance
@@ -1157,6 +1293,7 @@ type ServiceInstanceSharedSpacesRelationships struct {
 
 // ServiceInstanceShareRequest represents a request to share a service instance
 type ServiceInstanceShareRequest struct {
+	// Data contains target Space relationships to share with.
 	Data []Relationship `json:"data"`
 }
 
@@ -1206,15 +1343,21 @@ type ServiceCredentialBindingRelationships struct {
 
 // ServiceCredentialBindingCreateRequest represents a request to create a service credential binding
 type ServiceCredentialBindingCreateRequest struct {
-	Type          string                                `json:"type"` // "app" or "key"
-	Name          *string                               `json:"name,omitempty"`
-	Parameters    map[string]interface{}                `json:"parameters,omitempty"`
-	Metadata      *Metadata                             `json:"metadata,omitempty"`
+	// Type chooses binding type: "app" or "key".
+	Type string `json:"type"`
+	// Name optionally names the binding (keys commonly use this).
+	Name *string `json:"name,omitempty"`
+	// Parameters are broker-specific binding parameters.
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	// Metadata sets labels/annotations on the binding.
+	Metadata *Metadata `json:"metadata,omitempty"`
+	// Relationships must include ServiceInstance; App is required for type="app".
 	Relationships ServiceCredentialBindingRelationships `json:"relationships"`
 }
 
 // ServiceCredentialBindingUpdateRequest represents a request to update a service credential binding
 type ServiceCredentialBindingUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -1260,13 +1403,17 @@ type ServiceRouteBindingRelationships struct {
 
 // ServiceRouteBindingCreateRequest represents a request to create a service route binding
 type ServiceRouteBindingCreateRequest struct {
-	Parameters    map[string]interface{}           `json:"parameters,omitempty"`
-	Metadata      *Metadata                        `json:"metadata,omitempty"`
+	// Parameters are broker-specific route binding parameters.
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	// Metadata sets labels/annotations on the route binding.
+	Metadata *Metadata `json:"metadata,omitempty"`
+	// Relationships must include ServiceInstance and Route.
 	Relationships ServiceRouteBindingRelationships `json:"relationships"`
 }
 
 // ServiceRouteBindingUpdateRequest represents a request to update a service route binding
 type ServiceRouteBindingUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -1361,22 +1508,28 @@ type OrganizationQuotaRelationships struct {
 
 // OrganizationQuotaCreateRequest represents a request to create an organization quota
 type OrganizationQuotaCreateRequest struct {
-	Name     string                     `json:"name"`
+	// Name is the quota name.
+	Name string `json:"name"`
+	// Apps/Services/Routes/Domains set resource limits; omit to use defaults.
 	Apps     *OrganizationQuotaApps     `json:"apps,omitempty"`
 	Services *OrganizationQuotaServices `json:"services,omitempty"`
 	Routes   *OrganizationQuotaRoutes   `json:"routes,omitempty"`
 	Domains  *OrganizationQuotaDomains  `json:"domains,omitempty"`
-	Metadata *Metadata                  `json:"metadata,omitempty"`
+	// Metadata sets labels/annotations on the quota.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // OrganizationQuotaUpdateRequest represents a request to update an organization quota
 type OrganizationQuotaUpdateRequest struct {
-	Name     *string                    `json:"name,omitempty"`
+	// Name updates the quota name; nil leaves it unchanged.
+	Name *string `json:"name,omitempty"`
+	// Apps/Services/Routes/Domains update resource limits.
 	Apps     *OrganizationQuotaApps     `json:"apps,omitempty"`
 	Services *OrganizationQuotaServices `json:"services,omitempty"`
 	Routes   *OrganizationQuotaRoutes   `json:"routes,omitempty"`
 	Domains  *OrganizationQuotaDomains  `json:"domains,omitempty"`
-	Metadata *Metadata                  `json:"metadata,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // SpaceQuotaV3 represents a space quota (v3 API)
@@ -1420,21 +1573,28 @@ type SpaceQuotaRelationships struct {
 
 // SpaceQuotaV3CreateRequest represents a request to create a space quota
 type SpaceQuotaV3CreateRequest struct {
-	Name          string                  `json:"name"`
-	Apps          *SpaceQuotaApps         `json:"apps,omitempty"`
-	Services      *SpaceQuotaServices     `json:"services,omitempty"`
-	Routes        *SpaceQuotaRoutes       `json:"routes,omitempty"`
+	// Name is the space quota name.
+	Name string `json:"name"`
+	// Apps/Services/Routes set resource limits; omit to use defaults.
+	Apps     *SpaceQuotaApps     `json:"apps,omitempty"`
+	Services *SpaceQuotaServices `json:"services,omitempty"`
+	Routes   *SpaceQuotaRoutes   `json:"routes,omitempty"`
+	// Relationships must include Organization and target Spaces.
 	Relationships SpaceQuotaRelationships `json:"relationships"`
-	Metadata      *Metadata               `json:"metadata,omitempty"`
+	// Metadata sets labels/annotations on the space quota.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // SpaceQuotaV3UpdateRequest represents a request to update a space quota
 type SpaceQuotaV3UpdateRequest struct {
-	Name     *string             `json:"name,omitempty"`
+	// Name updates the space quota name; nil leaves it unchanged.
+	Name *string `json:"name,omitempty"`
+	// Apps/Services/Routes update resource limits.
 	Apps     *SpaceQuotaApps     `json:"apps,omitempty"`
 	Services *SpaceQuotaServices `json:"services,omitempty"`
 	Routes   *SpaceQuotaRoutes   `json:"routes,omitempty"`
-	Metadata *Metadata           `json:"metadata,omitempty"`
+	// Metadata updates labels/annotations; nil leaves it unchanged.
+	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
 // Sidecar represents a sidecar
@@ -1455,14 +1615,17 @@ type SidecarRelationships struct {
 
 // SidecarCreateRequest represents a request to create a sidecar
 type SidecarCreateRequest struct {
+	// Name and Command define the sidecar; ProcessTypes lists bound process types.
 	Name         string   `json:"name"`
 	Command      string   `json:"command"`
 	ProcessTypes []string `json:"process_types"`
-	MemoryInMB   *int     `json:"memory_in_mb,omitempty"`
+	// MemoryInMB optionally sets sidecar memory.
+	MemoryInMB *int `json:"memory_in_mb,omitempty"`
 }
 
 // SidecarUpdateRequest represents a request to update a sidecar
 type SidecarUpdateRequest struct {
+	// Fields update sidecar configuration; nil/empty leaves unchanged.
 	Name         *string  `json:"name,omitempty"`
 	Command      *string  `json:"command,omitempty"`
 	ProcessTypes []string `json:"process_types,omitempty"`
@@ -1494,6 +1657,7 @@ type RevisionRelationships struct {
 
 // RevisionUpdateRequest represents a request to update a revision
 type RevisionUpdateRequest struct {
+	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -1607,5 +1771,6 @@ type ResourceMatch struct {
 
 // ResourceMatchesRequest represents a request to create resource matches
 type ResourceMatchesRequest struct {
+	// Resources lists files (sha1, size, path, mode) to check for blob reuse.
 	Resources []ResourceMatch `json:"resources"`
 }
