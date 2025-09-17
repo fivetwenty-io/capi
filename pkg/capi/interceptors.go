@@ -11,10 +11,11 @@ import (
 
 // Request represents an HTTP request that can be intercepted.
 type Request struct {
-	Method  string
-	Path    string
-	Headers http.Header
-	Body    []byte
+	Method   string
+	Path     string
+	Headers  http.Header
+	Body     []byte
+	Metadata map[string]interface{}
 }
 
 // Response represents an HTTP response that can be intercepted.
@@ -239,11 +240,6 @@ func HeaderInterceptor(headers map[string]string) RequestInterceptor {
 // contextKey is a custom type for context keys to avoid collisions.
 type contextKey string
 
-const (
-	contextKeyCancel    contextKey = "cancel"
-	contextKeyStartTime contextKey = "start_time"
-)
-
 // TimeoutInterceptor adds a timeout to requests.
 func TimeoutInterceptor(timeout time.Duration) RequestInterceptor {
 	return func(ctx context.Context, req *Request) error {
@@ -293,8 +289,11 @@ func (m *MetricsCollector) GetMetrics(endpoint string) *Metrics {
 // MetricsRequestInterceptor records request start time.
 func MetricsRequestInterceptor(collector *MetricsCollector) RequestInterceptor {
 	return func(ctx context.Context, req *Request) error {
-		// Store the start time in the context for this request
-		// The actual context with start time should be passed to the response interceptor
+		// Store the start time in the request metadata
+		if req.Metadata == nil {
+			req.Metadata = make(map[string]interface{})
+		}
+		req.Metadata["start_time"] = time.Now()
 		return nil
 	}
 }
@@ -315,11 +314,13 @@ func MetricsResponseInterceptor(collector *MetricsCollector) ResponseInterceptor
 		metrics.TotalRequests++
 		metrics.LastRequestTime = time.Now()
 
-		// Calculate latency if start time is available in context
-		if startTime, ok := ctx.Value(contextKeyStartTime).(time.Time); ok {
-			latency := time.Since(startTime)
-			metrics.TotalLatency += latency
-			metrics.AverageLatency = metrics.TotalLatency / time.Duration(metrics.TotalRequests)
+		// Calculate latency if start time is available in request metadata
+		if req.Metadata != nil {
+			if startTime, ok := req.Metadata["start_time"].(time.Time); ok {
+				latency := time.Since(startTime)
+				metrics.TotalLatency += latency
+				metrics.AverageLatency = metrics.TotalLatency / time.Duration(metrics.TotalRequests)
+			}
 		}
 
 		// Count errors

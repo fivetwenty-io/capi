@@ -45,7 +45,6 @@ func TestRolesClient_CreateSpaceRole(t *testing.T) {
 
 func TestRolesClient_Get(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/roles/role-guid", request.URL.Path)
@@ -90,7 +89,6 @@ func TestRolesClient_Get(t *testing.T) {
 
 //nolint:funlen // Test functions can be longer for comprehensive testing
 func TestRolesClient_List(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -179,7 +177,6 @@ func TestRolesClient_List(t *testing.T) {
 
 func TestRolesClient_Delete(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/roles/role-guid", request.URL.Path)
@@ -197,7 +194,6 @@ func TestRolesClient_Delete(t *testing.T) {
 }
 
 func TestRolesClient_GetNotFound(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

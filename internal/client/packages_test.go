@@ -19,7 +19,6 @@ import (
 //nolint:funlen // Test functions can be longer for comprehensive testing
 func TestPackagesClient_Create(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	tests := []struct {
 		name         string
@@ -187,7 +186,6 @@ func TestPackagesClient_Create(t *testing.T) {
 //nolint:dupl,funlen // Acceptable duplication - each test validates different endpoints with different assertions
 func TestPackagesClient_Get(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	tests := []struct {
 		name         string
@@ -274,7 +272,6 @@ func TestPackagesClient_Get(t *testing.T) {
 //nolint:funlen // Test functions can be longer for comprehensive testing
 func TestPackagesClient_List(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/packages", request.URL.Path)
@@ -353,7 +350,6 @@ func TestPackagesClient_List(t *testing.T) {
 
 func TestPackagesClient_Update(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/packages/test-package-guid", request.URL.Path)
@@ -405,7 +401,6 @@ func TestPackagesClient_Update(t *testing.T) {
 
 func TestPackagesClient_Delete(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	tests := []TestDeleteOperation{
 		{
@@ -443,7 +438,6 @@ func TestPackagesClient_Delete(t *testing.T) {
 }
 
 func TestPackagesClient_Upload(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -505,7 +499,6 @@ func TestPackagesClient_Download(t *testing.T) {
 }
 
 func TestPackagesClient_Copy(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

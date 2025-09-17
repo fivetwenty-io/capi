@@ -19,7 +19,6 @@ import (
 //nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceInstancesClient_Create_Managed(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_instances", request.URL.Path)
@@ -86,7 +85,6 @@ func TestServiceInstancesClient_Create_Managed(t *testing.T) {
 
 //nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceInstancesClient_Create_UserProvided(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -172,7 +170,6 @@ func TestServiceInstancesClient_Create_UserProvided(t *testing.T) {
 }
 
 func TestServiceInstancesClient_Get(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -294,7 +291,6 @@ func TestServiceInstancesClient_List(t *testing.T) {
 
 func TestServiceInstancesClient_Update_Managed(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
@@ -343,7 +339,6 @@ func TestServiceInstancesClient_Update_Managed(t *testing.T) {
 }
 
 func TestServiceInstancesClient_Update_UserProvided(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -398,7 +393,6 @@ func TestServiceInstancesClient_Update_UserProvided(t *testing.T) {
 
 func TestServiceInstancesClient_Delete(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
@@ -432,7 +426,6 @@ func TestServiceInstancesClient_Delete(t *testing.T) {
 
 func TestServiceInstancesClient_GetParameters(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_instances/instance-guid/parameters", request.URL.Path)
@@ -463,7 +456,6 @@ func TestServiceInstancesClient_GetParameters(t *testing.T) {
 }
 
 func TestServiceInstancesClient_ListSharedSpaces(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -499,7 +491,6 @@ func TestServiceInstancesClient_ListSharedSpaces(t *testing.T) {
 }
 
 func TestServiceInstancesClient_ShareWithSpaces(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -543,7 +534,6 @@ func TestServiceInstancesClient_ShareWithSpaces(t *testing.T) {
 
 func TestServiceInstancesClient_UnshareFromSpace(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_instances/instance-guid/relationships/shared_spaces/space-guid", request.URL.Path)
@@ -561,7 +551,6 @@ func TestServiceInstancesClient_UnshareFromSpace(t *testing.T) {
 }
 
 func TestServiceInstancesClient_GetNotFound(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -581,7 +570,6 @@ func TestServiceInstancesClient_GetNotFound(t *testing.T) {
 }
 
 func TestServiceInstancesClient_DeleteWithBindings(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -184,13 +184,18 @@ func TestMetricsCollector(t *testing.T) {
 	assert.Positive(t, notifiedMetrics.AverageLatency)
 
 	// Execute another request with error
-	// Note: For the second request we need to test with a pre-set start time
-	// but we can't access the internal contextKeyStartTime, so we'll just
-	// test without it for now
 	req2 := &capi.Request{
 		Method: "GET",
 		Path:   "/v3/apps",
 	}
+
+	// Execute request interceptor for the second request
+	err = requestInterceptor(ctx, req2)
+	require.NoError(t, err)
+
+	// Simulate some delay
+	time.Sleep(10 * time.Millisecond)
+
 	resp2 := &capi.Response{
 		StatusCode: 500,
 	}

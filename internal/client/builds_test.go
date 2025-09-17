@@ -90,18 +90,23 @@ func TestBuildsClient_Create(t *testing.T) {
 			ExpectedPath: "/v3/builds",
 			StatusCode:   http.StatusUnprocessableEntity,
 			Request:      &capi.BuildCreateRequest{},
-			Response:     &capi.Build{}, // Will be ignored due to error
-			WantErr:      true,
-			ErrMessage:   "CF-UnprocessableEntity",
+			Response: map[string]interface{}{
+				"errors": []map[string]interface{}{
+					{
+						"code":   10008,
+						"title":  "CF-UnprocessableEntity",
+						"detail": "The request is semantically invalid: Missing required field 'package'",
+					},
+				},
+			},
+			WantErr:    true,
+			ErrMessage: "CF-UnprocessableEntity",
 		},
 	}
 
-	client, err := New(context.Background(), &capi.Config{APIEndpoint: ""})
-	require.NoError(t, err)
-
 	RunCreateTests(t, tests,
-		func(ctx context.Context, req *capi.BuildCreateRequest) (*capi.Build, error) {
-			return client.Builds().Create(ctx, req)
+		func(c *Client) func(context.Context, *capi.BuildCreateRequest) (*capi.Build, error) {
+			return c.Builds().Create
 		},
 		func(request *http.Request) (*capi.BuildCreateRequest, error) {
 			var requestBody capi.BuildCreateRequest

@@ -19,7 +19,6 @@ import (
 //nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceCredentialBindingsClient_Create_App(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_credential_bindings", request.URL.Path)
@@ -86,7 +85,6 @@ func TestServiceCredentialBindingsClient_Create_App(t *testing.T) {
 
 //nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceCredentialBindingsClient_Create_Key(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -161,7 +159,6 @@ func TestServiceCredentialBindingsClient_Create_Key(t *testing.T) {
 }
 
 func TestServiceCredentialBindingsClient_Get(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -273,7 +270,6 @@ func TestServiceCredentialBindingsClient_List(t *testing.T) {
 
 func TestServiceCredentialBindingsClient_Update(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_credential_bindings/binding-guid", request.URL.Path)
@@ -339,7 +335,6 @@ func TestServiceCredentialBindingsClient_Delete(t *testing.T) {
 
 func TestServiceCredentialBindingsClient_GetDetails(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_credential_bindings/binding-guid/details", request.URL.Path)
@@ -374,7 +369,6 @@ func TestServiceCredentialBindingsClient_GetDetails(t *testing.T) {
 
 func TestServiceCredentialBindingsClient_GetParameters(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_credential_bindings/binding-guid/parameters", request.URL.Path)
@@ -404,7 +398,6 @@ func TestServiceCredentialBindingsClient_GetParameters(t *testing.T) {
 
 func TestServiceCredentialBindingsClient_GetNotFound(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_credential_bindings/binding-guid", request.URL.Path)
@@ -423,7 +416,6 @@ func TestServiceCredentialBindingsClient_GetNotFound(t *testing.T) {
 }
 
 func TestServiceCredentialBindingsClient_CreateForbidden(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

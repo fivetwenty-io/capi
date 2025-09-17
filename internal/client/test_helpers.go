@@ -47,7 +47,7 @@ type TestCreateOperation[TRequest, TResponse any] struct {
 	Request      *TRequest
 	ExpectedPath string
 	StatusCode   int
-	Response     *TResponse
+	Response     interface{} // Can be *TResponse or error response map
 	WantErr      bool
 	ErrMessage   string
 }
@@ -90,7 +90,7 @@ type TestDeleteOperation struct {
 func RunCreateTests[TRequest, TResponse any](
 	t *testing.T,
 	tests []TestCreateOperation[TRequest, TResponse],
-	createFunc func(context.Context, *TRequest) (*TResponse, error),
+	createFunc func(*Client) func(context.Context, *TRequest) (*TResponse, error),
 	requestDecoder func(*http.Request) (*TRequest, error),
 ) {
 	t.Helper()
@@ -115,10 +115,11 @@ func RunCreateTests[TRequest, TResponse any](
 			}))
 			defer server.Close()
 
-			_, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			result, err := createFunc(context.Background(), testCase.Request)
+			createFn := createFunc(client)
+			result, err := createFn(context.Background(), testCase.Request)
 
 			if testCase.WantErr {
 				require.Error(t, err)
@@ -370,7 +371,6 @@ func RunAppActionTests(t *testing.T, tests []TestAppActionOperation) {
 func RunErrorTypeTests(t *testing.T, testName string, targetErrorCode int, checkFunction func(error) bool) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		tests := []struct {
 			name     string
@@ -414,7 +414,6 @@ func RunErrorTypeTests(t *testing.T, testName string, targetErrorCode int, check
 
 		for _, testCase := range tests {
 			t.Run(testCase.name, func(t *testing.T) {
-				t.Parallel()
 				assert.Equal(t, testCase.expected, checkFunction(testCase.err))
 			})
 		}
@@ -475,7 +474,6 @@ func RunDownloadTest(
 	downloadFunc func(*Client) func(context.Context, string) ([]byte, error),
 ) {
 	t.Helper()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, expectedPath, request.URL.Path)
@@ -549,7 +547,6 @@ func RunStandardUpdateTest[TRequest, TResponse any](
 	updateFunc func(*Client) func(context.Context, string, *TRequest) (*TResponse, error),
 ) {
 	t.Helper()
-	t.Parallel()
 
 	RunBasicUpdateTests(t, resourceType, resourceGUID, resourcePath, updateRequest, response,
 		updateFunc,
@@ -582,7 +579,6 @@ type NameUpdateTestCase[TRequest, TResponse any] struct {
 // RunNameUpdateTest runs a standardized name-only update test.
 func RunNameUpdateTest[TRequest, TResponse any](t *testing.T, testCase NameUpdateTestCase[TRequest, TResponse]) {
 	t.Helper()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, testCase.ResourcePath, request.URL.Path)
@@ -625,10 +621,9 @@ func RunCreateTestsSimple[TRequest, TResponse any](
 	validateResponse func(*TResponse),
 ) {
 	t.Helper()
-	
+
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
 
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				assert.Equal(t, testCase.expectedPath, request.URL.Path)
@@ -683,10 +678,9 @@ func RunGetTestsSimple[TResponse any](
 	validateResponse func(string, *TResponse),
 ) {
 	t.Helper()
-	
+
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
 
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				assert.Equal(t, testCase.expectedPath, request.URL.Path)
@@ -731,9 +725,8 @@ func RunShareWithTest(
 	shareFunc func(*Client) func(context.Context, string, []string) (*capi.ToManyRelationship, error),
 ) {
 	t.Helper()
-	
+
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, relationshipPath, request.URL.Path)
@@ -782,9 +775,8 @@ func RunListTestSimple[TResource any](
 	resourceGUID string,
 ) {
 	t.Helper()
-	
+
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
@@ -832,9 +824,8 @@ func RunQuotaCreateTest[TRequest, TResponse any](
 	validateResponse func(*TResponse),
 ) {
 	t.Helper()
-	
+
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
@@ -878,9 +869,8 @@ func RunRoleCreateTest(
 	expectedRelationships capi.RoleRelationships,
 ) {
 	t.Helper()
-	
+
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, "/v3/roles", request.URL.Path)
@@ -948,7 +938,6 @@ func RunServiceListTest[TResource any](
 ) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
@@ -999,7 +988,6 @@ func RunJobDeleteTest(
 ) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
@@ -1083,7 +1071,6 @@ func RunSimpleListTest[TResource any](
 ) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
@@ -1159,7 +1146,6 @@ func uploadMultipartFile(ctx context.Context, httpClient *internalhttp.Client, p
 func RunCreateTestWithValidation(t *testing.T, testName, expectedPath string, statusCode int, response interface{}, wantErr bool, errMessage string, testFunc func(*Client) error) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
@@ -1189,7 +1175,6 @@ func RunCreateTestWithValidation(t *testing.T, testName, expectedPath string, st
 func RunGetTestWithValidation(t *testing.T, testName, guid, expectedPath string, statusCode int, response interface{}, wantErr bool, errMessage string, testFunc func(*Client, string) error) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)

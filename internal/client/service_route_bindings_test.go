@@ -18,7 +18,6 @@ import (
 
 func TestServiceRouteBindingsClient_Create(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_route_bindings", request.URL.Path)
@@ -79,7 +78,6 @@ func TestServiceRouteBindingsClient_Create(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_CreateSync(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -156,7 +154,6 @@ func TestServiceRouteBindingsClient_CreateSync(t *testing.T) {
 
 func TestServiceRouteBindingsClient_Get(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_route_bindings/binding-guid", request.URL.Path)
@@ -207,7 +204,6 @@ func TestServiceRouteBindingsClient_Get(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_List(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -269,7 +265,6 @@ func TestServiceRouteBindingsClient_List(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_Update(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -336,7 +331,6 @@ func TestServiceRouteBindingsClient_Delete(t *testing.T) {
 
 func TestServiceRouteBindingsClient_GetParameters(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_route_bindings/binding-guid/parameters", request.URL.Path)
@@ -366,7 +360,6 @@ func TestServiceRouteBindingsClient_GetParameters(t *testing.T) {
 
 func TestServiceRouteBindingsClient_GetNotFound(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_route_bindings/binding-guid", request.URL.Path)
@@ -385,7 +378,6 @@ func TestServiceRouteBindingsClient_GetNotFound(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_CreateForbidden(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

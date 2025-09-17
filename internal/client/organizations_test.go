@@ -16,7 +16,6 @@ import (
 
 func TestOrganizationsClient_Create(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/organizations", request.URL.Path)
@@ -57,7 +56,6 @@ func TestOrganizationsClient_Create(t *testing.T) {
 
 func TestOrganizationsClient_Get(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/organizations/org-guid", request.URL.Path)
@@ -85,7 +83,6 @@ func TestOrganizationsClient_Get(t *testing.T) {
 }
 
 func TestOrganizationsClient_List(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -156,7 +153,6 @@ func TestOrganizationsClient_Update(t *testing.T) {
 
 func TestOrganizationsClient_Delete(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/organizations/org-guid", request.URL.Path)
@@ -184,7 +180,6 @@ func TestOrganizationsClient_Delete(t *testing.T) {
 
 func TestOrganizationsClient_GetUsageSummary(t *testing.T) {
 	t.Parallel()
-	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/organizations/org-guid/usage_summary", request.URL.Path)
@@ -208,7 +203,6 @@ func TestOrganizationsClient_GetUsageSummary(t *testing.T) {
 }
 
 func TestOrganizationsClient_ListUsers(t *testing.T) {
-	t.Parallel()
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -243,7 +243,7 @@ func TestSecurityGroupsClient_Update(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.NotNil(t, requestBody.Name)
-		assert.Equal(t, "my-security-group", requestBody.Name)
+		assert.Equal(t, "updated-sg", *requestBody.Name)
 		assert.NotNil(t, requestBody.GloballyEnabled)
 		assert.False(t, requestBody.GloballyEnabled.Running)
 		assert.True(t, requestBody.GloballyEnabled.Staging)

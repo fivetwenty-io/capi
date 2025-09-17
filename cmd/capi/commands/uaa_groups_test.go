@@ -35,7 +35,6 @@ func TestCreateUsersGetGroupCommand(t *testing.T) {
 // testGenericListCommand tests generic list commands with common flags.
 func testGenericListCommand(t *testing.T, cmd *cobra.Command, expectedUse, expectedShort, expectedLongContains string) {
 	t.Helper()
-	t.Parallel()
 
 	assert.Equal(t, expectedUse, cmd.Use)
 	assert.Equal(t, expectedShort, cmd.Short)
