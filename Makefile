@@ -117,8 +117,8 @@ staticcheck: ## Run staticcheck static analysis
 	@staticcheck $(shell go list ./... | grep -v vendor)
 	@echo "$(GREEN)✓ Staticcheck analysis complete$(RESET)"
 
-.PHONY: golangci-lint
-golangci-lint: ## Run golangci-lint comprehensive linter
+.PHONY: golangci
+golangci: ## Run golangci-lint comprehensive linter
 	@echo "$(GREEN)Running golangci-lint...$(RESET)"
 	@command -v golangci-lint >/dev/null 2>&1 || { \
 		echo "$(YELLOW)Installing golangci-lint...$(RESET)"; \
@@ -271,7 +271,8 @@ deps-graph: ## Show dependency graph
 
 ##@ Build
 
-.PHONY: cli capi
+.PHONY: cli capi build
+build: capi
 cli: capi
 
 capi: ## Build the CLI binary

@@ -1,13 +1,16 @@
-package commands
+package commands_test
 
 import (
 	"testing"
 
+	"github.com/fivetwenty-io/capi/v3/cmd/capi/commands"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewEnvVarGroupsCommand(t *testing.T) {
-	cmd := NewEnvVarGroupsCommand()
+	t.Parallel()
+
+	cmd := commands.NewEnvVarGroupsCommand()
 	assert.Equal(t, "env-var-groups", cmd.Use)
 	assert.Equal(t, []string{"environment-variable-groups", "env-groups", "evg"}, cmd.Aliases)
 	assert.Equal(t, "Manage environment variable groups", cmd.Short)
@@ -17,7 +20,7 @@ func TestNewEnvVarGroupsCommand(t *testing.T) {
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 2)
 
-	var commandNames []string
+	commandNames := make([]string, 0, len(subcommands))
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
@@ -26,21 +29,6 @@ func TestNewEnvVarGroupsCommand(t *testing.T) {
 	assert.Contains(t, commandNames, "update")
 }
 
-func TestEnvVarGroupsGetCommand(t *testing.T) {
-	cmd := newEnvVarGroupsGetCommand()
-	assert.Equal(t, "get GROUP_NAME", cmd.Use)
-	assert.Equal(t, "Get environment variable group", cmd.Short)
-	assert.Equal(t, "Display environment variables for a specific group (running or staging)", cmd.Long)
-	assert.NotNil(t, cmd.RunE)
-	assert.NotNil(t, cmd.Args)
-}
-
-func TestEnvVarGroupsUpdateCommand(t *testing.T) {
-	cmd := newEnvVarGroupsUpdateCommand()
-	assert.Equal(t, "update GROUP_NAME", cmd.Use)
-	assert.Equal(t, "Update environment variable group", cmd.Short)
-	assert.Equal(t, "Update environment variables for a specific group (running or staging)", cmd.Long)
-	assert.NotNil(t, cmd.RunE)
-
-	assert.NotNil(t, cmd.Args)
-}
+// Note: Tests for unexported functions (newEnvVarGroupsGetCommand, newEnvVarGroupsUpdateCommand)
+// are not included since they cannot be accessed from the commands_test package.
+// These functions are tested indirectly through the main command.

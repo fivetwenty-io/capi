@@ -11,6 +11,8 @@ import (
 )
 
 func TestCacheFactory_MemoryCache(t *testing.T) {
+	t.Parallel()
+
 	config := &capi.CacheConfig{
 		Type: capi.CacheTypeMemory,
 		Memory: &capi.MemoryCacheConfig{
@@ -33,7 +35,7 @@ func TestCacheFactory_MemoryCache(t *testing.T) {
 
 	// Set
 	err = cache.Set(ctx, "test-key", entry)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Get
 	retrieved, err := cache.Get(ctx, "test-key")
@@ -46,11 +48,13 @@ func TestCacheFactory_MemoryCache(t *testing.T) {
 
 	// Delete
 	err = cache.Delete(ctx, "test-key")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, cache.Has(ctx, "test-key"))
 }
 
 func TestCacheFactory_NoOpCache(t *testing.T) {
+	t.Parallel()
+
 	config := &capi.CacheConfig{
 		Type: capi.CacheTypeNone,
 	}
@@ -67,25 +71,27 @@ func TestCacheFactory_NoOpCache(t *testing.T) {
 
 	// Set should succeed but do nothing
 	err = cache.Set(ctx, "test-key", entry)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Get should always fail
 	_, err = cache.Get(ctx, "test-key")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Has should always return false
 	assert.False(t, cache.Has(ctx, "test-key"))
 
 	// Delete should succeed but do nothing
 	err = cache.Delete(ctx, "test-key")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Clear should succeed but do nothing
 	err = cache.Clear(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestCacheBuilder(t *testing.T) {
+	t.Parallel()
+
 	builder := capi.NewCacheBuilder()
 	cache, err := builder.
 		WithType(capi.CacheTypeMemory).
@@ -108,7 +114,7 @@ func TestCacheBuilder(t *testing.T) {
 	}
 
 	err = cache.Set(ctx, "builder-key", entry)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	retrieved, err := cache.Get(ctx, "builder-key")
 	require.NoError(t, err)
@@ -116,6 +122,7 @@ func TestCacheBuilder(t *testing.T) {
 }
 
 func TestCacheChain(t *testing.T) {
+	t.Parallel()
 	// Create two memory caches
 	l1Cache := capi.NewMemoryCache(10)
 	l2Cache := capi.NewMemoryCache(100)
@@ -131,7 +138,7 @@ func TestCacheChain(t *testing.T) {
 
 	// Set should store in both caches
 	err := chain.Set(ctx, "chain-key", entry)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify both caches have the entry
 	assert.True(t, l1Cache.Has(ctx, "chain-key"))
@@ -139,7 +146,7 @@ func TestCacheChain(t *testing.T) {
 
 	// Delete from L1 only
 	err = l1Cache.Delete(ctx, "chain-key")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Get should still work (from L2) and repopulate L1
 	retrieved, err := chain.Get(ctx, "chain-key")
@@ -151,12 +158,14 @@ func TestCacheChain(t *testing.T) {
 
 	// Delete from chain should delete from both
 	err = chain.Delete(ctx, "chain-key")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, l1Cache.Has(ctx, "chain-key"))
 	assert.False(t, l2Cache.Has(ctx, "chain-key"))
 }
 
 func TestDefaultCacheConfig(t *testing.T) {
+	t.Parallel()
+
 	config := capi.DefaultCacheConfig()
 	assert.Equal(t, capi.CacheTypeMemory, config.Type)
 	assert.NotNil(t, config.Memory)
@@ -166,17 +175,21 @@ func TestDefaultCacheConfig(t *testing.T) {
 }
 
 func TestCacheFactory_InvalidType(t *testing.T) {
+	t.Parallel()
+
 	config := &capi.CacheConfig{
 		Type: capi.CacheType("invalid"),
 	}
 
 	cache, err := capi.NewCacheFromConfig(config)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, cache)
 	assert.Contains(t, err.Error(), "unsupported cache type")
 }
 
 func TestCacheFactory_NilConfig(t *testing.T) {
+	t.Parallel()
+
 	cache, err := capi.NewCacheFromConfig(nil)
 	require.NoError(t, err)
 	require.NotNil(t, cache)
@@ -189,7 +202,7 @@ func TestCacheFactory_NilConfig(t *testing.T) {
 	}
 
 	err = cache.Set(ctx, "default-key", entry)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	retrieved, err := cache.Get(ctx, "default-key")
 	require.NoError(t, err)

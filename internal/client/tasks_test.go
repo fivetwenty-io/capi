@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for detailed testing
 func TestTasksClient_Create(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		appGUID      string
@@ -31,8 +35,8 @@ func TestTasksClient_Create(t *testing.T) {
 			expectedPath: "/v3/apps/test-app-guid/tasks",
 			statusCode:   http.StatusAccepted,
 			request: &capi.TaskCreateRequest{
-				Command:    stringPtr("rake db:migrate"),
-				Name:       stringPtr("migrate"),
+				Command:    StringPtr("rake db:migrate"),
+				Name:       StringPtr("migrate"),
 				MemoryInMB: intPtr(512),
 				DiskInMB:   intPtr(1024),
 			},
@@ -60,7 +64,7 @@ func TestTasksClient_Create(t *testing.T) {
 				SequenceID:  1,
 				Name:        "migrate",
 				Command:     "rake db:migrate",
-				User:        stringPtr("vcap"),
+				User:        StringPtr("vcap"),
 				State:       "RUNNING",
 				MemoryInMB:  512,
 				DiskInMB:    1024,
@@ -116,7 +120,7 @@ func TestTasksClient_Create(t *testing.T) {
 			expectedPath: "/v3/apps/non-existent-app/tasks",
 			statusCode:   http.StatusNotFound,
 			request: &capi.TaskCreateRequest{
-				Command: stringPtr("ls"),
+				Command: StringPtr("ls"),
 			},
 			response: map[string]interface{}{
 				"errors": []map[string]interface{}{
@@ -132,30 +136,33 @@ func TestTasksClient_Create(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.TaskCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			task, err := client.Tasks().Create(context.Background(), tt.appGUID, tt.request)
+			task, err := client.Tasks().Create(context.Background(), testCase.appGUID, testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, task)
 			} else {
 				require.NoError(t, err)
@@ -168,21 +175,15 @@ func TestTasksClient_Create(t *testing.T) {
 }
 
 func TestTasksClient_Get(t *testing.T) {
-	tests := []struct {
-		name         string
-		guid         string
-		response     interface{}
-		statusCode   int
-		expectedPath string
-		wantErr      bool
-		errMessage   string
-	}{
+	t.Parallel()
+
+	tests := []TestGetOperation[capi.Task]{
 		{
-			name:         "successful get",
-			guid:         "test-task-guid",
-			expectedPath: "/v3/tasks/test-task-guid",
-			statusCode:   http.StatusOK,
-			response: capi.Task{
+			Name:         "successful get",
+			GUID:         "test-task-guid",
+			ExpectedPath: "/v3/tasks/test-task-guid",
+			StatusCode:   http.StatusOK,
+			Response: &capi.Task{
 				Resource: capi.Resource{
 					GUID:      "test-task-guid",
 					CreatedAt: time.Now(),
@@ -191,7 +192,7 @@ func TestTasksClient_Get(t *testing.T) {
 				SequenceID:                   1,
 				Name:                         "migrate",
 				Command:                      "rake db:migrate",
-				User:                         stringPtr("vcap"),
+				User:                         StringPtr("vcap"),
 				State:                        "SUCCEEDED",
 				MemoryInMB:                   512,
 				DiskInMB:                     1024,
@@ -201,67 +202,45 @@ func TestTasksClient_Get(t *testing.T) {
 					FailureReason: nil,
 				},
 			},
-			wantErr: false,
+			WantErr: false,
 		},
 		{
-			name:         "task not found",
-			guid:         "non-existent-guid",
-			expectedPath: "/v3/tasks/non-existent-guid",
-			statusCode:   http.StatusNotFound,
-			response: map[string]interface{}{
-				"errors": []map[string]interface{}{
-					{
-						"code":   10010,
-						"title":  "CF-ResourceNotFound",
-						"detail": "Task not found",
-					},
+			Name:         "task not found",
+			GUID:         "non-existent-guid",
+			ExpectedPath: "/v3/tasks/non-existent-guid",
+			StatusCode:   http.StatusNotFound,
+			Response: &capi.Task{
+				Resource: capi.Resource{
+					GUID:      "test-task-guid",
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
 				},
+				State: "SUCCEEDED",
 			},
-			wantErr:    true,
-			errMessage: "CF-ResourceNotFound",
+			WantErr:    true,
+			ErrMessage: "CF-ResourceNotFound",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			task, err := client.Tasks().Get(context.Background(), tt.guid)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, task)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, task)
-				assert.Equal(t, tt.guid, task.GUID)
-				assert.Equal(t, "SUCCEEDED", task.State)
-			}
-		})
-	}
+	RunGetTests(t, tests, func(c *Client) func(context.Context, string) (*capi.Task, error) {
+		return c.Tasks().Get
+	})
 }
 
+//nolint:funlen // Test functions can be longer for detailed testing
 func TestTasksClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/tasks", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/tasks", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if appGuids := query.Get("app_guids"); appGuids != "" {
 			assert.Equal(t, "app-1,app-2", appGuids)
 		}
+
 		if states := query.Get("states"); states != "" {
 			assert.Equal(t, "RUNNING,PENDING", states)
 		}
@@ -307,13 +286,13 @@ func TestTasksClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -338,13 +317,16 @@ func TestTasksClient_List(t *testing.T) {
 }
 
 func TestTasksClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/tasks/test-task-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/tasks/test-task-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody capi.TaskUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		response := capi.Task{
 			Resource: capi.Resource{
@@ -362,13 +344,13 @@ func TestTasksClient_Update(t *testing.T) {
 			Metadata:    requestBody.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.TaskUpdateRequest{
@@ -390,7 +372,10 @@ func TestTasksClient_Update(t *testing.T) {
 	assert.Equal(t, "database migration", task.Metadata.Annotations["note"])
 }
 
+//nolint:funlen // Test functions can be longer for detailed testing
 func TestTasksClient_Cancel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -457,30 +442,32 @@ func TestTasksClient_Cancel(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "POST", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			task, err := client.Tasks().Cancel(context.Background(), tt.guid)
+			task, err := client.Tasks().Cancel(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, task)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, task)
-				assert.Equal(t, tt.guid, task.GUID)
+				assert.Equal(t, testCase.guid, task.GUID)
 				assert.Equal(t, "CANCELING", task.State)
 			}
 		})

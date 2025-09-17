@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUAACommand creates the uaa command group with UAA integration
+// NewUAACommand creates the uaa command group with UAA integration.
 func NewUAACommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uaa",
@@ -52,26 +52,49 @@ All commands interact with the UAA service to manage users, groups, and authenti
 		},
 	}
 
-	// Resource Management Sub-Commands (New Structure)
+	addUAASubCommands(cmd)
+	addUAAContextCommands(cmd)
+	addUAAUtilityCommands(cmd)
+	addLegacyUAACommands(cmd)
+
+	return cmd
+}
+
+// addUAASubCommands adds the main UAA resource management sub-commands.
+func addUAASubCommands(cmd *cobra.Command) {
 	cmd.AddCommand(NewUAAUserCommand())
 	cmd.AddCommand(NewUAAGroupCommand())
 	cmd.AddCommand(NewUAAClientCommand())
 	cmd.AddCommand(NewUAATokenCommand())
 	cmd.AddCommand(NewUAABatchCommand())
 	cmd.AddCommand(NewUAAIntegrationCommand())
+}
 
-	// Context Management Commands (remain at top level)
+// addUAAContextCommands adds context management commands.
+func addUAAContextCommands(cmd *cobra.Command) {
 	cmd.AddCommand(createUsersContextCommand())
 	cmd.AddCommand(createUsersTargetCommand())
 	cmd.AddCommand(createUsersInfoCommand())
 	cmd.AddCommand(createUsersVersionCommand())
+}
 
-	// Utility Commands (remain at top level)
+// addUAAUtilityCommands adds utility commands.
+func addUAAUtilityCommands(cmd *cobra.Command) {
 	cmd.AddCommand(createUsersCurlCommand())
 	cmd.AddCommand(createUsersUserinfoCommand())
+}
 
-	// Legacy Commands (maintain backward compatibility with aliases)
-	// These will be deprecated but kept for compatibility
+// addLegacyUAACommands adds all legacy UAA commands as hidden commands for backward compatibility.
+func addLegacyUAACommands(cmd *cobra.Command) {
+	addLegacyUserCommands(cmd)
+	addLegacyGroupCommands(cmd)
+	addLegacyClientCommands(cmd)
+	addLegacyTokenCommands(cmd)
+	addLegacyUtilityCommands(cmd)
+}
+
+// addLegacyUserCommands adds legacy user commands.
+func addLegacyUserCommands(cmd *cobra.Command) {
 	legacyUserCmd := createUsersCreateUserCommand()
 	legacyUserCmd.Hidden = true
 	cmd.AddCommand(legacyUserCmd)
@@ -99,7 +122,10 @@ All commands interact with the UAA service to manage users, groups, and authenti
 	legacyDeleteUserCmd := createUsersDeleteUserCommand()
 	legacyDeleteUserCmd.Hidden = true
 	cmd.AddCommand(legacyDeleteUserCmd)
+}
 
+// addLegacyGroupCommands adds legacy group commands.
+func addLegacyGroupCommands(cmd *cobra.Command) {
 	legacyCreateGroupCmd := createUsersCreateGroupCommand()
 	legacyCreateGroupCmd.Hidden = true
 	cmd.AddCommand(legacyCreateGroupCmd)
@@ -131,7 +157,10 @@ All commands interact with the UAA service to manage users, groups, and authenti
 	legacyListGroupMappingsCmd := createUsersListGroupMappingsCommand()
 	legacyListGroupMappingsCmd.Hidden = true
 	cmd.AddCommand(legacyListGroupMappingsCmd)
+}
 
+// addLegacyClientCommands adds legacy client commands.
+func addLegacyClientCommands(cmd *cobra.Command) {
 	legacyCreateClientCmd := createUsersCreateClientCommand()
 	legacyCreateClientCmd.Hidden = true
 	cmd.AddCommand(legacyCreateClientCmd)
@@ -155,7 +184,10 @@ All commands interact with the UAA service to manage users, groups, and authenti
 	legacyDeleteClientCmd := createUsersDeleteClientCommand()
 	legacyDeleteClientCmd.Hidden = true
 	cmd.AddCommand(legacyDeleteClientCmd)
+}
 
+// addLegacyTokenCommands adds legacy token commands.
+func addLegacyTokenCommands(cmd *cobra.Command) {
 	legacyGetAuthcodeTokenCmd := createUsersGetAuthcodeTokenCommand()
 	legacyGetAuthcodeTokenCmd.Hidden = true
 	cmd.AddCommand(legacyGetAuthcodeTokenCmd)
@@ -183,7 +215,10 @@ All commands interact with the UAA service to manage users, groups, and authenti
 	legacyGetTokenKeysCmd := createUsersGetTokenKeysCommand()
 	legacyGetTokenKeysCmd.Hidden = true
 	cmd.AddCommand(legacyGetTokenKeysCmd)
+}
 
+// addLegacyUtilityCommands adds legacy utility commands.
+func addLegacyUtilityCommands(cmd *cobra.Command) {
 	legacyBatchImportCmd := createUsersBatchImportCommand()
 	legacyBatchImportCmd.Hidden = true
 	cmd.AddCommand(legacyBatchImportCmd)
@@ -203,6 +238,4 @@ All commands interact with the UAA service to manage users, groups, and authenti
 	legacyCFIntegrationCmd := createUsersCFIntegrationCommand()
 	legacyCFIntegrationCmd.Hidden = true
 	cmd.AddCommand(legacyCFIntegrationCmd)
-
-	return cmd
 }

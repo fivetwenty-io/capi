@@ -4,9 +4,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUAAUserCommand creates the user sub-command group
+// NewUAAUserCommand creates the user sub-command group.
 func NewUAAUserCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	config := CommandConfig{
 		Use:   "user",
 		Short: "Manage UAA users",
 		Long: `Manage UAA users with CRUD operations.
@@ -32,61 +32,16 @@ This command group provides comprehensive user management capabilities including
 
   # Deactivate a user
   capi uaa user deactivate john.doe`,
-		Run: func(cmd *cobra.Command, args []string) {
-			_ = cmd.Help()
+		SubCommands: []SubCommandConfig{
+			{Name: "create", CommandFunc: createUsersCreateUserCommand, Use: "create <username>"},
+			{Name: "get", CommandFunc: createUsersGetUserCommand, Use: "get <username>"},
+			{Name: "list", CommandFunc: createUsersListUsersCommand, Use: "list"},
+			{Name: "update", CommandFunc: createUsersUpdateUserCommand, Use: "update <username>"},
+			{Name: "activate", CommandFunc: createUsersActivateUserCommand, Use: "activate <username>"},
+			{Name: "deactivate", CommandFunc: createUsersDeactivateUserCommand, Use: "deactivate <username>"},
+			{Name: "delete", CommandFunc: createUsersDeleteUserCommand, Use: "delete <username>"},
 		},
 	}
 
-	// Add user management commands with new naming
-	cmd.AddCommand(createUserCreateCommand())
-	cmd.AddCommand(createUserGetCommand())
-	cmd.AddCommand(createUserListCommand())
-	cmd.AddCommand(createUserUpdateCommand())
-	cmd.AddCommand(createUserActivateCommand())
-	cmd.AddCommand(createUserDeactivateCommand())
-	cmd.AddCommand(createUserDeleteCommand())
-
-	return cmd
-}
-
-func createUserCreateCommand() *cobra.Command {
-	cmd := createUsersCreateUserCommand()
-	cmd.Use = "create <username>"
-	return cmd
-}
-
-func createUserGetCommand() *cobra.Command {
-	cmd := createUsersGetUserCommand()
-	cmd.Use = "get <username>"
-	return cmd
-}
-
-func createUserListCommand() *cobra.Command {
-	cmd := createUsersListUsersCommand()
-	cmd.Use = "list"
-	return cmd
-}
-
-func createUserUpdateCommand() *cobra.Command {
-	cmd := createUsersUpdateUserCommand()
-	cmd.Use = "update <username>"
-	return cmd
-}
-
-func createUserActivateCommand() *cobra.Command {
-	cmd := createUsersActivateUserCommand()
-	cmd.Use = "activate <username>"
-	return cmd
-}
-
-func createUserDeactivateCommand() *cobra.Command {
-	cmd := createUsersDeactivateUserCommand()
-	cmd.Use = "deactivate <username>"
-	return cmd
-}
-
-func createUserDeleteCommand() *cobra.Command {
-	cmd := createUsersDeleteUserCommand()
-	cmd.Use = "delete <username>"
-	return cmd
+	return CreateUAASubCommandGroup(config)
 }

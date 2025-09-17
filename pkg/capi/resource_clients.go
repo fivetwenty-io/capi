@@ -5,52 +5,81 @@ import (
 	"io"
 )
 
-// AppsClient defines operations for apps
-type AppsClient interface {
+// AppsClient defines operations for apps.
+// AppCRUDClient provides basic CRUD operations for apps.
+type AppCRUDClient interface {
 	Create(ctx context.Context, request *AppCreateRequest) (*App, error)
 	Get(ctx context.Context, guid string) (*App, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[App], error)
 	Update(ctx context.Context, guid string, request *AppUpdateRequest) (*App, error)
 	Delete(ctx context.Context, guid string) error
+}
 
-	// Lifecycle operations
+// AppLifecycleClient provides app lifecycle operations.
+type AppLifecycleClient interface {
 	Start(ctx context.Context, guid string) (*App, error)
 	Stop(ctx context.Context, guid string) (*App, error)
 	Restart(ctx context.Context, guid string) (*App, error)
 	Restage(ctx context.Context, guid string) (*Build, error)
+}
 
-	// Environment operations
+// AppEnvironmentClient provides app environment operations.
+type AppEnvironmentClient interface {
 	GetEnv(ctx context.Context, guid string) (*AppEnvironment, error)
 	GetEnvVars(ctx context.Context, guid string) (map[string]interface{}, error)
 	UpdateEnvVars(ctx context.Context, guid string, envVars map[string]interface{}) (map[string]interface{}, error)
+}
 
-	// Other operations
+// AppDropletClient provides app droplet operations.
+type AppDropletClient interface {
 	GetCurrentDroplet(ctx context.Context, guid string) (*Droplet, error)
 	SetCurrentDroplet(ctx context.Context, guid string, dropletGUID string) (*Relationship, error)
-	GetSSHEnabled(ctx context.Context, guid string) (*AppSSHEnabled, error)
-	GetPermissions(ctx context.Context, guid string) (*AppPermissions, error)
-	ClearBuildpackCache(ctx context.Context, guid string) error
-	GetManifest(ctx context.Context, guid string) (string, error)
+}
 
-	// Logs operations
-	GetRecentLogs(ctx context.Context, guid string, lines int) (*AppLogs, error)
-	StreamLogs(ctx context.Context, guid string) (<-chan LogMessage, error)
-
-	// Features operations
+// AppFeatureClient provides app feature operations.
+type AppFeatureClient interface {
 	GetFeatures(ctx context.Context, guid string) (*AppFeatures, error)
 	GetFeature(ctx context.Context, guid, featureName string) (*AppFeature, error)
 	UpdateFeature(ctx context.Context, guid, featureName string, request *AppFeatureUpdateRequest) (*AppFeature, error)
 }
 
-// OrganizationsClient defines operations for organizations
-type OrganizationsClient interface {
+// AppLogClient provides app logging operations.
+type AppLogClient interface {
+	GetRecentLogs(ctx context.Context, guid string, lines int) (*AppLogs, error)
+	StreamLogs(ctx context.Context, guid string) (<-chan LogMessage, error)
+}
+
+// AppMiscClient provides miscellaneous app operations.
+type AppMiscClient interface {
+	GetSSHEnabled(ctx context.Context, guid string) (*AppSSHEnabled, error)
+	GetPermissions(ctx context.Context, guid string) (*AppPermissions, error)
+	ClearBuildpackCache(ctx context.Context, guid string) error
+	GetManifest(ctx context.Context, guid string) (string, error)
+}
+
+type AppsClient interface {
+	// Composite interfaces for app operations
+	AppCRUDClient
+	AppLifecycleClient
+	AppEnvironmentClient
+	AppDropletClient
+	AppFeatureClient
+	AppLogClient
+	AppMiscClient
+}
+
+// OrganizationsClient defines operations for organizations.
+// OrganizationCRUDClient provides basic CRUD operations for organizations.
+type OrganizationCRUDClient interface {
 	Create(ctx context.Context, request *OrganizationCreateRequest) (*Organization, error)
 	Get(ctx context.Context, guid string) (*Organization, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Organization], error)
 	Update(ctx context.Context, guid string, request *OrganizationUpdateRequest) (*Organization, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
+}
 
-	// Relationships
+// OrganizationRelationshipClient provides organization relationship operations.
+type OrganizationRelationshipClient interface {
 	GetDefaultIsolationSegment(ctx context.Context, guid string) (*Relationship, error)
 	SetDefaultIsolationSegment(ctx context.Context, guid string, isolationSegmentGUID string) (*Relationship, error)
 	GetDefaultDomain(ctx context.Context, guid string) (*Domain, error)
@@ -59,20 +88,31 @@ type OrganizationsClient interface {
 	ListDomains(ctx context.Context, guid string, params *QueryParams) (*ListResponse[Domain], error)
 }
 
-// SpacesClient defines operations for spaces
-type SpacesClient interface {
+type OrganizationsClient interface {
+	// Composite interfaces for organization operations
+	OrganizationCRUDClient
+	OrganizationRelationshipClient
+}
+
+// SpacesClient defines operations for spaces.
+// SpaceCRUDClient provides basic CRUD operations for spaces.
+type SpaceCRUDClient interface {
 	Create(ctx context.Context, request *SpaceCreateRequest) (*Space, error)
 	Get(ctx context.Context, guid string) (*Space, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Space], error)
 	Update(ctx context.Context, guid string, request *SpaceUpdateRequest) (*Space, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
+}
 
-	// Features
+// SpaceFeatureClient provides space feature operations.
+type SpaceFeatureClient interface {
 	GetFeatures(ctx context.Context, guid string) (*SpaceFeatures, error)
 	GetFeature(ctx context.Context, guid string, name string) (*SpaceFeature, error)
 	UpdateFeature(ctx context.Context, guid string, name string, enabled bool) (*SpaceFeature, error)
+}
 
-	// Relationships
+// SpaceRelationshipClient provides space relationship operations.
+type SpaceRelationshipClient interface {
 	GetIsolationSegment(ctx context.Context, guid string) (*Relationship, error)
 	SetIsolationSegment(ctx context.Context, guid string, isolationSegmentGUID string) (*Relationship, error)
 	GetUsageSummary(ctx context.Context, guid string) (*SpaceUsageSummary, error)
@@ -81,25 +121,44 @@ type SpacesClient interface {
 	ListDevelopers(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
 	ListAuditors(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
 	ListSupporters(ctx context.Context, guid string, params *QueryParams) (*ListResponse[User], error)
+}
 
-	// Space quota
+// SpaceQuotaClient provides space quota operations.
+type SpaceQuotaClient interface {
 	GetQuota(ctx context.Context, guid string) (*SpaceQuota, error)
 	ApplyQuota(ctx context.Context, guid string, quotaGUID string) (*Relationship, error)
 	RemoveQuota(ctx context.Context, guid string) error
+}
 
-	// Security Groups
+// SpaceSecurityClient provides space security group operations.
+type SpaceSecurityClient interface {
 	ListRunningSecurityGroups(ctx context.Context, guid string, params *QueryParams) (*ListResponse[SecurityGroup], error)
 	ListStagingSecurityGroups(ctx context.Context, guid string, params *QueryParams) (*ListResponse[SecurityGroup], error)
+}
 
-	// Manifest operations
+// SpaceManifestClient provides space manifest operations.
+type SpaceManifestClient interface {
 	ApplyManifest(ctx context.Context, guid string, manifest string) (*Job, error)
 	CreateManifestDiff(ctx context.Context, guid string, manifest string) (*ManifestDiff, error)
+}
 
-	// Routes
+// SpaceRouteClient provides space route operations.
+type SpaceRouteClient interface {
 	DeleteUnmappedRoutes(ctx context.Context, guid string) (*Job, error)
 }
 
-// DomainsClient defines operations for domains
+type SpacesClient interface {
+	// Composite interfaces for space operations
+	SpaceCRUDClient
+	SpaceFeatureClient
+	SpaceRelationshipClient
+	SpaceQuotaClient
+	SpaceSecurityClient
+	SpaceManifestClient
+	SpaceRouteClient
+}
+
+// DomainsClient defines operations for domains.
 type DomainsClient interface {
 	Create(ctx context.Context, request *DomainCreateRequest) (*Domain, error)
 	Get(ctx context.Context, guid string) (*Domain, error)
@@ -113,29 +172,41 @@ type DomainsClient interface {
 	CheckRouteReservations(ctx context.Context, guid string, request *RouteReservationRequest) (*RouteReservation, error)
 }
 
-// RoutesClient defines operations for routes
-type RoutesClient interface {
+// RoutesClient defines operations for routes.
+// RouteCRUDClient provides basic CRUD operations for routes.
+type RouteCRUDClient interface {
 	Create(ctx context.Context, request *RouteCreateRequest) (*Route, error)
 	Get(ctx context.Context, guid string) (*Route, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Route], error)
 	Update(ctx context.Context, guid string, request *RouteUpdateRequest) (*Route, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
+}
 
-	// Destinations
+// RouteDestinationClient provides route destination operations.
+type RouteDestinationClient interface {
 	ListDestinations(ctx context.Context, guid string) (*RouteDestinations, error)
 	InsertDestinations(ctx context.Context, guid string, destinations []RouteDestination) (*RouteDestinations, error)
 	ReplaceDestinations(ctx context.Context, guid string, destinations []RouteDestination) (*RouteDestinations, error)
 	UpdateDestination(ctx context.Context, guid string, destGUID string, protocol string) (*RouteDestination, error)
 	RemoveDestination(ctx context.Context, guid string, destGUID string) error
+}
 
-	// Sharing
+// RouteSharingClient provides route sharing operations.
+type RouteSharingClient interface {
 	ListSharedSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
 	ShareWithSpace(ctx context.Context, guid string, spaceGUIDs []string) (*ToManyRelationship, error)
 	UnshareFromSpace(ctx context.Context, guid string, spaceGUID string) error
 	TransferOwnership(ctx context.Context, guid string, spaceGUID string) (*Route, error)
 }
 
-// ServiceBrokersClient defines operations for service brokers
+type RoutesClient interface {
+	// Composite interfaces for route operations
+	RouteCRUDClient
+	RouteDestinationClient
+	RouteSharingClient
+}
+
+// ServiceBrokersClient defines operations for service brokers.
 type ServiceBrokersClient interface {
 	Create(ctx context.Context, request *ServiceBrokerCreateRequest) (*Job, error)
 	Get(ctx context.Context, guid string) (*ServiceBroker, error)
@@ -144,7 +215,7 @@ type ServiceBrokersClient interface {
 	Delete(ctx context.Context, guid string) (*Job, error)
 }
 
-// ServiceOfferingsClient defines operations for service offerings
+// ServiceOfferingsClient defines operations for service offerings.
 type ServiceOfferingsClient interface {
 	Get(ctx context.Context, guid string) (*ServiceOffering, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceOffering], error)
@@ -152,7 +223,7 @@ type ServiceOfferingsClient interface {
 	Delete(ctx context.Context, guid string) error
 }
 
-// ServicePlansClient defines operations for service plans
+// ServicePlansClient defines operations for service plans.
 type ServicePlansClient interface {
 	Get(ctx context.Context, guid string) (*ServicePlan, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[ServicePlan], error)
@@ -166,7 +237,7 @@ type ServicePlansClient interface {
 	RemoveOrgFromVisibility(ctx context.Context, guid string, orgGUID string) error
 }
 
-// ServiceInstancesClient defines operations for service instances
+// ServiceInstancesClient defines operations for service instances.
 type ServiceInstancesClient interface {
 	Create(ctx context.Context, request *ServiceInstanceCreateRequest) (interface{}, error) // Returns *ServiceInstance for user-provided, *Job for managed
 	Get(ctx context.Context, guid string) (*ServiceInstance, error)
@@ -183,7 +254,7 @@ type ServiceInstancesClient interface {
 	UnshareFromSpace(ctx context.Context, guid string, spaceGUID string) error
 }
 
-// ServiceCredentialBindingsClient provides operations for Service Credential Bindings (v3 name for service bindings)
+// ServiceCredentialBindingsClient provides operations for Service Credential Bindings (v3 name for service bindings).
 type ServiceCredentialBindingsClient interface {
 	Create(ctx context.Context, request *ServiceCredentialBindingCreateRequest) (interface{}, error) // Returns *ServiceCredentialBinding or *Job
 	Get(ctx context.Context, guid string) (*ServiceCredentialBinding, error)
@@ -194,10 +265,10 @@ type ServiceCredentialBindingsClient interface {
 	GetParameters(ctx context.Context, guid string) (*ServiceCredentialBindingParameters, error)
 }
 
-// ServiceBindingsClient is an alias for ServiceCredentialBindingsClient for backward compatibility
+// ServiceBindingsClient is an alias for ServiceCredentialBindingsClient for backward compatibility.
 type ServiceBindingsClient = ServiceCredentialBindingsClient
 
-// ServiceRouteBindingsClient defines operations for service route bindings
+// ServiceRouteBindingsClient defines operations for service route bindings.
 type ServiceRouteBindingsClient interface {
 	Create(ctx context.Context, request *ServiceRouteBindingCreateRequest) (interface{}, error) // Returns *ServiceRouteBinding or *Job
 	Get(ctx context.Context, guid string) (*ServiceRouteBinding, error)
@@ -207,7 +278,7 @@ type ServiceRouteBindingsClient interface {
 	GetParameters(ctx context.Context, guid string) (*ServiceRouteBindingParameters, error)
 }
 
-// BuildpacksClient provides operations for managing buildpacks
+// BuildpacksClient provides operations for managing buildpacks.
 type BuildpacksClient interface {
 	Create(ctx context.Context, request *BuildpackCreateRequest) (*Buildpack, error)
 	Get(ctx context.Context, guid string) (*Buildpack, error)
@@ -328,7 +399,7 @@ type IsolationSegmentsClient interface {
 	ListSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
 }
 
-// FeatureFlagsClient provides access to Feature Flags resources
+// FeatureFlagsClient provides access to Feature Flags resources.
 type FeatureFlagsClient interface {
 	Get(ctx context.Context, name string) (*FeatureFlag, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[FeatureFlag], error)
@@ -340,7 +411,7 @@ type JobsClient interface {
 	PollUntilComplete(ctx context.Context, guid string) (*Job, error)
 }
 
-// OrganizationQuotasClient defines operations for organization quotas
+// OrganizationQuotasClient defines operations for organization quotas.
 type OrganizationQuotasClient interface {
 	Create(ctx context.Context, request *OrganizationQuotaCreateRequest) (*OrganizationQuota, error)
 	Get(ctx context.Context, guid string) (*OrganizationQuota, error)
@@ -350,7 +421,7 @@ type OrganizationQuotasClient interface {
 	ApplyToOrganizations(ctx context.Context, quotaGUID string, orgGUIDs []string) (*ToManyRelationship, error)
 }
 
-// SpaceQuotasClient defines operations for space quotas
+// SpaceQuotasClient defines operations for space quotas.
 type SpaceQuotasClient interface {
 	Create(ctx context.Context, request *SpaceQuotaV3CreateRequest) (*SpaceQuotaV3, error)
 	Get(ctx context.Context, guid string) (*SpaceQuotaV3, error)
@@ -361,7 +432,7 @@ type SpaceQuotasClient interface {
 	RemoveFromSpace(ctx context.Context, quotaGUID string, spaceGUID string) error
 }
 
-// SidecarsClient defines operations for sidecars
+// SidecarsClient defines operations for sidecars.
 type SidecarsClient interface {
 	Get(ctx context.Context, guid string) (*Sidecar, error)
 	Update(ctx context.Context, guid string, request *SidecarUpdateRequest) (*Sidecar, error)
@@ -369,40 +440,40 @@ type SidecarsClient interface {
 	ListForProcess(ctx context.Context, processGUID string, params *QueryParams) (*ListResponse[Sidecar], error)
 }
 
-// RevisionsClient defines operations for revisions
+// RevisionsClient defines operations for revisions.
 type RevisionsClient interface {
 	Get(ctx context.Context, guid string) (*Revision, error)
 	Update(ctx context.Context, guid string, request *RevisionUpdateRequest) (*Revision, error)
 	GetEnvironmentVariables(ctx context.Context, guid string) (map[string]interface{}, error)
 }
 
-// EnvironmentVariableGroupsClient defines operations for environment variable groups
+// EnvironmentVariableGroupsClient defines operations for environment variable groups.
 type EnvironmentVariableGroupsClient interface {
 	Get(ctx context.Context, name string) (*EnvironmentVariableGroup, error)
 	Update(ctx context.Context, name string, envVars map[string]interface{}) (*EnvironmentVariableGroup, error)
 }
 
-// AppUsageEventsClient defines operations for app usage events
+// AppUsageEventsClient defines operations for app usage events.
 type AppUsageEventsClient interface {
 	Get(ctx context.Context, guid string) (*AppUsageEvent, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[AppUsageEvent], error)
 	PurgeAndReseed(ctx context.Context) error
 }
 
-// ServiceUsageEventsClient defines operations for service usage events
+// ServiceUsageEventsClient defines operations for service usage events.
 type ServiceUsageEventsClient interface {
 	Get(ctx context.Context, guid string) (*ServiceUsageEvent, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceUsageEvent], error)
 	PurgeAndReseed(ctx context.Context) error
 }
 
-// AuditEventsClient defines operations for audit events
+// AuditEventsClient defines operations for audit events.
 type AuditEventsClient interface {
 	Get(ctx context.Context, guid string) (*AuditEvent, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[AuditEvent], error)
 }
 
-// ResourceMatchesClient defines operations for resource matches
+// ResourceMatchesClient defines operations for resource matches.
 type ResourceMatchesClient interface {
 	Create(ctx context.Context, request *ResourceMatchesRequest) (*ResourceMatches, error)
 }

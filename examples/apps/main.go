@@ -6,29 +6,70 @@ import (
 	"log"
 	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 )
 
 func main() {
-	// Create authenticated client
-	client, err := cfclient.NewWithPassword(
-		"https://api.your-cf-domain.com",
-		"your-username",
-		"your-password",
-	)
+	client, err := createClient()
 	if err != nil {
 		log.Fatalf("Failed to create CF client: %v", err)
 	}
 
 	ctx := context.Background()
+	spaceGUID := "your-space-guid" // Replace with actual space GUID
 
-	// Get a space to work with (you'll need to replace this with your actual space GUID)
-	spaceGUID := "your-space-guid"
+	app := runAppLifecycleExamples(client, ctx, spaceGUID)
+	cleanup(client, ctx, app)
+}
 
-	// Example 1: Create an Application
-	fmt.Println("=== Creating Application ===")
-	createAppReq := &capi.AppCreateRequest{
+func createClient() (capi.Client, error) {
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
+		"https://api.your-cf-domain.com",
+		"your-username",
+		"your-password",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CF client: %w", err)
+	}
+
+	return client, nil
+}
+
+func runAppLifecycleExamples(client capi.Client, ctx context.Context, spaceGUID string) *capi.App {
+	app := createApplicationExample(client, ctx, spaceGUID)
+	getApplicationDetailsExample(client, ctx, app)
+	updateApplicationExample(client, ctx, app)
+	processes := listApplicationProcessesExample(client, ctx, app)
+	scaleApplicationExample(client, ctx, processes)
+	manageEnvironmentVariablesExample(client, ctx, app)
+	getApplicationStatsExample(client, ctx, processes)
+	startStopApplicationExample(client, ctx, app)
+
+	return app
+}
+
+func createApplicationExample(client capi.Client, ctx context.Context, spaceGUID string) *capi.App {
+	log.Println("=== Creating Application ===")
+
+	createAppReq := buildAppCreateRequest(spaceGUID)
+
+	app, err := client.Apps().Create(ctx, createAppReq)
+	if err != nil {
+		log.Fatalf("Failed to create application: %v", err)
+	}
+
+	log.Printf("Created application: %s (GUID: %s)\n", app.Name, app.GUID)
+	log.Println()
+
+	return app
+}
+
+func buildAppCreateRequest(spaceGUID string) *capi.AppCreateRequest {
+	return &capi.AppCreateRequest{
 		Name: "example-app",
 		Relationships: capi.AppRelationships{
 			Space: capi.Relationship{
@@ -45,48 +86,73 @@ func main() {
 			},
 		},
 	}
+}
 
-	app, err := client.Apps().Create(ctx, createAppReq)
-	if err != nil {
-		log.Fatalf("Failed to create application: %v", err)
-	}
-	fmt.Printf("Created application: %s (GUID: %s)\n", app.Name, app.GUID)
-	fmt.Println()
+func getApplicationDetailsExample(client capi.Client, ctx context.Context, app *capi.App) {
+	log.Println("=== Getting Application Details ===")
 
-	// Example 2: Get Application Details
-	fmt.Println("=== Getting Application Details ===")
-	app, err = client.Apps().Get(ctx, app.GUID)
+	updatedApp, err := client.Apps().Get(ctx, app.GUID)
 	if err != nil {
 		log.Fatalf("Failed to get application: %v", err)
 	}
 
-	fmt.Printf("Application Details:\n")
-	fmt.Printf("  Name: %s\n", app.Name)
-	fmt.Printf("  GUID: %s\n", app.GUID)
-	fmt.Printf("  State: %s\n", app.State)
-	fmt.Printf("  Created: %s\n", app.CreatedAt.Format(time.RFC3339))
-	fmt.Printf("  Updated: %s\n", app.UpdatedAt.Format(time.RFC3339))
+	printApplicationDetails(updatedApp)
+	log.Println()
+}
 
-	if app.Metadata != nil {
-		if len(app.Metadata.Labels) > 0 {
-			fmt.Println("  Labels:")
-			for key, value := range app.Metadata.Labels {
-				fmt.Printf("    %s: %s\n", key, value)
-			}
-		}
-		if len(app.Metadata.Annotations) > 0 {
-			fmt.Println("  Annotations:")
-			for key, value := range app.Metadata.Annotations {
-				fmt.Printf("    %s: %s\n", key, value)
-			}
+func printApplicationDetails(app *capi.App) {
+	log.Printf("Application Details:\n")
+	log.Printf("  Name: %s\n", app.Name)
+	log.Printf("  GUID: %s\n", app.GUID)
+	log.Printf("  State: %s\n", app.State)
+	log.Printf("  Created: %s\n", app.CreatedAt.Format(time.RFC3339))
+	log.Printf("  Updated: %s\n", app.UpdatedAt.Format(time.RFC3339))
+
+	printAppMetadata(app.Metadata)
+}
+
+func printAppMetadata(metadata *capi.Metadata) {
+	if metadata == nil {
+		return
+	}
+
+	if len(metadata.Labels) > 0 {
+		log.Println("  Labels:")
+
+		for key, value := range metadata.Labels {
+			log.Printf("    %s: %s\n", key, value)
 		}
 	}
-	fmt.Println()
 
-	// Example 3: Update Application
-	fmt.Println("=== Updating Application ===")
+	if len(metadata.Annotations) > 0 {
+		log.Println("  Annotations:")
+
+		for key, value := range metadata.Annotations {
+			log.Printf("    %s: %s\n", key, value)
+		}
+	}
+}
+
+func updateApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
+	log.Println("=== Updating Application ===")
+
+	updateReq := buildAppUpdateRequest()
+
+	updatedApp, err := client.Apps().Update(ctx, app.GUID, updateReq)
+	if err != nil {
+		log.Fatalf("Failed to update application: %v", err)
+	}
+
+	log.Printf("Updated application name to: %s\n", updatedApp.Name)
+	log.Println()
+
+	*app = *updatedApp // Update the app reference
+}
+
+func buildAppUpdateRequest() *capi.AppUpdateRequest {
 	newName := "example-app-updated"
-	updateAppReq := &capi.AppUpdateRequest{
+
+	return &capi.AppUpdateRequest{
 		Name: &newName,
 		Metadata: &capi.Metadata{
 			Labels: map[string]string{
@@ -98,142 +164,204 @@ func main() {
 			},
 		},
 	}
+}
 
-	app, err = client.Apps().Update(ctx, app.GUID, updateAppReq)
-	if err != nil {
-		log.Fatalf("Failed to update application: %v", err)
-	}
-	fmt.Printf("Updated application name to: %s\n", app.Name)
-	fmt.Println()
+func listApplicationProcessesExample(client capi.Client, ctx context.Context, app *capi.App) *capi.ProcessList {
+	log.Println("=== Listing Application Processes ===")
 
-	// Example 4: List Application Processes
-	fmt.Println("=== Listing Application Processes ===")
 	processParams := capi.NewQueryParams().WithFilter("app_guids", app.GUID)
+
 	processes, err := client.Processes().List(ctx, processParams)
 	if err != nil {
 		log.Fatalf("Failed to list processes: %v", err)
 	}
 
-	fmt.Printf("Found %d processes:\n", len(processes.Resources))
+	printProcesses(processes)
+	log.Println()
+
+	return processes
+}
+
+func printProcesses(processes *capi.ProcessList) {
+	log.Printf("Found %d processes:\n", len(processes.Resources))
+
 	for _, process := range processes.Resources {
-		fmt.Printf("  - Type: %s, Instances: %d, Memory: %d MB, Disk: %d MB\n",
+		log.Printf("  - Type: %s, Instances: %d, Memory: %d MB, Disk: %d MB\n",
 			process.Type, process.Instances, process.MemoryInMB, process.DiskInMB)
 	}
-	fmt.Println()
+}
 
-	// Example 5: Scale Application
-	if len(processes.Resources) > 0 {
-		fmt.Println("=== Scaling Application ===")
-		webProcess := processes.Resources[0] // Usually the 'web' process
-
-		instances := 2
-		memory := 512
-		disk := 1024
-		scaleReq := &capi.ProcessScaleRequest{
-			Instances:  &instances,
-			MemoryInMB: &memory,
-			DiskInMB:   &disk,
-		}
-
-		scaledProcess, err := client.Processes().Scale(ctx, webProcess.GUID, scaleReq)
-		if err != nil {
-			log.Fatalf("Failed to scale process: %v", err)
-		}
-
-		fmt.Printf("Scaled %s process:\n", scaledProcess.Type)
-		fmt.Printf("  Instances: %d\n", scaledProcess.Instances)
-		fmt.Printf("  Memory: %d MB\n", scaledProcess.MemoryInMB)
-		fmt.Printf("  Disk: %d MB\n", scaledProcess.DiskInMB)
-		fmt.Println()
+func scaleApplicationExample(client capi.Client, ctx context.Context, processes *capi.ProcessList) {
+	if len(processes.Resources) == 0 {
+		return
 	}
 
-	// Example 6: List Application Environment Variables
-	fmt.Println("=== Application Environment Variables ===")
+	log.Println("=== Scaling Application ===")
+
+	webProcess := processes.Resources[0] // Usually the 'web' process
+
+	scaleReq := buildScaleRequest()
+
+	scaledProcess, err := client.Processes().Scale(ctx, webProcess.GUID, scaleReq)
+	if err != nil {
+		log.Fatalf("Failed to scale process: %v", err)
+	}
+
+	printScaledProcess(scaledProcess)
+}
+
+func buildScaleRequest() *capi.ProcessScaleRequest {
+	instances := 2
+	memory := 512
+	disk := 1024
+
+	return &capi.ProcessScaleRequest{
+		Instances:  &instances,
+		MemoryInMB: &memory,
+		DiskInMB:   &disk,
+	}
+}
+
+func printScaledProcess(process *capi.Process) {
+	log.Printf("Scaled %s process:\n", process.Type)
+	log.Printf("  Instances: %d\n", process.Instances)
+	log.Printf("  Memory: %d MB\n", process.MemoryInMB)
+	log.Printf("  Disk: %d MB\n", process.DiskInMB)
+	log.Println()
+}
+
+func manageEnvironmentVariablesExample(client capi.Client, ctx context.Context, app *capi.App) {
+	getEnvironmentVariablesExample(client, ctx, app)
+	setEnvironmentVariablesExample(client, ctx, app)
+}
+
+func getEnvironmentVariablesExample(client capi.Client, ctx context.Context, app *capi.App) {
+	log.Println("=== Application Environment Variables ===")
+
 	envVars, err := client.Apps().GetEnv(ctx, app.GUID)
 	if err != nil {
 		log.Fatalf("Failed to get environment variables: %v", err)
 	}
 
+	printEnvironmentVariables(envVars)
+	log.Println()
+}
+
+func printEnvironmentVariables(envVars *capi.AppEnv) {
 	if len(envVars.SystemEnvJSON) > 0 {
-		fmt.Println("System Environment Variables:")
+		log.Println("System Environment Variables:")
+
 		for key, value := range envVars.SystemEnvJSON {
-			fmt.Printf("  %s: %v\n", key, value)
+			log.Printf("  %s: %v\n", key, value)
 		}
 	}
 
 	if len(envVars.ApplicationEnvJSON) > 0 {
-		fmt.Println("Application Environment Variables:")
+		log.Println("Application Environment Variables:")
+
 		for key, value := range envVars.ApplicationEnvJSON {
-			fmt.Printf("  %s: %v\n", key, value)
+			log.Printf("  %s: %v\n", key, value)
 		}
 	}
-	fmt.Println()
+}
 
-	// Example 7: Set Environment Variables
-	fmt.Println("=== Setting Environment Variables ===")
+func setEnvironmentVariablesExample(client capi.Client, ctx context.Context, app *capi.App) {
+	log.Println("=== Setting Environment Variables ===")
+
 	newEnvVars := map[string]interface{}{
 		"EXAMPLE_VAR": "example-value",
 		"DEBUG":       "true",
 	}
-	_, err = client.Apps().UpdateEnvVars(ctx, app.GUID, newEnvVars)
+
+	_, err := client.Apps().UpdateEnvVars(ctx, app.GUID, newEnvVars)
 	if err != nil {
 		log.Fatalf("Failed to set environment variables: %v", err)
 	}
-	fmt.Println("Environment variables updated successfully")
-	fmt.Println()
 
-	// Example 8: Application Stats
-	fmt.Println("=== Application Stats ===")
-	// Get stats for the first process
-	var stats *capi.ProcessStats
-	if len(processes.Resources) > 0 {
-		stats, err = client.Processes().GetStats(ctx, processes.Resources[0].GUID)
-	} else {
-		err = fmt.Errorf("no processes found")
-	}
+	log.Println("Environment variables updated successfully")
+	log.Println()
+}
+
+func getApplicationStatsExample(client capi.Client, ctx context.Context, processes *capi.ProcessList) {
+	log.Println("=== Application Stats ===")
+
+	stats, err := getProcessStats(client, ctx, processes)
 	if err != nil {
 		log.Printf("Failed to get stats (app may not be running): %v", err)
 	} else {
-		fmt.Printf("Application Stats:\n")
-		for _, stat := range stats.Resources {
-			fmt.Printf("  Instance %d:\n", stat.Index)
-			fmt.Printf("    State: %s\n", stat.State)
-			if stat.Usage != nil {
-				fmt.Printf("    CPU: %.2f%%\n", stat.Usage.CPU*100)
-				fmt.Printf("    Memory: %d bytes\n", stat.Usage.Mem)
-				fmt.Printf("    Disk: %d bytes\n", stat.Usage.Disk)
-			}
+		printApplicationStats(stats)
+	}
+
+	log.Println()
+}
+
+func getProcessStats(client capi.Client, ctx context.Context, processes *capi.ProcessList) (*capi.ProcessStats, error) {
+	if len(processes.Resources) == 0 {
+		return nil, capi.ErrNoProcessesFound
+	}
+
+	stats, err := client.Processes().GetStats(ctx, processes.Resources[0].GUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get process stats: %w", err)
+	}
+
+	return stats, nil
+}
+
+func printApplicationStats(stats *capi.ProcessStats) {
+	log.Printf("Application Stats:\n")
+
+	for _, stat := range stats.Resources {
+		log.Printf("  Instance %d:\n", stat.Index)
+		log.Printf("    State: %s\n", stat.State)
+
+		if stat.Usage != nil {
+			log.Printf("    CPU: %.2f%%\n", stat.Usage.CPU*constants.PercentageMultiplier)
+			log.Printf("    Memory: %d bytes\n", stat.Usage.Mem)
+			log.Printf("    Disk: %d bytes\n", stat.Usage.Disk)
 		}
 	}
-	fmt.Println()
+}
 
-	// Example 9: Start/Stop Application
-	fmt.Println("=== Starting Application ===")
-	app, err = client.Apps().Start(ctx, app.GUID)
+func startStopApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
+	startApplicationExample(client, ctx, app)
+	time.Sleep(constants.DefaultPollInterval)
+	stopApplicationExample(client, ctx, app)
+}
+
+func startApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
+	log.Println("=== Starting Application ===")
+
+	startedApp, err := client.Apps().Start(ctx, app.GUID)
 	if err != nil {
 		log.Printf("Failed to start application: %v", err)
 	} else {
-		fmt.Printf("Application state changed to: %s\n", app.State)
+		log.Printf("Application state changed to: %s\n", startedApp.State)
+		*app = *startedApp // Update the app reference
 	}
+}
 
-	// Wait a moment
-	time.Sleep(2 * time.Second)
+func stopApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
+	log.Println("=== Stopping Application ===")
 
-	fmt.Println("=== Stopping Application ===")
-	app, err = client.Apps().Stop(ctx, app.GUID)
+	stoppedApp, err := client.Apps().Stop(ctx, app.GUID)
 	if err != nil {
 		log.Printf("Failed to stop application: %v", err)
 	} else {
-		fmt.Printf("Application state changed to: %s\n", app.State)
+		log.Printf("Application state changed to: %s\n", stoppedApp.State)
+		*app = *stoppedApp // Update the app reference
 	}
-	fmt.Println()
 
-	// Example 10: Delete Application (cleanup)
-	fmt.Println("=== Deleting Application ===")
-	err = client.Apps().Delete(ctx, app.GUID)
+	log.Println()
+}
+
+func cleanup(client capi.Client, ctx context.Context, app *capi.App) {
+	log.Println("=== Deleting Application ===")
+
+	err := client.Apps().Delete(ctx, app.GUID)
 	if err != nil {
 		log.Fatalf("Failed to delete application: %v", err)
 	}
 
-	fmt.Println("Application deleted successfully!")
+	log.Println("Application deleted successfully!")
 }

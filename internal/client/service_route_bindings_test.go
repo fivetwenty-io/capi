@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
@@ -15,16 +17,20 @@ import (
 )
 
 func TestServiceRouteBindingsClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		var request capi.ServiceRouteBindingCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Equal(t, "instance-guid", request.Relationships.ServiceInstance.Data.GUID)
-		assert.Equal(t, "route-guid", request.Relationships.Route.Data.GUID)
+		var requestBody capi.ServiceRouteBindingCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "instance-guid", requestBody.Relationships.ServiceInstance.Data.GUID)
+		assert.Equal(t, "route-guid", requestBody.Relationships.Route.Data.GUID)
 
 		// Service route bindings may return a job for async operations
 		job := capi.Job{
@@ -35,15 +41,15 @@ func TestServiceRouteBindingsClient_Create(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", "/v3/jobs/job-guid")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	request := &capi.ServiceRouteBindingCreateRequest{
 		Parameters: map[string]interface{}{
@@ -73,13 +79,17 @@ func TestServiceRouteBindingsClient_Create(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_CreateSync(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		var request capi.ServiceRouteBindingCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		var requestBody capi.ServiceRouteBindingCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		// Some service route bindings may return the binding directly
 		now := time.Now()
@@ -89,7 +99,7 @@ func TestServiceRouteBindingsClient_CreateSync(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
-			RouteServiceURL: stringPtr("https://route-service.example.com"),
+			RouteServiceURL: StringPtr("https://route-service.example.com"),
 			LastOperation: &capi.ServiceRouteBindingLastOperation{
 				Type:      "create",
 				State:     "succeeded",
@@ -110,14 +120,14 @@ func TestServiceRouteBindingsClient_CreateSync(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(binding)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(binding)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	request := &capi.ServiceRouteBindingCreateRequest{
 		Relationships: capi.ServiceRouteBindingRelationships{
@@ -145,9 +155,12 @@ func TestServiceRouteBindingsClient_CreateSync(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings/binding-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings/binding-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		binding := capi.ServiceRouteBinding{
@@ -156,7 +169,7 @@ func TestServiceRouteBindingsClient_Get(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
-			RouteServiceURL: stringPtr("https://route-service.example.com"),
+			RouteServiceURL: StringPtr("https://route-service.example.com"),
 			LastOperation: &capi.ServiceRouteBindingLastOperation{
 				Type:      "create",
 				State:     "succeeded",
@@ -177,13 +190,13 @@ func TestServiceRouteBindingsClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(binding)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(binding)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	binding, err := serviceRouteBindings.Get(context.Background(), "binding-guid")
 	require.NoError(t, err)
@@ -194,11 +207,14 @@ func TestServiceRouteBindingsClient_Get(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "instance-guid", r.URL.Query().Get("service_instance_guids"))
-		assert.Equal(t, "route-guid", r.URL.Query().Get("route_guids"))
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "instance-guid", request.URL.Query().Get("service_instance_guids"))
+		assert.Equal(t, "route-guid", request.URL.Query().Get("route_guids"))
 
 		now := time.Now()
 		response := capi.ListResponse[capi.ServiceRouteBinding]{
@@ -215,7 +231,7 @@ func TestServiceRouteBindingsClient_List(t *testing.T) {
 						CreatedAt: now,
 						UpdatedAt: now,
 					},
-					RouteServiceURL: stringPtr("https://route-service1.example.com"),
+					RouteServiceURL: StringPtr("https://route-service1.example.com"),
 				},
 				{
 					Resource: capi.Resource{
@@ -223,18 +239,18 @@ func TestServiceRouteBindingsClient_List(t *testing.T) {
 						CreatedAt: now,
 						UpdatedAt: now,
 					},
-					RouteServiceURL: stringPtr("https://route-service2.example.com"),
+					RouteServiceURL: StringPtr("https://route-service2.example.com"),
 				},
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	params := &capi.QueryParams{
 		Filters: map[string][]string{
@@ -253,13 +269,17 @@ func TestServiceRouteBindingsClient_List(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings/binding-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		var request capi.ServiceRouteBindingUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings/binding-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
+
+		var requestBody capi.ServiceRouteBindingUpdateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		now := time.Now()
 		binding := capi.ServiceRouteBinding{
@@ -268,17 +288,17 @@ func TestServiceRouteBindingsClient_Update(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
-			RouteServiceURL: stringPtr("https://route-service.example.com"),
-			Metadata:        request.Metadata,
+			RouteServiceURL: StringPtr("https://route-service.example.com"),
+			Metadata:        requestBody.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(binding)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(binding)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	request := &capi.ServiceRouteBindingUpdateRequest{
 		Metadata: &capi.Metadata{
@@ -298,39 +318,29 @@ func TestServiceRouteBindingsClient_Update(t *testing.T) {
 }
 
 func TestServiceRouteBindingsClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings/binding-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+	RunJobDeleteTest(t, "service route binding delete", "/v3/service_route_bindings/binding-guid", "service_route_binding.delete",
+		func(httpClient *internalhttp.Client) interface{} {
+			return NewServiceRouteBindingsClient(httpClient)
+		},
+		func(client interface{}) (*capi.Job, error) {
+			serviceRouteBindingsClient, ok := client.(*ServiceRouteBindingsClient)
+			if !ok {
+				return nil, constants.ErrInvalidClientType
+			}
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID: "job-guid",
-			},
-			Operation: "service_route_binding.delete",
-			State:     "PROCESSING",
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", "/v3/jobs/job-guid")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
-	}))
-	defer server.Close()
-
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
-
-	job, err := serviceRouteBindings.Delete(context.Background(), "binding-guid")
-	require.NoError(t, err)
-	assert.NotNil(t, job)
-	assert.Equal(t, "job-guid", job.GUID)
-	assert.Equal(t, "service_route_binding.delete", job.Operation)
+			return serviceRouteBindingsClient.Delete(context.Background(), "binding-guid")
+		},
+	)
 }
 
 func TestServiceRouteBindingsClient_GetParameters(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings/binding-guid/parameters", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings/binding-guid/parameters", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		params := capi.ServiceRouteBindingParameters{
 			Parameters: map[string]interface{}{
@@ -339,49 +349,55 @@ func TestServiceRouteBindingsClient_GetParameters(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(params)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(params)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	params, err := serviceRouteBindings.GetParameters(context.Background(), "binding-guid")
 	require.NoError(t, err)
 	assert.NotNil(t, params)
-	assert.Equal(t, float64(100), params.Parameters["rate_limit"])
+	assert.InDelta(t, float64(100), params.Parameters["rate_limit"], 0.0001)
 	assert.Equal(t, true, params.Parameters["enabled"])
 }
 
 func TestServiceRouteBindingsClient_GetNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings/binding-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNotFound)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings/binding-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		writer.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	binding, err := serviceRouteBindings.Get(context.Background(), "binding-guid")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, binding)
 }
 
 func TestServiceRouteBindingsClient_CreateForbidden(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_route_bindings", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		w.WriteHeader(http.StatusForbidden)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_route_bindings", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		writer.WriteHeader(http.StatusForbidden)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceRouteBindings := NewServiceRouteBindingsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceRouteBindings := NewServiceRouteBindingsClient(httpClient)
 
 	request := &capi.ServiceRouteBindingCreateRequest{
 		Relationships: capi.ServiceRouteBindingRelationships{
@@ -399,6 +415,6 @@ func TestServiceRouteBindingsClient_CreateForbidden(t *testing.T) {
 	}
 
 	result, err := serviceRouteBindings.Create(context.Background(), request)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }

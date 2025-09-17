@@ -14,59 +14,72 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	t.Run("creates client with config", func(t *testing.T) {
+		t.Parallel()
+
 		config := &capi.Config{
 			APIEndpoint: "https://api.example.com",
 		}
 
-		client, err := cfclient.New(config)
+		client, err := cfclient.New(context.Background(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 	})
 }
 
 func TestNewWithEndpoint(t *testing.T) {
-	client, err := cfclient.NewWithEndpoint("https://api.example.com")
+	t.Parallel()
+
+	client, err := cfclient.NewWithEndpoint(context.Background(), "https://api.example.com")
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }
 
 func TestNewWithToken(t *testing.T) {
-	client, err := cfclient.NewWithToken("https://api.example.com", "test-token")
+	t.Parallel()
+
+	client, err := cfclient.NewWithToken(context.Background(), "https://api.example.com", "test-token")
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }
 
 func TestNewWithClientCredentials(t *testing.T) {
+	t.Parallel()
 	t.Skip("Skipping test that requires network access")
-	client, err := cfclient.NewWithClientCredentials("https://api.example.com", "client-id", "client-secret")
+
+	client, err := cfclient.NewWithClientCredentials(context.Background(), "https://api.example.com", "client-id", "client-secret")
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }
 
 func TestNewWithPassword(t *testing.T) {
+	t.Parallel()
 	t.Skip("Skipping test that requires network access")
-	client, err := cfclient.NewWithPassword("https://api.example.com", "username", "password")
+
+	client, err := cfclient.NewWithPassword(context.Background(), "https://api.example.com", "username", "password")
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }
 
 func TestClientIntegration(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
 		case "/v3/info":
 			info := capi.Info{
 				Name:    "Test CF",
 				Version: 3,
 			}
-			_ = json.NewEncoder(w).Encode(info)
+			_ = json.NewEncoder(writer).Encode(info)
 		default:
-			w.WriteHeader(http.StatusNotFound)
+			writer.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer server.Close()
 
-	client, err := cfclient.NewWithEndpoint(server.URL)
+	client, err := cfclient.NewWithEndpoint(context.Background(), server.URL)
 	require.NoError(t, err)
 
 	info, err := client.GetInfo(context.Background())

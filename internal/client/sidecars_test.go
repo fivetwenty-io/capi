@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,15 +8,18 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSidecarsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/sidecars/sidecar-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/sidecars/sidecar-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		memoryInMB := 128
 		sidecar := capi.Sidecar{
@@ -32,11 +35,13 @@ func TestSidecarsClient_Get(t *testing.T) {
 			Origin:       "user",
 		}
 
-		_ = json.NewEncoder(w).Encode(sidecar)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(sidecar)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	sidecar, err := client.Sidecars().Get(context.Background(), "sidecar-guid")
@@ -49,12 +54,15 @@ func TestSidecarsClient_Get(t *testing.T) {
 }
 
 func TestSidecarsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/sidecars/sidecar-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/sidecars/sidecar-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req capi.SidecarUpdateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.Equal(t, "updated-sidecar", *req.Name)
 		assert.Equal(t, "echo updated", *req.Command)
 
@@ -64,11 +72,13 @@ func TestSidecarsClient_Update(t *testing.T) {
 			Command:  *req.Command,
 		}
 
-		_ = json.NewEncoder(w).Encode(sidecar)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(sidecar)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	newName := "updated-sidecar"
@@ -84,15 +94,17 @@ func TestSidecarsClient_Update(t *testing.T) {
 }
 
 func TestSidecarsClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/sidecars/sidecar-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/sidecars/sidecar-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.Sidecars().Delete(context.Background(), "sidecar-guid")
@@ -100,11 +112,13 @@ func TestSidecarsClient_Delete(t *testing.T) {
 }
 
 func TestSidecarsClient_ListForProcess(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/processes/process-guid/sidecars", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
-		assert.Equal(t, "10", r.URL.Query().Get("per_page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/processes/process-guid/sidecars", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "1", request.URL.Query().Get("page"))
+		assert.Equal(t, "10", request.URL.Query().Get("per_page"))
 
 		memory1 := 64
 		memory2 := 128
@@ -133,11 +147,13 @@ func TestSidecarsClient_ListForProcess(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	params := capi.NewQueryParams().WithPage(1).WithPerPage(10)

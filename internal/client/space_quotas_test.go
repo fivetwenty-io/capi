@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,65 +8,60 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSpaceQuotasClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/space_quotas", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	RunQuotaCreateTest(t, "space quota create", "/v3/space_quotas", "test-space-quota", 512,
+		func(name string) *capi.SpaceQuotaV3CreateRequest {
+			totalMemory := 512
 
-		var req capi.SpaceQuotaV3CreateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		assert.Equal(t, "test-space-quota", req.Name)
-
-		totalMemory := 512
-		quota := capi.SpaceQuotaV3{
-			Resource: capi.Resource{
-				GUID:      "space-quota-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			Name: req.Name,
-			Apps: &capi.SpaceQuotaApps{
-				TotalMemoryInMB: &totalMemory,
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(quota)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	totalMemory := 512
-	quota, err := client.SpaceQuotas().Create(context.Background(), &capi.SpaceQuotaV3CreateRequest{
-		Name: "test-space-quota",
-		Apps: &capi.SpaceQuotaApps{
-			TotalMemoryInMB: &totalMemory,
+			return &capi.SpaceQuotaV3CreateRequest{
+				Name: name,
+				Apps: &capi.SpaceQuotaApps{
+					TotalMemoryInMB: &totalMemory,
+				},
+				Relationships: capi.SpaceQuotaRelationships{
+					Organization: capi.Relationship{
+						Data: &capi.RelationshipData{GUID: "org-guid"},
+					},
+				},
+			}
 		},
-		Relationships: capi.SpaceQuotaRelationships{
-			Organization: capi.Relationship{
-				Data: &capi.RelationshipData{GUID: "org-guid"},
-			},
+		func(guid, name string, totalMemory int) *capi.SpaceQuotaV3 {
+			return &capi.SpaceQuotaV3{
+				Resource: capi.Resource{
+					GUID:      guid,
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				},
+				Name: name,
+				Apps: &capi.SpaceQuotaApps{
+					TotalMemoryInMB: &totalMemory,
+				},
+			}
 		},
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "space-quota-guid", quota.GUID)
-	assert.Equal(t, "test-space-quota", quota.Name)
-	assert.Equal(t, 512, *quota.Apps.TotalMemoryInMB)
+		func(c *Client) func(context.Context, *capi.SpaceQuotaV3CreateRequest) (*capi.SpaceQuotaV3, error) {
+			return c.SpaceQuotas().Create
+		},
+		func(quota *capi.SpaceQuotaV3) {
+			assert.Equal(t, "quota-guid", quota.GUID)
+			assert.Equal(t, "test-space-quota", quota.Name)
+			assert.Equal(t, 512, *quota.Apps.TotalMemoryInMB)
+		},
+	)
 }
 
 func TestSpaceQuotasClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/space_quotas/space-quota-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/space_quotas/space-quota-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		totalMemory := 1024
 		quota := capi.SpaceQuotaV3{
@@ -79,14 +74,14 @@ func TestSpaceQuotasClient_Get(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(writer).Encode(quota)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	quota, err := client.SpaceQuotas().Get(context.Background(), "space-quota-guid")
+	quota, err := c.SpaceQuotas().Get(context.Background(), "space-quota-guid")
 	require.NoError(t, err)
 	assert.Equal(t, "space-quota-guid", quota.GUID)
 	assert.Equal(t, "test-space-quota", quota.Name)
@@ -94,11 +89,13 @@ func TestSpaceQuotasClient_Get(t *testing.T) {
 }
 
 func TestSpaceQuotasClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/space_quotas", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
-		assert.Equal(t, "10", r.URL.Query().Get("per_page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/space_quotas", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "1", request.URL.Query().Get("page"))
+		assert.Equal(t, "10", request.URL.Query().Get("per_page"))
 
 		totalMemory1 := 512
 		totalMemory2 := 1024
@@ -125,15 +122,15 @@ func TestSpaceQuotasClient_List(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	params := capi.NewQueryParams().WithPage(1).WithPerPage(10)
-	result, err := client.SpaceQuotas().List(context.Background(), params)
+	result, err := c.SpaceQuotas().List(context.Background(), params)
 
 	require.NoError(t, err)
 	assert.Len(t, result.Resources, 2)
@@ -141,59 +138,60 @@ func TestSpaceQuotasClient_List(t *testing.T) {
 	assert.Equal(t, "space-quota-2", result.Resources[1].Name)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different resource types
 func TestSpaceQuotasClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/space_quotas/space-quota-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
-
-		var req capi.SpaceQuotaV3UpdateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		assert.Equal(t, "updated-space-quota", *req.Name)
-
-		quota := capi.SpaceQuotaV3{
-			Resource: capi.Resource{GUID: "space-quota-guid"},
-			Name:     *req.Name,
-		}
-
-		_ = json.NewEncoder(w).Encode(quota)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	newName := "updated-space-quota"
-	quota, err := client.SpaceQuotas().Update(context.Background(), "space-quota-guid", &capi.SpaceQuotaV3UpdateRequest{
-		Name: &newName,
+	t.Parallel()
+	RunNameUpdateTest(t, NameUpdateTestCase[capi.SpaceQuotaV3UpdateRequest, capi.SpaceQuotaV3]{
+		ResourceType: "space quota",
+		ResourceGUID: "space-quota-guid",
+		ResourcePath: "/v3/space_quotas/space-quota-guid",
+		NewName:      "updated-space-quota",
+		CreateRequest: func(name string) *capi.SpaceQuotaV3UpdateRequest {
+			return &capi.SpaceQuotaV3UpdateRequest{Name: &name}
+		},
+		CreateResponse: func(guid, name string) *capi.SpaceQuotaV3 {
+			return &capi.SpaceQuotaV3{
+				Resource: capi.Resource{GUID: guid},
+				Name:     name,
+			}
+		},
+		ExtractName:     func(req *capi.SpaceQuotaV3UpdateRequest) string { return *req.Name },
+		ExtractNameResp: func(resp *capi.SpaceQuotaV3) string { return resp.Name },
+		UpdateFunc: func(c *Client) func(context.Context, string, *capi.SpaceQuotaV3UpdateRequest) (*capi.SpaceQuotaV3, error) {
+			return c.SpaceQuotas().Update
+		},
 	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "updated-space-quota", quota.Name)
 }
 
 func TestSpaceQuotasClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/space_quotas/space-quota-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/space_quotas/space-quota-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	err = client.SpaceQuotas().Delete(context.Background(), "space-quota-guid")
+	err = c.SpaceQuotas().Delete(context.Background(), "space-quota-guid")
 	require.NoError(t, err)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different relationship endpoints for different resource types
 func TestSpaceQuotasClient_ApplyToSpaces(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/space_quotas/space-quota-guid/relationships/spaces", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/space_quotas/space-quota-guid/relationships/spaces", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var req capi.ToManyRelationship
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.Len(t, req.Data, 2)
 		assert.Equal(t, "space-1", req.Data[0].GUID)
 		assert.Equal(t, "space-2", req.Data[1].GUID)
@@ -202,14 +200,14 @@ func TestSpaceQuotasClient_ApplyToSpaces(t *testing.T) {
 			Data: req.Data,
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	rel, err := client.SpaceQuotas().ApplyToSpaces(context.Background(), "space-quota-guid", []string{"space-1", "space-2"})
+	rel, err := c.SpaceQuotas().ApplyToSpaces(context.Background(), "space-quota-guid", []string{"space-1", "space-2"})
 	require.NoError(t, err)
 	assert.Len(t, rel.Data, 2)
 	assert.Equal(t, "space-1", rel.Data[0].GUID)
@@ -217,17 +215,19 @@ func TestSpaceQuotasClient_ApplyToSpaces(t *testing.T) {
 }
 
 func TestSpaceQuotasClient_RemoveFromSpace(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/space_quotas/space-quota-guid/relationships/spaces/space-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/space_quotas/space-quota-guid/relationships/spaces/space-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	err = client.SpaceQuotas().RemoveFromSpace(context.Background(), "space-quota-guid", "space-guid")
+	err = c.SpaceQuotas().RemoveFromSpace(context.Background(), "space-quota-guid", "space-guid")
 	require.NoError(t, err)
 }

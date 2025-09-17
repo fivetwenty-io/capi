@@ -1,12 +1,16 @@
+//nolint:testpackage // Need access to internal types
 package commands
 
 import (
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateUsersCreateGroupCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersCreateGroupCommand()
 	assert.Equal(t, "create-group <name>", cmd.Use)
 	assert.Equal(t, "Create a group", cmd.Short)
@@ -19,6 +23,8 @@ func TestCreateUsersCreateGroupCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetGroupCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetGroupCommand()
 	assert.Equal(t, "get-group <name>", cmd.Use)
 	assert.Equal(t, "Get group details", cmd.Short)
@@ -26,12 +32,15 @@ func TestCreateUsersGetGroupCommand(t *testing.T) {
 	assert.Contains(t, cmd.Long, "Look up a group")
 }
 
-func TestCreateUsersListGroupsCommand(t *testing.T) {
-	cmd := createUsersListGroupsCommand()
-	assert.Equal(t, "list-groups", cmd.Use)
-	assert.Equal(t, "List groups", cmd.Short)
+// testGenericListCommand tests generic list commands with common flags.
+func testGenericListCommand(t *testing.T, cmd *cobra.Command, expectedUse, expectedShort, expectedLongContains string) {
+	t.Helper()
+	t.Parallel()
+
+	assert.Equal(t, expectedUse, cmd.Use)
+	assert.Equal(t, expectedShort, cmd.Short)
 	assert.NotNil(t, cmd.RunE)
-	assert.Contains(t, cmd.Long, "Search and list groups")
+	assert.Contains(t, cmd.Long, expectedLongContains)
 
 	// Check flags
 	assert.NotNil(t, cmd.Flags().Lookup("filter"))
@@ -43,7 +52,14 @@ func TestCreateUsersListGroupsCommand(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup("all"))
 }
 
+func TestCreateUsersListGroupsCommand(t *testing.T) {
+	t.Parallel()
+	testGenericListCommand(t, createUsersListGroupsCommand(), "list-groups", "List groups", "Search and list groups")
+}
+
 func TestCreateUsersAddMemberCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersAddMemberCommand()
 	assert.Equal(t, "add-member <group> <member>", cmd.Use)
 	assert.Equal(t, "Add user to group", cmd.Short)
@@ -56,6 +72,8 @@ func TestCreateUsersAddMemberCommand(t *testing.T) {
 }
 
 func TestCreateUsersRemoveMemberCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersRemoveMemberCommand()
 	assert.Equal(t, "remove-member <group> <member>", cmd.Use)
 	assert.Equal(t, "Remove user from group", cmd.Short)
@@ -68,6 +86,8 @@ func TestCreateUsersRemoveMemberCommand(t *testing.T) {
 }
 
 func TestCreateUsersMapGroupCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersMapGroupCommand()
 	assert.Equal(t, "map-group", cmd.Use)
 	assert.Equal(t, "Map external group to UAA group", cmd.Short)
@@ -81,6 +101,8 @@ func TestCreateUsersMapGroupCommand(t *testing.T) {
 }
 
 func TestCreateUsersUnmapGroupCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersUnmapGroupCommand()
 	assert.Equal(t, "unmap-group", cmd.Use)
 	assert.Equal(t, "Unmap external group from UAA group", cmd.Short)
@@ -94,6 +116,8 @@ func TestCreateUsersUnmapGroupCommand(t *testing.T) {
 }
 
 func TestCreateUsersListGroupMappingsCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersListGroupMappingsCommand()
 	assert.Equal(t, "list-group-mappings", cmd.Use)
 	assert.Equal(t, "List group mappings", cmd.Short)
@@ -107,6 +131,8 @@ func TestCreateUsersListGroupMappingsCommand(t *testing.T) {
 }
 
 func TestIsUUID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected bool
@@ -122,6 +148,8 @@ func TestIsUUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+
 			result := isUUID(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})

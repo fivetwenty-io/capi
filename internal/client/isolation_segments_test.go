@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
@@ -15,20 +16,23 @@ import (
 )
 
 func TestIsolationSegmentsClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		var request capi.IsolationSegmentCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Equal(t, "my-segment", request.Name)
-		assert.NotNil(t, request.Metadata)
-		assert.Equal(t, "value1", request.Metadata.Labels["key1"])
+		var req capi.IsolationSegmentCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&req)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "my-segment", req.Name)
+		assert.NotNil(t, req.Metadata)
+		assert.Equal(t, "value1", req.Metadata.Labels["key1"])
 
 		now := time.Now()
-		is := capi.IsolationSegment{
+		isolationSegment := capi.IsolationSegment{
 			Resource: capi.Resource{
 				GUID:      "segment-guid",
 				CreatedAt: now,
@@ -42,18 +46,18 @@ func TestIsolationSegmentsClient_Create(t *testing.T) {
 					},
 				},
 			},
-			Name:     request.Name,
-			Metadata: request.Metadata,
+			Name:     req.Name,
+			Metadata: req.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(is)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(isolationSegment)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	request := &capi.IsolationSegmentCreateRequest{
 		Name: "my-segment",
@@ -65,21 +69,23 @@ func TestIsolationSegmentsClient_Create(t *testing.T) {
 		},
 	}
 
-	is, err := isolationSegments.Create(context.Background(), request)
+	isolationSegmentResult, err := isolationSegments.Create(context.Background(), request)
 	require.NoError(t, err)
-	assert.NotNil(t, is)
-	assert.Equal(t, "segment-guid", is.GUID)
-	assert.Equal(t, "my-segment", is.Name)
-	assert.Equal(t, "value1", is.Metadata.Labels["key1"])
+	assert.NotNil(t, isolationSegmentResult)
+	assert.Equal(t, "segment-guid", isolationSegmentResult.GUID)
+	assert.Equal(t, "my-segment", isolationSegmentResult.Name)
+	assert.Equal(t, "value1", isolationSegmentResult.Metadata.Labels["key1"])
 }
 
 func TestIsolationSegmentsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments/segment-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments/segment-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
-		is := capi.IsolationSegment{
+		isolationSegment := capi.IsolationSegment{
 			Resource: capi.Resource{
 				GUID:      "segment-guid",
 				CreatedAt: now,
@@ -100,27 +106,29 @@ func TestIsolationSegmentsClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(is)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(isolationSegment)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
-	is, err := isolationSegments.Get(context.Background(), "segment-guid")
+	isolationSegmentResult, err := isolationSegments.Get(context.Background(), "segment-guid")
 	require.NoError(t, err)
-	assert.NotNil(t, is)
-	assert.Equal(t, "segment-guid", is.GUID)
-	assert.Equal(t, "my-segment", is.Name)
+	assert.NotNil(t, isolationSegmentResult)
+	assert.Equal(t, "segment-guid", isolationSegmentResult.GUID)
+	assert.Equal(t, "my-segment", isolationSegmentResult.Name)
 }
 
 func TestIsolationSegmentsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "segment1,segment2", r.URL.Query().Get("names"))
-		assert.Equal(t, "org-guid", r.URL.Query().Get("organization_guids"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "segment1,segment2", request.URL.Query().Get("names"))
+		assert.Equal(t, "org-guid", request.URL.Query().Get("organization_guids"))
 
 		now := time.Now()
 		response := capi.ListResponse[capi.IsolationSegment]{
@@ -150,13 +158,13 @@ func TestIsolationSegmentsClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	params := &capi.QueryParams{
 		Filters: map[string][]string{
@@ -175,37 +183,40 @@ func TestIsolationSegmentsClient_List(t *testing.T) {
 }
 
 func TestIsolationSegmentsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments/segment-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
 
-		var request capi.IsolationSegmentUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments/segment-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
-		assert.NotNil(t, request.Name)
-		assert.Equal(t, "updated-segment", *request.Name)
-		assert.NotNil(t, request.Metadata)
-		assert.Equal(t, "value2", request.Metadata.Labels["key2"])
+		var requestBody capi.IsolationSegmentUpdateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.NotNil(t, requestBody.Name)
+		assert.Equal(t, "updated-segment", *requestBody.Name)
+		assert.NotNil(t, requestBody.Metadata)
+		assert.Equal(t, "value2", requestBody.Metadata.Labels["key2"])
 
 		now := time.Now()
-		is := capi.IsolationSegment{
+		isolationSegment := capi.IsolationSegment{
 			Resource: capi.Resource{
 				GUID:      "segment-guid",
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
-			Name:     *request.Name,
-			Metadata: request.Metadata,
+			Name:     *requestBody.Name,
+			Metadata: requestBody.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(is)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(isolationSegment)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	name := "updated-segment"
 	request := &capi.IsolationSegmentUpdateRequest{
@@ -218,52 +229,57 @@ func TestIsolationSegmentsClient_Update(t *testing.T) {
 		},
 	}
 
-	is, err := isolationSegments.Update(context.Background(), "segment-guid", request)
+	isolationSegmentResult, err := isolationSegments.Update(context.Background(), "segment-guid", request)
 	require.NoError(t, err)
-	assert.NotNil(t, is)
-	assert.Equal(t, "segment-guid", is.GUID)
-	assert.Equal(t, "updated-segment", is.Name)
-	assert.Equal(t, "value2", is.Metadata.Labels["key2"])
+	assert.NotNil(t, isolationSegmentResult)
+	assert.Equal(t, "segment-guid", isolationSegmentResult.GUID)
+	assert.Equal(t, "updated-segment", isolationSegmentResult.Name)
+	assert.Equal(t, "value2", isolationSegmentResult.Metadata.Labels["key2"])
 }
 
 func TestIsolationSegmentsClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments/segment-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments/segment-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	err := isolationSegments.Delete(context.Background(), "segment-guid")
 	require.NoError(t, err)
 }
 
 func TestIsolationSegmentsClient_EntitleOrganizations(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments/segment-guid/relationships/organizations", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		var request capi.IsolationSegmentEntitleOrganizationsRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments/segment-guid/relationships/organizations", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Len(t, request.Data, 2)
-		assert.Equal(t, "org-guid-1", request.Data[0].GUID)
-		assert.Equal(t, "org-guid-2", request.Data[1].GUID)
+		var requestBody capi.IsolationSegmentEntitleOrganizationsRequest
 
-		response := capi.ToManyRelationship(request)
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		assert.Len(t, requestBody.Data, 2)
+		assert.Equal(t, "org-guid-1", requestBody.Data[0].GUID)
+		assert.Equal(t, "org-guid-2", requestBody.Data[1].GUID)
+
+		response := requestBody
+
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	relationship, err := isolationSegments.EntitleOrganizations(context.Background(), "segment-guid", []string{"org-guid-1", "org-guid-2"})
 	require.NoError(t, err)
@@ -273,25 +289,29 @@ func TestIsolationSegmentsClient_EntitleOrganizations(t *testing.T) {
 }
 
 func TestIsolationSegmentsClient_RevokeOrganization(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments/segment-guid/relationships/organizations/org-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments/segment-guid/relationships/organizations/org-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	err := isolationSegments.RevokeOrganization(context.Background(), "segment-guid", "org-guid")
 	require.NoError(t, err)
 }
 
 func TestIsolationSegmentsClient_ListOrganizations(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments/segment-guid/organizations", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments/segment-guid/organizations", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		response := capi.ListResponse[capi.Organization]{
@@ -323,13 +343,13 @@ func TestIsolationSegmentsClient_ListOrganizations(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	list, err := isolationSegments.ListOrganizations(context.Background(), "segment-guid")
 	require.NoError(t, err)
@@ -341,9 +361,11 @@ func TestIsolationSegmentsClient_ListOrganizations(t *testing.T) {
 }
 
 func TestIsolationSegmentsClient_ListSpaces(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/isolation_segments/segment-guid/relationships/spaces", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/isolation_segments/segment-guid/relationships/spaces", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		response := capi.ListResponse[capi.Space]{
@@ -373,13 +395,13 @@ func TestIsolationSegmentsClient_ListSpaces(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	isolationSegments := NewIsolationSegmentsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	isolationSegments := NewIsolationSegmentsClient(httpClient)
 
 	list, err := isolationSegments.ListSpaces(context.Background(), "segment-guid")
 	require.NoError(t, err)

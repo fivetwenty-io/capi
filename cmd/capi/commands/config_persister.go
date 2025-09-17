@@ -4,19 +4,21 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 )
 
-// ConfigPersister implements the auth.ConfigPersister interface
+// ConfigPersister implements the auth.ConfigPersister interface.
 type ConfigPersister struct {
 	mutex sync.Mutex
 }
 
-// NewConfigPersister creates a new config persister
+// NewConfigPersister creates a new config persister.
 func NewConfigPersister() *ConfigPersister {
 	return &ConfigPersister{}
 }
 
-// UpdateAPIToken updates the API token and related metadata in the config
+// UpdateAPIToken updates the API token and related metadata in the config.
 func (p *ConfigPersister) UpdateAPIToken(apiDomain, token string, expiresAt time.Time, refreshToken string) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -31,7 +33,7 @@ func (p *ConfigPersister) UpdateAPIToken(apiDomain, token string, expiresAt time
 
 	apiConfig, exists := config.APIs[apiDomain]
 	if !exists {
-		return fmt.Errorf("API configuration for '%s' not found", apiDomain)
+		return fmt.Errorf("API configuration for '%s': %w", apiDomain, constants.ErrAPIConfigNotFound)
 	}
 
 	// Update token information
@@ -39,9 +41,11 @@ func (p *ConfigPersister) UpdateAPIToken(apiDomain, token string, expiresAt time
 	if !expiresAt.IsZero() {
 		apiConfig.TokenExpiresAt = &expiresAt
 	}
+
 	if refreshToken != "" {
 		apiConfig.RefreshToken = refreshToken
 	}
+
 	now := time.Now()
 	apiConfig.LastRefreshed = &now
 

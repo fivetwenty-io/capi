@@ -2,16 +2,24 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 )
 
 func main() {
-	// Create a client with username/password authentication
-	client, err := cfclient.NewWithPassword(
+	client := createClient()
+	ctx := context.Background()
+
+	runBasicExamples(client, ctx)
+}
+
+func createClient() capi.Client {
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"your-username",
 		"your-password",
@@ -20,76 +28,129 @@ func main() {
 		log.Fatalf("Failed to create CF client: %v", err)
 	}
 
-	ctx := context.Background()
+	return client
+}
 
-	// Example 1: Get API info
-	fmt.Println("=== API Info ===")
+func runBasicExamples(client capi.Client, ctx context.Context) {
+	getAPIInfoExample(client, ctx)
+	orgs := listOrganizationsExample(client, ctx)
+	listSpacesExample(client, ctx, orgs)
+	listApplicationsExample(client, ctx)
+}
+
+func getAPIInfoExample(client capi.Client, ctx context.Context) {
+	log.Println("=== API Info ===")
+
 	info, err := client.GetInfo(ctx)
 	if err != nil {
 		log.Fatalf("Failed to get API info: %v", err)
 	}
-	fmt.Printf("API Version: %d\n", info.Version)
-	fmt.Printf("API Description: %s\n", info.Description)
-	fmt.Println()
 
-	// Example 2: List organizations
-	fmt.Println("=== Organizations ===")
+	printAPIInfo(info)
+	log.Println()
+}
+
+func printAPIInfo(info *capi.Info) {
+	log.Printf("API Version: %d\n", info.Version)
+	log.Printf("API Description: %s\n", info.Description)
+}
+
+func listOrganizationsExample(client capi.Client, ctx context.Context) *capi.ListResponse[capi.Organization] {
+	log.Println("=== Organizations ===")
+
 	orgs, err := client.Organizations().List(ctx, nil)
 	if err != nil {
 		log.Fatalf("Failed to list organizations: %v", err)
 	}
 
-	fmt.Printf("Found %d organizations:\n", len(orgs.Resources))
+	printOrganizations(orgs)
+	log.Println()
+
+	return orgs
+}
+
+func printOrganizations(orgs *capi.ListResponse[capi.Organization]) {
+	log.Printf("Found %d organizations:\n", len(orgs.Resources))
+
 	for _, org := range orgs.Resources {
-		fmt.Printf("  - %s (GUID: %s)\n", org.Name, org.GUID)
-
-		// Show organization metadata if present
-		if org.Metadata != nil && len(org.Metadata.Labels) > 0 {
-			fmt.Println("    Labels:")
-			for key, value := range org.Metadata.Labels {
-				fmt.Printf("      %s: %s\n", key, value)
-			}
-		}
+		log.Printf("  - %s (GUID: %s)\n", org.Name, org.GUID)
+		printOrgMetadata(org.Metadata)
 	}
-	fmt.Println()
+}
 
-	// Example 3: List spaces (if we have organizations)
-	if len(orgs.Resources) > 0 {
-		fmt.Println("=== Spaces ===")
-		firstOrgGUID := orgs.Resources[0].GUID
-
-		// Filter spaces by organization
-		params := capi.NewQueryParams()
-		params.WithFilter("organization_guids", firstOrgGUID)
-
-		spaces, err := client.Spaces().List(ctx, params)
-		if err != nil {
-			log.Fatalf("Failed to list spaces: %v", err)
-		}
-
-		fmt.Printf("Found %d spaces in organization '%s':\n",
-			len(spaces.Resources), orgs.Resources[0].Name)
-		for _, space := range spaces.Resources {
-			fmt.Printf("  - %s (GUID: %s)\n", space.Name, space.GUID)
-		}
-		fmt.Println()
+func printOrgMetadata(metadata *capi.Metadata) {
+	if metadata == nil || len(metadata.Labels) == 0 {
+		return
 	}
 
-	// Example 4: List applications with pagination
-	fmt.Println("=== Applications (with pagination) ===")
+	log.Println("    Labels:")
+
+	for key, value := range metadata.Labels {
+		log.Printf("      %s: %s\n", key, value)
+	}
+}
+
+func listSpacesExample(client capi.Client, ctx context.Context, orgs *capi.ListResponse[capi.Organization]) {
+	if len(orgs.Resources) == 0 {
+		return
+	}
+
+	log.Println("=== Spaces ===")
+
+	firstOrg := orgs.Resources[0]
+	spaces := getSpacesForOrganization(client, ctx, firstOrg.GUID)
+	printSpaces(spaces, firstOrg.Name)
+	log.Println()
+}
+
+func getSpacesForOrganization(client capi.Client, ctx context.Context, orgGUID string) *capi.ListResponse[capi.Space] {
 	params := capi.NewQueryParams()
-	params.WithPerPage(5) // Small page size for demonstration
+	params.WithFilter("organization_guids", orgGUID)
 
-	// Use List for pagination (simplified for example)
+	spaces, err := client.Spaces().List(ctx, params)
+	if err != nil {
+		log.Fatalf("Failed to list spaces: %v", err)
+	}
+
+	return spaces
+}
+
+func printSpaces(spaces *capi.ListResponse[capi.Space], orgName string) {
+	log.Printf("Found %d spaces in organization '%s':\n", len(spaces.Resources), orgName)
+
+	for _, space := range spaces.Resources {
+		log.Printf("  - %s (GUID: %s)\n", space.Name, space.GUID)
+	}
+}
+
+func listApplicationsExample(client capi.Client, ctx context.Context) {
+	log.Println("=== Applications (with pagination) ===")
+
+	params := buildAppListParams()
+	apps := getApplications(client, ctx, params)
+	printApplications(apps)
+}
+
+func buildAppListParams() *capi.QueryParams {
+	params := capi.NewQueryParams()
+	params.WithPerPage(constants.SmallPageSize) // Small page size for demonstration
+
+	return params
+}
+
+func getApplications(client capi.Client, ctx context.Context, params *capi.QueryParams) []capi.App {
 	appList, err := client.Apps().List(ctx, params)
 	if err != nil {
 		log.Fatalf("Failed to list applications: %v", err)
 	}
 
-	allApps := appList.Resources
+	return appList.Resources
+}
 
-	fmt.Printf("Total applications found: %d (first page only)\n", len(allApps))
-	for _, app := range allApps {
-		fmt.Printf("  - %s (State: %s)\n", app.Name, app.State)
+func printApplications(apps []capi.App) {
+	log.Printf("Total applications found: %d (first page only)\n", len(apps))
+
+	for _, app := range apps {
+		log.Printf("  - %s (State: %s)\n", app.Name, app.State)
 	}
 }

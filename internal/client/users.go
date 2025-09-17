@@ -10,19 +10,19 @@ import (
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
-// UsersClient implements capi.UsersClient
+// UsersClient implements capi.UsersClient.
 type UsersClient struct {
 	httpClient *http.Client
 }
 
-// NewUsersClient creates a new users client
+// NewUsersClient creates a new users client.
 func NewUsersClient(httpClient *http.Client) *UsersClient {
 	return &UsersClient{
 		httpClient: httpClient,
 	}
 }
 
-// Create implements capi.UsersClient.Create
+// Create implements capi.UsersClient.Create.
 func (c *UsersClient) Create(ctx context.Context, request *capi.UserCreateRequest) (*capi.User, error) {
 	resp, err := c.httpClient.Post(ctx, "/v3/users", request)
 	if err != nil {
@@ -30,16 +30,18 @@ func (c *UsersClient) Create(ctx context.Context, request *capi.UserCreateReques
 	}
 
 	var user capi.User
-	if err := json.Unmarshal(resp.Body, &user); err != nil {
+
+	err = json.Unmarshal(resp.Body, &user)
+	if err != nil {
 		return nil, fmt.Errorf("parsing user: %w", err)
 	}
 
 	return &user, nil
 }
 
-// Get implements capi.UsersClient.Get
+// Get implements capi.UsersClient.Get.
 func (c *UsersClient) Get(ctx context.Context, guid string) (*capi.User, error) {
-	path := fmt.Sprintf("/v3/users/%s", guid)
+	path := "/v3/users/" + guid
 
 	resp, err := c.httpClient.Get(ctx, path, nil)
 	if err != nil {
@@ -47,14 +49,16 @@ func (c *UsersClient) Get(ctx context.Context, guid string) (*capi.User, error) 
 	}
 
 	var user capi.User
-	if err := json.Unmarshal(resp.Body, &user); err != nil {
+
+	err = json.Unmarshal(resp.Body, &user)
+	if err != nil {
 		return nil, fmt.Errorf("parsing user: %w", err)
 	}
 
 	return &user, nil
 }
 
-// List implements capi.UsersClient.List
+// List implements capi.UsersClient.List.
 func (c *UsersClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.User], error) {
 	var queryParams url.Values
 	if params != nil {
@@ -67,16 +71,18 @@ func (c *UsersClient) List(ctx context.Context, params *capi.QueryParams) (*capi
 	}
 
 	var users capi.ListResponse[capi.User]
-	if err := json.Unmarshal(resp.Body, &users); err != nil {
+
+	err = json.Unmarshal(resp.Body, &users)
+	if err != nil {
 		return nil, fmt.Errorf("parsing users list: %w", err)
 	}
 
 	return &users, nil
 }
 
-// Update implements capi.UsersClient.Update
+// Update implements capi.UsersClient.Update.
 func (c *UsersClient) Update(ctx context.Context, guid string, request *capi.UserUpdateRequest) (*capi.User, error) {
-	path := fmt.Sprintf("/v3/users/%s", guid)
+	path := "/v3/users/" + guid
 
 	resp, err := c.httpClient.Patch(ctx, path, request)
 	if err != nil {
@@ -84,16 +90,18 @@ func (c *UsersClient) Update(ctx context.Context, guid string, request *capi.Use
 	}
 
 	var user capi.User
-	if err := json.Unmarshal(resp.Body, &user); err != nil {
+
+	err = json.Unmarshal(resp.Body, &user)
+	if err != nil {
 		return nil, fmt.Errorf("parsing user: %w", err)
 	}
 
 	return &user, nil
 }
 
-// Delete implements capi.UsersClient.Delete
+// Delete implements capi.UsersClient.Delete.
 func (c *UsersClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
-	path := fmt.Sprintf("/v3/users/%s", guid)
+	path := "/v3/users/" + guid
 
 	resp, err := c.httpClient.Delete(ctx, path)
 	if err != nil {
@@ -102,7 +110,9 @@ func (c *UsersClient) Delete(ctx context.Context, guid string) (*capi.Job, error
 
 	// User deletion returns a job for async processing
 	var job capi.Job
-	if err := json.Unmarshal(resp.Body, &job); err != nil {
+
+	err = json.Unmarshal(resp.Body, &job)
+	if err != nil {
 		return nil, fmt.Errorf("parsing job: %w", err)
 	}
 

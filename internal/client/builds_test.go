@@ -1,8 +1,9 @@
-package client
+package client_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,24 +12,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestBuildsClient_Create(t *testing.T) {
-	tests := []struct {
-		name         string
-		request      *capi.BuildCreateRequest
-		response     interface{}
-		statusCode   int
-		expectedPath string
-		wantErr      bool
-		errMessage   string
-	}{
+	t.Parallel()
+
+	tests := []TestCreateOperation[capi.BuildCreateRequest, capi.Build]{
 		{
-			name:         "create build",
-			expectedPath: "/v3/builds",
-			statusCode:   http.StatusCreated,
-			request: &capi.BuildCreateRequest{
+			Name:         "create build",
+			ExpectedPath: "/v3/builds",
+			StatusCode:   http.StatusCreated,
+			Request: &capi.BuildCreateRequest{
 				Package: &capi.BuildPackageRef{
 					GUID: "package-guid",
 				},
@@ -40,7 +37,7 @@ func TestBuildsClient_Create(t *testing.T) {
 					},
 				},
 			},
-			response: capi.Build{
+			Response: &capi.Build{
 				Resource: capi.Resource{
 					GUID:      "build-guid",
 					CreatedAt: time.Now(),
@@ -86,78 +83,49 @@ func TestBuildsClient_Create(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
+			WantErr: false,
 		},
 		{
-			name:         "missing package",
-			expectedPath: "/v3/builds",
-			statusCode:   http.StatusUnprocessableEntity,
-			request:      &capi.BuildCreateRequest{},
-			response: map[string]interface{}{
-				"errors": []map[string]interface{}{
-					{
-						"code":   10008,
-						"title":  "CF-UnprocessableEntity",
-						"detail": "Package is required",
-					},
-				},
-			},
-			wantErr:    true,
-			errMessage: "CF-UnprocessableEntity",
+			Name:         "missing package",
+			ExpectedPath: "/v3/builds",
+			StatusCode:   http.StatusUnprocessableEntity,
+			Request:      &capi.BuildCreateRequest{},
+			Response:     &capi.Build{}, // Will be ignored due to error
+			WantErr:      true,
+			ErrMessage:   "CF-UnprocessableEntity",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: ""})
+	require.NoError(t, err)
 
-				var requestBody capi.BuildCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
+	RunCreateTests(t, tests,
+		func(ctx context.Context, req *capi.BuildCreateRequest) (*capi.Build, error) {
+			return client.Builds().Create(ctx, req)
+		},
+		func(request *http.Request) (*capi.BuildCreateRequest, error) {
+			var requestBody capi.BuildCreateRequest
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			build, err := client.Builds().Create(context.Background(), tt.request)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, build)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, build)
-				assert.NotEmpty(t, build.GUID)
-				assert.NotEmpty(t, build.State)
+			err := json.NewDecoder(request.Body).Decode(&requestBody)
+			if err != nil {
+				return &requestBody, fmt.Errorf("failed to decode request body: %w", err)
 			}
-		})
-	}
+
+			return &requestBody, nil
+		},
+	)
 }
 
 func TestBuildsClient_Get(t *testing.T) {
-	tests := []struct {
-		name         string
-		guid         string
-		response     interface{}
-		statusCode   int
-		expectedPath string
-		wantErr      bool
-		errMessage   string
-	}{
+	t.Parallel()
+
+	tests := []TestGetOperation[capi.Build]{
 		{
-			name:         "successful get",
-			guid:         "test-build-guid",
-			expectedPath: "/v3/builds/test-build-guid",
-			statusCode:   http.StatusOK,
-			response: capi.Build{
+			Name:         "successful get",
+			GUID:         "test-build-guid",
+			ExpectedPath: "/v3/builds/test-build-guid",
+			StatusCode:   http.StatusOK,
+			Response: &capi.Build{
 				Resource: capi.Resource{
 					GUID:      "test-build-guid",
 					CreatedAt: time.Now(),
@@ -177,67 +145,47 @@ func TestBuildsClient_Get(t *testing.T) {
 					Data: map[string]interface{}{},
 				},
 			},
-			wantErr: false,
+			WantErr: false,
 		},
 		{
-			name:         "build not found",
-			guid:         "non-existent-guid",
-			expectedPath: "/v3/builds/non-existent-guid",
-			statusCode:   http.StatusNotFound,
-			response: map[string]interface{}{
-				"errors": []map[string]interface{}{
-					{
-						"code":   10010,
-						"title":  "CF-ResourceNotFound",
-						"detail": "Build not found",
-					},
+			Name:         "build not found",
+			GUID:         "non-existent-guid",
+			ExpectedPath: "/v3/builds/non-existent-guid",
+			StatusCode:   http.StatusNotFound,
+			Response: &capi.Build{
+				Resource: capi.Resource{
+					GUID:      "test-build-guid",
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
 				},
+				State:             "STAGED",
+				StagingMemoryInMB: 1024,
+				StagingDiskInMB:   1024,
 			},
-			wantErr:    true,
-			errMessage: "CF-ResourceNotFound",
+			WantErr:    true,
+			ErrMessage: "CF-ResourceNotFound",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			build, err := client.Builds().Get(context.Background(), tt.guid)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, build)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, build)
-				assert.Equal(t, tt.guid, build.GUID)
-				assert.Equal(t, "STAGED", build.State)
-			}
-		})
-	}
+	RunGetTests(t, tests, func(c *Client) func(context.Context, string) (*capi.Build, error) {
+		return c.Builds().Get
+	})
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestBuildsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/builds", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/builds", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if states := query.Get("states"); states != "" {
 			assert.Equal(t, "STAGING,STAGED", states)
 		}
+
 		if packageGuids := query.Get("package_guids"); packageGuids != "" {
 			assert.Equal(t, "package-1,package-2", packageGuids)
 		}
@@ -282,13 +230,13 @@ func TestBuildsClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -313,9 +261,11 @@ func TestBuildsClient_List(t *testing.T) {
 }
 
 func TestBuildsClient_ListForApp(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/builds", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/builds", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		response := capi.ListResponse[capi.Build]{
 			Pagination: capi.Pagination{
@@ -340,13 +290,13 @@ func TestBuildsClient_ListForApp(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	result, err := client.Builds().ListForApp(context.Background(), "app-guid", nil)
@@ -356,33 +306,9 @@ func TestBuildsClient_ListForApp(t *testing.T) {
 	assert.Equal(t, "build-for-app", result.Resources[0].GUID)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different endpoints with different request/response types
 func TestBuildsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/builds/test-build-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
-
-		var requestBody capi.BuildUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
-
-		response := capi.Build{
-			Resource: capi.Resource{
-				GUID:      "test-build-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			State:    "STAGED",
-			Metadata: requestBody.Metadata,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
+	t.Parallel()
 
 	request := &capi.BuildUpdateRequest{
 		Metadata: &capi.Metadata{
@@ -395,10 +321,25 @@ func TestBuildsClient_Update(t *testing.T) {
 		},
 	}
 
-	build, err := client.Builds().Update(context.Background(), "test-build-guid", request)
-	require.NoError(t, err)
-	require.NotNil(t, build)
-	assert.Equal(t, "test-build-guid", build.GUID)
-	assert.Equal(t, "production", build.Metadata.Labels["env"])
-	assert.Equal(t, "1.0.0", build.Metadata.Annotations["version"])
+	response := &capi.Build{
+		Resource: capi.Resource{
+			GUID:      "test-build-guid",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		State: "STAGED",
+		Metadata: &capi.Metadata{
+			Labels: map[string]string{
+				"env": "production",
+			},
+			Annotations: map[string]string{
+				"version": "1.0.0",
+			},
+		},
+	}
+
+	RunStandardUpdateTest(t, "build", "test-build-guid", "/v3/builds/test-build-guid", request, response,
+		func(c *Client) func(context.Context, string, *capi.BuildUpdateRequest) (*capi.Build, error) {
+			return c.Builds().Update
+		})
 }

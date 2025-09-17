@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServicePlansClient_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -124,30 +128,32 @@ func TestServicePlansClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "GET", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			plan, err := client.ServicePlans().Get(context.Background(), tt.guid)
+			plan, err := client.ServicePlans().Get(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, plan)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, plan)
-				assert.Equal(t, tt.guid, plan.GUID)
+				assert.Equal(t, testCase.guid, plan.GUID)
 				assert.Equal(t, "my_big_service_plan", plan.Name)
 				assert.Equal(t, "public", plan.VisibilityType)
 				assert.True(t, plan.Available)
@@ -157,19 +163,24 @@ func TestServicePlansClient_Get(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Test functions can be longer for detailed testing
 func TestServicePlansClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_plans", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_plans", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if names := query.Get("names"); names != "" {
 			assert.Equal(t, "plan1,plan2", names)
 		}
+
 		if offeringGuids := query.Get("service_offering_guids"); offeringGuids != "" {
 			assert.Equal(t, "offering-1,offering-2", offeringGuids)
 		}
+
 		if available := query.Get("available"); available != "" {
 			assert.Equal(t, "true", available)
 		}
@@ -276,13 +287,13 @@ func TestServicePlansClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -311,7 +322,10 @@ func TestServicePlansClient_List(t *testing.T) {
 	require.NotNil(t, result)
 }
 
+//nolint:funlen // Test functions can be longer for detailed testing
 func TestServicePlansClient_Update(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -413,42 +427,48 @@ func TestServicePlansClient_Update(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "PATCH", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "PATCH", request.Method)
 
 				var requestBody capi.ServicePlanUpdateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			plan, err := client.ServicePlans().Update(context.Background(), tt.guid, tt.request)
+			plan, err := client.ServicePlans().Update(context.Background(), testCase.guid, testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, plan)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, plan)
-				assert.Equal(t, tt.guid, plan.GUID)
+				assert.Equal(t, testCase.guid, plan.GUID)
 				assert.Equal(t, "my_service_plan", plan.Name)
 			}
 		})
 	}
 }
 
+//nolint:funlen // Test functions can be longer for detailed testing
 func TestServicePlansClient_Delete(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -501,30 +521,34 @@ func TestServicePlansClient_Delete(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "DELETE", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-				if tt.response != nil {
-					w.Header().Set("Content-Type", "application/json")
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "DELETE", request.Method)
+
+				if testCase.response != nil {
+					writer.Header().Set("Content-Type", "application/json")
 				}
-				w.WriteHeader(tt.statusCode)
-				if tt.response != nil {
-					_ = json.NewEncoder(w).Encode(tt.response)
+
+				writer.WriteHeader(testCase.statusCode)
+
+				if testCase.response != nil {
+					_ = json.NewEncoder(writer).Encode(testCase.response)
 				}
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			err = client.ServicePlans().Delete(context.Background(), tt.guid)
+			err = client.ServicePlans().Delete(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 			} else {
 				require.NoError(t, err)
 			}
@@ -533,9 +557,11 @@ func TestServicePlansClient_Delete(t *testing.T) {
 }
 
 func TestServicePlansClient_GetVisibility(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_plans/test-plan-guid/visibility", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_plans/test-plan-guid/visibility", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		response := capi.ServicePlanVisibility{
 			Type: "organization",
@@ -551,13 +577,13 @@ func TestServicePlansClient_GetVisibility(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	visibility, err := client.ServicePlans().GetVisibility(context.Background(), "test-plan-guid")
@@ -569,13 +595,16 @@ func TestServicePlansClient_GetVisibility(t *testing.T) {
 }
 
 func TestServicePlansClient_UpdateVisibility(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_plans/test-plan-guid/visibility", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_plans/test-plan-guid/visibility", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody capi.ServicePlanVisibilityUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Equal(t, "organization", requestBody.Type)
 		assert.Contains(t, requestBody.Organizations, "org-1")
 
@@ -589,13 +618,13 @@ func TestServicePlansClient_UpdateVisibility(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.ServicePlanVisibilityUpdateRequest{
@@ -611,14 +640,16 @@ func TestServicePlansClient_UpdateVisibility(t *testing.T) {
 }
 
 func TestServicePlansClient_RemoveOrgFromVisibility(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_plans/test-plan-guid/visibility/org-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
-		w.WriteHeader(http.StatusNoContent)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_plans/test-plan-guid/visibility/org-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.ServicePlans().RemoveOrgFromVisibility(context.Background(), "test-plan-guid", "org-guid")

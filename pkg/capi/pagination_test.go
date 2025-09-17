@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockPaginationClient implements PaginationClient for testing
+// MockPaginationClient implements PaginationClient for testing.
 type MockPaginationClient struct {
 	pages map[int]*capi.ListResponse[TestResource]
 }
@@ -40,6 +40,8 @@ func (m *MockPaginationClient) ListWithPath(ctx context.Context, path string, pa
 }
 
 func TestPaginationIterator_HasNext(t *testing.T) {
+	t.Parallel()
+
 	client := &MockPaginationClient{
 		pages: map[int]*capi.ListResponse[TestResource]{
 			1: {
@@ -71,13 +73,13 @@ func TestPaginationIterator_HasNext(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	iterator := capi.NewPaginationIterator[TestResource](ctx, client, "/test", nil)
+	iterator := capi.NewPaginationIterator[TestResource](client, "/test", nil)
 
 	// Should have next before any fetch
 	assert.True(t, iterator.HasNext())
 
 	// Fetch first item
-	item1, err := iterator.Next()
+	item1, err := iterator.Next(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "1", item1.ID)
 
@@ -85,7 +87,7 @@ func TestPaginationIterator_HasNext(t *testing.T) {
 	assert.True(t, iterator.HasNext())
 
 	// Fetch second item
-	item2, err := iterator.Next()
+	item2, err := iterator.Next(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "2", item2.ID)
 
@@ -93,7 +95,7 @@ func TestPaginationIterator_HasNext(t *testing.T) {
 	assert.True(t, iterator.HasNext())
 
 	// Fetch third item
-	item3, err := iterator.Next()
+	item3, err := iterator.Next(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "3", item3.ID)
 
@@ -102,6 +104,8 @@ func TestPaginationIterator_HasNext(t *testing.T) {
 }
 
 func TestPaginationIterator_All(t *testing.T) {
+	t.Parallel()
+
 	client := &MockPaginationClient{
 		pages: map[int]*capi.ListResponse[TestResource]{
 			1: {
@@ -130,9 +134,9 @@ func TestPaginationIterator_All(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	iterator := capi.NewPaginationIterator[TestResource](ctx, client, "/test", nil)
+	iterator := capi.NewPaginationIterator[TestResource](client, "/test", nil)
 
-	allResources, err := iterator.All()
+	allResources, err := iterator.All(ctx)
 	require.NoError(t, err)
 	assert.Len(t, allResources, 3)
 	assert.Equal(t, "1", allResources[0].ID)
@@ -141,6 +145,8 @@ func TestPaginationIterator_All(t *testing.T) {
 }
 
 func TestPaginationIterator_ForEach(t *testing.T) {
+	t.Parallel()
+
 	client := &MockPaginationClient{
 		pages: map[int]*capi.ListResponse[TestResource]{
 			1: {
@@ -157,11 +163,13 @@ func TestPaginationIterator_ForEach(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	iterator := capi.NewPaginationIterator[TestResource](ctx, client, "/test", nil)
+	iterator := capi.NewPaginationIterator[TestResource](client, "/test", nil)
 
 	var collected []string
-	err := iterator.ForEach(func(resource TestResource) error {
+
+	err := iterator.ForEach(ctx, func(resource TestResource) error {
 		collected = append(collected, resource.ID)
+
 		return nil
 	})
 
@@ -170,6 +178,8 @@ func TestPaginationIterator_ForEach(t *testing.T) {
 }
 
 func TestFetchAllPages(t *testing.T) {
+	t.Parallel()
+
 	client := &MockPaginationClient{
 		pages: map[int]*capi.ListResponse[TestResource]{
 			1: {
@@ -218,6 +228,8 @@ func TestFetchAllPages(t *testing.T) {
 }
 
 func TestFetchAllPages_WithMaxPages(t *testing.T) {
+	t.Parallel()
+
 	client := &MockPaginationClient{
 		pages: map[int]*capi.ListResponse[TestResource]{
 			1: {
@@ -270,6 +282,8 @@ func TestFetchAllPages_WithMaxPages(t *testing.T) {
 }
 
 func TestStreamPages(t *testing.T) {
+	t.Parallel()
+
 	client := &MockPaginationClient{
 		pages: map[int]*capi.ListResponse[TestResource]{
 			1: {
@@ -302,6 +316,7 @@ func TestStreamPages(t *testing.T) {
 	resultChan := capi.StreamPages(ctx, client, "/test", nil, nil)
 
 	var allResources []TestResource
+
 	pageCount := 0
 
 	for result := range resultChan {

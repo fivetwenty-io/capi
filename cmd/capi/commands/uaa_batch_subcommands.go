@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUAABatchCommand creates the batch sub-command group
+// NewUAABatchCommand creates the batch sub-command group.
 func NewUAABatchCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "batch",
@@ -40,17 +40,20 @@ This command group provides utilities for:
 func createBatchImportCommand() *cobra.Command {
 	cmd := createUsersBatchImportCommand()
 	cmd.Use = "import"
+
 	return cmd
 }
 
 func createBatchPerformanceCommand() *cobra.Command {
 	cmd := createUsersPerformanceCommand()
 	cmd.Use = "performance"
+
 	return cmd
 }
 
 func createBatchCacheCommand() *cobra.Command {
 	cmd := createUsersCacheCommand()
 	cmd.Use = "cache"
+
 	return cmd
 }

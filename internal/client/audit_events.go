@@ -10,35 +10,38 @@ import (
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
-// AuditEventsClient implements capi.AuditEventsClient
+// AuditEventsClient implements capi.AuditEventsClient.
 type AuditEventsClient struct {
 	httpClient *http.Client
 }
 
-// NewAuditEventsClient creates a new audit events client
+// NewAuditEventsClient creates a new audit events client.
 func NewAuditEventsClient(httpClient *http.Client) *AuditEventsClient {
 	return &AuditEventsClient{
 		httpClient: httpClient,
 	}
 }
 
-// Get implements capi.AuditEventsClient.Get
+// Get implements capi.AuditEventsClient.Get.
 func (c *AuditEventsClient) Get(ctx context.Context, guid string) (*capi.AuditEvent, error) {
-	path := fmt.Sprintf("/v3/audit_events/%s", guid)
+	path := "/v3/audit_events/" + guid
+
 	resp, err := c.httpClient.Get(ctx, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting audit event: %w", err)
 	}
 
 	var event capi.AuditEvent
-	if err := json.Unmarshal(resp.Body, &event); err != nil {
+
+	err = json.Unmarshal(resp.Body, &event)
+	if err != nil {
 		return nil, fmt.Errorf("parsing audit event response: %w", err)
 	}
 
 	return &event, nil
 }
 
-// List implements capi.AuditEventsClient.List
+// List implements capi.AuditEventsClient.List.
 func (c *AuditEventsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.AuditEvent], error) {
 	var query url.Values
 	if params != nil {
@@ -51,7 +54,9 @@ func (c *AuditEventsClient) List(ctx context.Context, params *capi.QueryParams) 
 	}
 
 	var result capi.ListResponse[capi.AuditEvent]
-	if err := json.Unmarshal(resp.Body, &result); err != nil {
+
+	err = json.Unmarshal(resp.Body, &result)
+	if err != nil {
 		return nil, fmt.Errorf("parsing audit events list response: %w", err)
 	}
 

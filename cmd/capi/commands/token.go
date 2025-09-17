@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/auth"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
-// NewTokenCommand creates the token command group
+// NewTokenCommand creates the token command group.
 func NewTokenCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "token",
@@ -31,8 +32,10 @@ func NewTokenCommand() *cobra.Command {
 }
 
 func newTokenStatusCommand() *cobra.Command {
-	var apiFlag string
-	var showAll bool
+	var (
+		apiFlag string
+		showAll bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -44,15 +47,16 @@ func newTokenStatusCommand() *cobra.Command {
 			// If --all flag is specified, show all APIs
 			if showAll {
 				if len(config.APIs) == 0 {
-					return fmt.Errorf("no APIs configured, use 'capi apis add' to add one")
+					return constants.ErrNoAPIsConfigured
 				}
+
 				return displayAllTokenStatus(config)
 			}
 
 			// If no API specified, show current API or all APIs
 			if apiFlag == "" {
 				if len(config.APIs) == 0 {
-					return fmt.Errorf("no APIs configured, use 'capi apis add' to add one")
+					return constants.ErrNoAPIsConfigured
 				}
 
 				// If there's a current API, show just that one, otherwise show all
@@ -73,23 +77,9 @@ func newTokenStatusCommand() *cobra.Command {
 			}
 
 			// Find the API domain key by matching the endpoint or using the flag directly
-			var apiDomain string
-
-			// First try to use the flag directly as domain
-			if _, exists := config.APIs[apiFlag]; exists {
-				apiDomain = apiFlag
-			} else {
-				// Otherwise find by endpoint match
-				for domain, cfg := range config.APIs {
-					if cfg.Endpoint == apiConfig.Endpoint {
-						apiDomain = domain
-						break
-					}
-				}
-			}
-
-			if apiDomain == "" {
-				return fmt.Errorf("could not determine API domain for '%s'", apiFlag)
+			apiDomain, err := findAPIDomainByConfig(apiConfig, apiFlag)
+			if err != nil {
+				return err
 			}
 
 			return displayTokenStatus(apiConfig, apiDomain)
@@ -118,35 +108,13 @@ func newTokenRefreshCommand() *cobra.Command {
 
 			// Check if we have a refresh token
 			if apiConfig.RefreshToken == "" {
-				return fmt.Errorf("no refresh token available for this API, please run 'capi login' again")
+				return constants.ErrNoRefreshToken
 			}
 
 			// Find the API domain key by matching the endpoint or using the flag directly
-			config := loadConfig()
-			var apiDomain string
-
-			// First try to use the flag directly as domain
-			if apiFlag != "" {
-				if _, exists := config.APIs[apiFlag]; exists {
-					apiDomain = apiFlag
-				} else {
-					// Otherwise find by endpoint match
-					for domain, cfg := range config.APIs {
-						if cfg.Endpoint == apiConfig.Endpoint {
-							apiDomain = domain
-							break
-						}
-					}
-				}
-			} else {
-				// No flag specified, use current API
-				if config.CurrentAPI != "" {
-					apiDomain = config.CurrentAPI
-				}
-			}
-
-			if apiDomain == "" {
-				return fmt.Errorf("could not determine API domain for '%s'", apiFlag)
+			apiDomain, err := findAPIDomainByConfig(apiConfig, apiFlag)
+			if err != nil {
+				return err
 			}
 
 			return refreshToken(apiConfig, apiDomain)
@@ -163,84 +131,122 @@ func displayTokenStatus(apiConfig *APIConfig, apiDomain string) error {
 	tokenStatus := buildTokenStatusData(apiConfig, apiDomain)
 
 	switch output {
-	case "json":
+	case OutputFormatJSON:
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(tokenStatus)
-	case "yaml":
+
+		err := encoder.Encode(tokenStatus)
+		if err != nil {
+			return fmt.Errorf("encoding token status to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
-		return encoder.Encode(tokenStatus)
+
+		err := encoder.Encode(tokenStatus)
+		if err != nil {
+			return fmt.Errorf("failed to encode token status as YAML: %w", err)
+		}
+
+		return nil
 	default:
 		return displayTokenStatusTable(tokenStatus)
 	}
 }
 
 func displayTokenStatusTable(tokenStatus map[string]interface{}) error {
-	fmt.Printf("Token Status for API: %s\n", tokenStatus["api_domain"])
-	fmt.Printf("Endpoint: %s\n\n", tokenStatus["endpoint"])
+	_, _ = fmt.Fprintf(os.Stdout, "Token Status for API: %s\n", tokenStatus["api_domain"])
+	_, _ = fmt.Fprintf(os.Stdout, "Endpoint: %s\n\n", tokenStatus["endpoint"])
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Property", "Value")
 
-	if err := table.Append([]string{"Authenticated", fmt.Sprintf("%v", tokenStatus["authenticated"])}); err != nil {
-		return err
+	err := table.Append([]string{"Authenticated", fmt.Sprintf("%v", tokenStatus["authenticated"])})
+	if err != nil {
+		return fmt.Errorf("failed to append authenticated status: %w", err)
 	}
-	if err := table.Append([]string{"Status", fmt.Sprintf("%v", tokenStatus["status"])}); err != nil {
-		return err
+
+	err = table.Append([]string{"Status", fmt.Sprintf("%v", tokenStatus["status"])})
+	if err != nil {
+		return fmt.Errorf("failed to append status: %w", err)
 	}
 
 	if expiryStatus, ok := tokenStatus["expiry_status"]; ok {
-		if err := table.Append([]string{"Expiry Status", fmt.Sprintf("%v", expiryStatus)}); err != nil {
-			return err
+		err := table.Append([]string{"Expiry Status", fmt.Sprintf("%v", expiryStatus)})
+		if err != nil {
+			return fmt.Errorf("failed to append expiry status: %w", err)
 		}
 	}
 
 	if expiresAt, ok := tokenStatus["expires_at"]; ok {
-		if err := table.Append([]string{"Expires At", fmt.Sprintf("%v", expiresAt)}); err != nil {
-			return err
+		err := table.Append([]string{"Expires At", fmt.Sprintf("%v", expiresAt)})
+		if err != nil {
+			return fmt.Errorf("failed to append expires at to table: %w", err)
 		}
 	}
 
 	if timeUntilExpiry, ok := tokenStatus["time_until_expiry"]; ok {
-		if err := table.Append([]string{"Time Until Expiry", fmt.Sprintf("%v", timeUntilExpiry)}); err != nil {
-			return err
+		err := table.Append([]string{"Time Until Expiry", fmt.Sprintf("%v", timeUntilExpiry)})
+		if err != nil {
+			return fmt.Errorf("failed to append time until expiry to table: %w", err)
 		}
 	}
 
 	if lastRefreshed, ok := tokenStatus["last_refreshed"]; ok {
-		if err := table.Append([]string{"Last Refreshed", fmt.Sprintf("%v", lastRefreshed)}); err != nil {
-			return err
+		err := table.Append([]string{"Last Refreshed", fmt.Sprintf("%v", lastRefreshed)})
+		if err != nil {
+			return fmt.Errorf("failed to append last refreshed to table: %w", err)
 		}
 	}
 
 	if refreshAvailable, ok := tokenStatus["refresh_token_available"]; ok {
-		if err := table.Append([]string{"Refresh Token Available", fmt.Sprintf("%v", refreshAvailable)}); err != nil {
-			return err
+		err := table.Append([]string{"Refresh Token Available", fmt.Sprintf("%v", refreshAvailable)})
+		if err != nil {
+			return fmt.Errorf("failed to append table row: %w", err)
 		}
 	}
 
-	return table.Render()
+	err = table.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render token status table: %w", err)
+	}
+
+	return nil
 }
 
 func displayAllTokenStatus(config *Config) error {
 	output := viper.GetString("output")
 
-	if output == "json" || output == "yaml" {
+	if output == OutputFormatJSON || output == OutputFormatYAML {
 		// For structured output, show all APIs in one object
 		allStatus := make(map[string]interface{})
+
 		for domain, apiConfig := range config.APIs {
 			tokenStatus := buildTokenStatusData(apiConfig, domain)
 			allStatus[domain] = tokenStatus
 		}
 
 		switch output {
-		case "json":
+		case OutputFormatJSON:
 			encoder := json.NewEncoder(os.Stdout)
 			encoder.SetIndent("", "  ")
-			return encoder.Encode(allStatus)
-		case "yaml":
+
+			err := encoder.Encode(allStatus)
+			if err != nil {
+				return fmt.Errorf("encoding all token status to JSON: %w", err)
+			}
+
+			return nil
+		case OutputFormatYAML:
 			encoder := yaml.NewEncoder(os.Stdout)
-			return encoder.Encode(allStatus)
+
+			err := encoder.Encode(allStatus)
+			if err != nil {
+				return fmt.Errorf("failed to encode all status as YAML: %w", err)
+			}
+
+			return nil
 		}
 	}
 
@@ -248,11 +254,13 @@ func displayAllTokenStatus(config *Config) error {
 	first := true
 	for domain, apiConfig := range config.APIs {
 		if !first {
-			fmt.Println() // Add spacing between APIs
+			_, _ = os.Stdout.WriteString("\n") // Add spacing between APIs
 		}
+
 		first = false
 
-		if err := displayTokenStatus(apiConfig, domain); err != nil {
+		err := displayTokenStatus(apiConfig, domain)
+		if err != nil {
 			return err
 		}
 	}
@@ -266,62 +274,80 @@ func buildTokenStatusData(apiConfig *APIConfig, apiDomain string) map[string]int
 		"endpoint":   apiConfig.Endpoint,
 	}
 
-	// Check if we have a token
 	if apiConfig.Token == "" {
 		tokenStatus["status"] = "No token"
 		tokenStatus["authenticated"] = false
-	} else {
-		tokenStatus["status"] = "Token present"
-		tokenStatus["authenticated"] = true
 
-		// Add expiration info if available
-		var expiresAt *time.Time
-		if apiConfig.TokenExpiresAt != nil {
-			expiresAt = apiConfig.TokenExpiresAt
-		} else {
-			// Try to decode from JWT token
-			if jwtExp, err := decodeJWTExpiration(apiConfig.Token); err == nil {
-				expiresAt = jwtExp
-			}
-		}
-
-		if expiresAt != nil {
-			tokenStatus["expires_at"] = expiresAt.Format(time.RFC3339)
-
-			now := time.Now()
-			timeUntilExpiry := expiresAt.Sub(now)
-
-			if timeUntilExpiry <= 0 {
-				tokenStatus["expiry_status"] = "Expired"
-			} else if timeUntilExpiry <= 5*time.Minute {
-				tokenStatus["expiry_status"] = "Expires soon"
-			} else {
-				tokenStatus["expiry_status"] = "Valid"
-			}
-
-			tokenStatus["time_until_expiry"] = timeUntilExpiry.String()
-		} else {
-			tokenStatus["expiry_status"] = "Unknown expiration"
-		}
-
-		// Add last refresh info if available
-		if apiConfig.LastRefreshed != nil {
-			tokenStatus["last_refreshed"] = apiConfig.LastRefreshed.Format(time.RFC3339)
-		}
-
-		// Check if we have a refresh token
-		tokenStatus["refresh_token_available"] = apiConfig.RefreshToken != ""
+		return tokenStatus
 	}
+
+	populateTokenInfo(tokenStatus, apiConfig)
 
 	return tokenStatus
 }
 
-// decodeJWTExpiration extracts expiration time from a JWT token
+// populateTokenInfo adds token information to the status map when a token is present.
+func populateTokenInfo(tokenStatus map[string]interface{}, apiConfig *APIConfig) {
+	tokenStatus["status"] = "Token present"
+	tokenStatus["authenticated"] = true
+
+	// Add expiration info if available
+	expiresAt := getTokenExpiration(apiConfig)
+	if expiresAt != nil {
+		addExpirationInfo(tokenStatus, expiresAt)
+	} else {
+		tokenStatus["expiry_status"] = "Unknown expiration"
+	}
+
+	// Add last refresh info if available
+	if apiConfig.LastRefreshed != nil {
+		tokenStatus["last_refreshed"] = apiConfig.LastRefreshed.Format(time.RFC3339)
+	}
+
+	// Check if we have a refresh token
+	tokenStatus["refresh_token_available"] = apiConfig.RefreshToken != ""
+}
+
+// getTokenExpiration gets the token expiration time from config or JWT.
+func getTokenExpiration(apiConfig *APIConfig) *time.Time {
+	if apiConfig.TokenExpiresAt != nil {
+		return apiConfig.TokenExpiresAt
+	}
+
+	// Try to decode from JWT token
+	jwtExp, err := decodeJWTExpiration(apiConfig.Token)
+	if err == nil {
+		return jwtExp
+	}
+
+	return nil
+}
+
+// addExpirationInfo adds expiration status and timing information.
+func addExpirationInfo(tokenStatus map[string]interface{}, expiresAt *time.Time) {
+	tokenStatus["expires_at"] = expiresAt.Format(time.RFC3339)
+
+	now := time.Now()
+	timeUntilExpiry := expiresAt.Sub(now)
+
+	switch {
+	case timeUntilExpiry <= 0:
+		tokenStatus["expiry_status"] = "Expired"
+	case timeUntilExpiry <= 5*time.Minute:
+		tokenStatus["expiry_status"] = "Expires soon"
+	default:
+		tokenStatus["expiry_status"] = "Valid"
+	}
+
+	tokenStatus["time_until_expiry"] = timeUntilExpiry.String()
+}
+
+// decodeJWTExpiration extracts expiration time from a JWT token.
 func decodeJWTExpiration(token string) (*time.Time, error) {
 	// Split the JWT into its parts
 	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid JWT format")
+	if len(parts) != constants.TokenPartsCount {
+		return nil, constants.ErrInvalidJWTFormat
 	}
 
 	// Decode the payload (second part)
@@ -329,7 +355,7 @@ func decodeJWTExpiration(token string) (*time.Time, error) {
 
 	// Add padding if necessary
 	if len(payload)%4 != 0 {
-		payload += strings.Repeat("=", 4-len(payload)%4)
+		payload += strings.Repeat("=", constants.Base64PaddingLength-len(payload)%constants.Base64PaddingLength)
 	}
 
 	payloadBytes, err := base64.URLEncoding.DecodeString(payload)
@@ -342,30 +368,28 @@ func decodeJWTExpiration(token string) (*time.Time, error) {
 		Exp int64 `json:"exp"`
 	}
 
-	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
+	err = json.Unmarshal(payloadBytes, &claims)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse JWT claims: %w", err)
 	}
 
 	if claims.Exp == 0 {
-		return nil, fmt.Errorf("no expiration claim found")
+		return nil, constants.ErrNoExpirationClaim
 	}
 
 	expTime := time.Unix(claims.Exp, 0)
+
 	return &expTime, nil
 }
 
 func refreshToken(apiConfig *APIConfig, apiDomain string) error {
-	fmt.Printf("Refreshing token for API: %s\n", apiDomain)
+	_, _ = fmt.Fprintf(os.Stdout, "Refreshing token for API: %s\n", apiDomain)
 
 	// Create OAuth2 config for refresh
 	uaaEndpoint := apiConfig.UAAEndpoint
 	if uaaEndpoint == "" {
 		// Try to discover from API endpoint
-		var err error
-		uaaEndpoint, err = discoverUAAEndpoint(apiConfig.Endpoint, apiConfig.SkipSSLValidation)
-		if err != nil {
-			return fmt.Errorf("could not determine UAA endpoint: %w", err)
-		}
+		uaaEndpoint = discoverUAAEndpoint(apiConfig.Endpoint)
 	}
 
 	oauth2Config := &auth.OAuth2Config{
@@ -380,45 +404,79 @@ func refreshToken(apiConfig *APIConfig, apiDomain string) error {
 
 	// Force refresh
 	ctx := context.Background()
-	if err := tokenManager.RefreshToken(ctx); err != nil {
+
+	err := tokenManager.RefreshToken(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
 
 	// Get the new token
 	newToken := tokenManager.GetTokenStore().Get()
 	if newToken == nil {
-		return fmt.Errorf("failed to retrieve refreshed token")
+		return constants.ErrFailedRetrieveToken
 	}
 
 	// Update config
 	config := loadConfig()
 	if config.APIs[apiDomain] == nil {
-		return fmt.Errorf("API configuration not found")
+		return constants.ErrAPIConfigNotFound
 	}
 
 	config.APIs[apiDomain].Token = newToken.AccessToken
 	if newToken.RefreshToken != "" {
 		config.APIs[apiDomain].RefreshToken = newToken.RefreshToken
 	}
+
 	if !newToken.ExpiresAt.IsZero() {
 		config.APIs[apiDomain].TokenExpiresAt = &newToken.ExpiresAt
 	}
+
 	now := time.Now()
 	config.APIs[apiDomain].LastRefreshed = &now
 
 	// Save config
-	if err := saveConfigStruct(config); err != nil {
+	err = saveConfigStruct(config)
+	if err != nil {
 		return fmt.Errorf("failed to save updated token to config: %w", err)
 	}
 
-	fmt.Println("Token refreshed successfully!")
+	_, _ = os.Stdout.WriteString("Token refreshed successfully!\n")
 
 	// Show new expiration
 	if !newToken.ExpiresAt.IsZero() {
-		fmt.Printf("New token expires at: %s\n", newToken.ExpiresAt.Format(time.RFC3339))
+		_, _ = fmt.Fprintf(os.Stdout, "New token expires at: %s\n", newToken.ExpiresAt.Format(time.RFC3339))
 		timeUntilExpiry := time.Until(newToken.ExpiresAt)
-		fmt.Printf("Time until expiry: %s\n", timeUntilExpiry.String())
+		_, _ = fmt.Fprintf(os.Stdout, "Time until expiry: %s\n", timeUntilExpiry.String())
 	}
 
 	return nil
+}
+
+// findAPIDomainByConfig finds the API domain for a given API config and flag.
+func findAPIDomainByConfig(apiConfig *APIConfig, apiFlag string) (string, error) {
+	config := loadConfig()
+
+	if apiFlag != "" {
+		// First try to use the flag directly as domain
+		if _, exists := config.APIs[apiFlag]; exists {
+			return apiFlag, nil
+		}
+
+		// Otherwise find by endpoint match
+		for domain, cfg := range config.APIs {
+			if cfg.Endpoint == apiConfig.Endpoint {
+				return domain, nil
+			}
+		}
+
+		return "", fmt.Errorf("%w for '%s'", constants.ErrNoDomainForAPI, apiFlag)
+	}
+
+	// If no flag provided, use the current API or find by endpoint
+	if config.CurrentAPI != "" {
+		return config.CurrentAPI, nil
+	}
+
+	// Fallback to endpoint-based lookup
+	return findAPIDomain(apiConfig)
 }

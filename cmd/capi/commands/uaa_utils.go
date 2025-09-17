@@ -4,19 +4,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
-// createUsersCurlCommand creates the curl command for direct UAA API access
+// createUsersCurlCommand creates the curl command for direct UAA API access.
 func createUsersCurlCommand() *cobra.Command {
-	var method, data string
-	var headers []string
-	var outputFile string
+	var (
+		method, data string
+		headers      []string
+		outputFile   string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "curl <path>",
@@ -32,7 +36,7 @@ to the UAA endpoint (e.g., '/Users' or '/oauth/clients').`,
 			path := args[0]
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -42,7 +46,7 @@ to the UAA endpoint (e.g., '/Users' or '/oauth/clients').`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Make the curl request
@@ -54,22 +58,23 @@ to the UAA endpoint (e.g., '/Users' or '/oauth/clients').`,
 			// Handle output
 			if outputFile != "" {
 				// Write response body to file
-				err := os.WriteFile(outputFile, []byte(body), 0600)
+				err := os.WriteFile(outputFile, []byte(body), constants.FilePermissionReadWrite)
 				if err != nil {
 					return fmt.Errorf("failed to write output to file: %w", err)
 				}
-				fmt.Printf("Response written to %s\n", outputFile)
-				fmt.Printf("Status: %d\n", statusCode)
+				_, _ = fmt.Fprintf(os.Stdout, "Response written to %s\n", outputFile)
+				_, _ = fmt.Fprintf(os.Stdout, "Status: %d\n", statusCode)
+
 				return nil
 			}
 
 			// Display response
-			fmt.Printf("Status: %d\n", statusCode)
+			_, _ = fmt.Fprintf(os.Stdout, "Status: %d\n", statusCode)
 			if responseHeaders != "" {
-				fmt.Printf("Headers:\n%s\n", responseHeaders)
+				_, _ = fmt.Fprintf(os.Stdout, "Headers:\n%s\n", responseHeaders)
 			}
 			if body != "" {
-				fmt.Printf("Response:\n%s\n", body)
+				_, _ = fmt.Fprintf(os.Stdout, "Response:\n%s\n", body)
 			}
 
 			return nil
@@ -84,7 +89,7 @@ to the UAA endpoint (e.g., '/Users' or '/oauth/clients').`,
 	return cmd
 }
 
-// createUsersUserinfoCommand creates the userinfo command
+// createUsersUserinfoCommand creates the userinfo command.
 func createUsersUserinfoCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "userinfo",
@@ -97,7 +102,7 @@ current access token, including user attributes and granted scopes.`,
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -107,7 +112,7 @@ current access token, including user attributes and granted scopes.`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Get user info
@@ -119,12 +124,14 @@ current access token, including user attributes and granted scopes.`,
 			// Display user info
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(userInfo)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(userInfo)
 			default:
 				return displayUserInfoTable(userInfo)
@@ -133,7 +140,7 @@ current access token, including user attributes and granted scopes.`,
 	}
 }
 
-// Helper function for userinfo display
+// Helper function for userinfo display.
 func displayUserInfoTable(userInfo *uaa.UserInfo) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Property", "Value")
@@ -141,31 +148,40 @@ func displayUserInfoTable(userInfo *uaa.UserInfo) error {
 	if userInfo.UserID != "" {
 		_ = table.Append("User ID", userInfo.UserID)
 	}
+
 	if userInfo.Sub != "" {
 		_ = table.Append("Subject", userInfo.Sub)
 	}
+
 	if userInfo.Username != "" {
 		_ = table.Append("Username", userInfo.Username)
 	}
+
 	if userInfo.Name != "" {
 		_ = table.Append("Name", userInfo.Name)
 	}
+
 	if userInfo.GivenName != "" {
 		_ = table.Append("Given Name", userInfo.GivenName)
 	}
+
 	if userInfo.FamilyName != "" {
 		_ = table.Append("Family Name", userInfo.FamilyName)
 	}
+
 	if userInfo.Email != "" {
 		_ = table.Append("Email", userInfo.Email)
 	}
+
 	if userInfo.PhoneNumber != "" {
 		_ = table.Append("Phone Number", userInfo.PhoneNumber)
 	}
+
 	if userInfo.PreviousLoginTime > 0 {
-		_ = table.Append("Previous Login", fmt.Sprintf("%d", userInfo.PreviousLoginTime))
+		_ = table.Append("Previous Login", strconv.FormatInt(userInfo.PreviousLoginTime, 10))
 	}
 
 	_ = table.Render()
+
 	return nil
 }

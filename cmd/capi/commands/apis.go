@@ -7,13 +7,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
-// NewAPIsCommand creates the apis command group
+// NewAPIsCommand creates the apis command group.
 func NewAPIsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "apis",
@@ -37,7 +39,7 @@ func newAPIsAddCommand() *cobra.Command {
 		Use:   "add NAME ENDPOINT",
 		Short: "Add a new Cloud Foundry API endpoint",
 		Long:  "Add a new Cloud Foundry API endpoint to the configuration",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(constants.MinimumArgumentCount),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			endpoint := args[1]
@@ -61,7 +63,7 @@ func newAPIsAddCommand() *cobra.Command {
 
 			// Check if API already exists
 			if _, exists := config.APIs[domain]; exists {
-				return fmt.Errorf("API '%s' already exists for domain '%s'", name, domain)
+				return fmt.Errorf("%w for domain '%s': '%s'", capi.ErrAPIAlreadyExists, domain, name)
 			}
 
 			// Create new API configuration
@@ -76,13 +78,14 @@ func newAPIsAddCommand() *cobra.Command {
 			// If this is the first API, make it current
 			if config.CurrentAPI == "" {
 				config.CurrentAPI = domain
-				fmt.Printf("API '%s' (%s) added and set as current target\n", name, normalizedEndpoint)
+				_, _ = fmt.Fprintf(os.Stdout, "API '%s' (%s) added and set as current target\n", name, normalizedEndpoint)
 			} else {
-				fmt.Printf("API '%s' (%s) added\n", name, normalizedEndpoint)
+				_, _ = fmt.Fprintf(os.Stdout, "API '%s' (%s) added\n", name, normalizedEndpoint)
 			}
 
 			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
+			err = saveConfigStruct(config)
+			if err != nil {
 				return fmt.Errorf("failed to save configuration: %w", err)
 			}
 
@@ -100,90 +103,110 @@ func newAPIsListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "List all Cloud Foundry API endpoints",
 		Long:  "Display all configured Cloud Foundry API endpoints",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if len(config.APIs) == 0 {
-				fmt.Println("No APIs configured. Use 'capi apis add' to add one.")
-				return nil
-			}
-
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				type APIInfo struct {
-					Domain            string `json:"domain"`
-					Endpoint          string `json:"endpoint"`
-					Username          string `json:"username,omitempty"`
-					Organization      string `json:"organization,omitempty"`
-					Space             string `json:"space,omitempty"`
-					SkipSSLValidation bool   `json:"skip_ssl_validation"`
-					Current           bool   `json:"current"`
-				}
-
-				var apis []APIInfo
-				for domain, apiConfig := range config.APIs {
-					apis = append(apis, APIInfo{
-						Domain:            domain,
-						Endpoint:          apiConfig.Endpoint,
-						Username:          apiConfig.Username,
-						Organization:      apiConfig.Organization,
-						Space:             apiConfig.Space,
-						SkipSSLValidation: apiConfig.SkipSSLValidation,
-						Current:           domain == config.CurrentAPI,
-					})
-				}
-
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(apis)
-
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(config.APIs)
-
-			default:
-				if len(config.APIs) == 0 {
-					fmt.Println("No APIs configured. Use 'capi apis add' to add one.")
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("Domain", "Endpoint", "User", "Org", "Space", "Current")
-
-				for domain, apiConfig := range config.APIs {
-					current := ""
-					if domain == config.CurrentAPI {
-						current = "✓"
-					}
-
-					user := apiConfig.Username
-					if user == "" {
-						user = "-"
-					}
-
-					org := apiConfig.Organization
-					if org == "" {
-						org = "-"
-					}
-
-					space := apiConfig.Space
-					if space == "" {
-						space = "-"
-					}
-
-					_ = table.Append(domain, apiConfig.Endpoint, user, org, space, current)
-				}
-
-				if err := table.Render(); err != nil {
-					return fmt.Errorf("failed to render table: %w", err)
-				}
-			}
-
-			return nil
-		},
+		RunE:  runAPIsList,
 	}
+}
+
+func runAPIsList(cmd *cobra.Command, args []string) error {
+	config := loadConfig()
+
+	if len(config.APIs) == 0 {
+		_, _ = os.Stdout.WriteString("No APIs configured. Use 'capi apis add' to add one.\n")
+
+		return nil
+	}
+
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		return outputAPIsJSON(config)
+	case OutputFormatYAML:
+		return outputAPIsYAML(config)
+	default:
+		return outputAPIsTable(config)
+	}
+}
+
+type apiInfo struct {
+	Domain            string `json:"domain"`
+	Endpoint          string `json:"endpoint"`
+	Username          string `json:"username,omitempty"`
+	Organization      string `json:"organization,omitempty"`
+	Space             string `json:"space,omitempty"`
+	SkipSSLValidation bool   `json:"skip_ssl_validation"`
+	Current           bool   `json:"current"`
+}
+
+func outputAPIsJSON(config *Config) error {
+	apis := make([]apiInfo, 0, len(config.APIs))
+	for domain, apiConfig := range config.APIs {
+		apis = append(apis, apiInfo{
+			Domain:            domain,
+			Endpoint:          apiConfig.Endpoint,
+			Username:          apiConfig.Username,
+			Organization:      apiConfig.Organization,
+			Space:             apiConfig.Space,
+			SkipSSLValidation: apiConfig.SkipSSLValidation,
+			Current:           domain == config.CurrentAPI,
+		})
+	}
+
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+
+	err := encoder.Encode(apis)
+	if err != nil {
+		return fmt.Errorf("failed to encode APIs as JSON: %w", err)
+	}
+
+	return nil
+}
+
+func outputAPIsYAML(config *Config) error {
+	encoder := yaml.NewEncoder(os.Stdout)
+
+	err := encoder.Encode(config.APIs)
+	if err != nil {
+		return fmt.Errorf("failed to encode APIs as YAML: %w", err)
+	}
+
+	return nil
+}
+
+func outputAPIsTable(config *Config) error {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Domain", "Endpoint", "User", "Org", "Space", "Current")
+
+	for domain, apiConfig := range config.APIs {
+		current := ""
+		if domain == config.CurrentAPI {
+			current = constants.CheckMarkSymbol
+		}
+
+		_ = table.Append(
+			domain,
+			apiConfig.Endpoint,
+			defaultIfEmpty(apiConfig.Username, "-"),
+			defaultIfEmpty(apiConfig.Organization, "-"),
+			defaultIfEmpty(apiConfig.Space, "-"),
+			current,
+		)
+	}
+
+	err := table.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render APIs table: %w", err)
+	}
+
+	return nil
+}
+
+func defaultIfEmpty(value, defaultValue string) string {
+	if value == "" {
+		return defaultValue
+	}
+
+	return value
 }
 
 func newAPIsDeleteCommand() *cobra.Command {
@@ -200,12 +223,12 @@ func newAPIsDeleteCommand() *cobra.Command {
 
 			// Check if API exists
 			if _, exists := config.APIs[domain]; !exists {
-				return fmt.Errorf("API '%s' not found", domain)
+				return fmt.Errorf("%w: '%s'", capi.ErrAPINotFound, domain)
 			}
 
 			// Don't allow deleting the last API if it's current
 			if len(config.APIs) == 1 && config.CurrentAPI == domain {
-				return fmt.Errorf("cannot delete the only configured API")
+				return capi.ErrCannotDeleteOnlyAPI
 			}
 
 			// Remove from configuration
@@ -217,19 +240,21 @@ func newAPIsDeleteCommand() *cobra.Command {
 					// Set the first remaining API as current
 					for newDomain := range config.APIs {
 						config.CurrentAPI = newDomain
+
 						break
 					}
-					fmt.Printf("API '%s' deleted. Current API switched to '%s'\n", domain, config.CurrentAPI)
+					_, _ = fmt.Fprintf(os.Stdout, "API '%s' deleted. Current API switched to '%s'\n", domain, config.CurrentAPI)
 				} else {
 					config.CurrentAPI = ""
-					fmt.Printf("API '%s' deleted. No APIs remaining.\n", domain)
+					_, _ = fmt.Fprintf(os.Stdout, "API '%s' deleted. No APIs remaining.\n", domain)
 				}
 			} else {
-				fmt.Printf("API '%s' deleted\n", domain)
+				_, _ = fmt.Fprintf(os.Stdout, "API '%s' deleted\n", domain)
 			}
 
 			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
+			err := saveConfigStruct(config)
+			if err != nil {
 				return fmt.Errorf("failed to save configuration: %w", err)
 			}
 
@@ -252,24 +277,26 @@ func newAPIsTargetCommand() *cobra.Command {
 
 			// Check if API exists
 			if _, exists := config.APIs[domain]; !exists {
-				return fmt.Errorf("API '%s' not found. Use 'capi apis list' to see available APIs", domain)
+				return fmt.Errorf("%w: '%s'. Use 'capi apis list' to see available APIs", capi.ErrAPINotFound, domain)
 			}
 
 			// Set as current
 			config.CurrentAPI = domain
 
 			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
+			err := saveConfigStruct(config)
+			if err != nil {
 				return fmt.Errorf("failed to save configuration: %w", err)
 			}
 
-			fmt.Printf("API '%s' is now the current target\n", domain)
+			_, _ = fmt.Fprintf(os.Stdout, "API '%s' is now the current target\n", domain)
+
 			return nil
 		},
 	}
 }
 
-// normalizeEndpoint validates and normalizes a CF API endpoint URL
+// normalizeEndpoint validates and normalizes a CF API endpoint URL.
 func normalizeEndpoint(endpoint string) (string, error) {
 	// Add https:// if no protocol is specified
 	if !strings.HasPrefix(endpoint, "http://") && !strings.HasPrefix(endpoint, "https://") {
@@ -284,7 +311,7 @@ func normalizeEndpoint(endpoint string) (string, error) {
 
 	// Ensure we have a host
 	if parsedURL.Host == "" {
-		return "", fmt.Errorf("no host specified in URL")
+		return "", capi.ErrNoHostInURL
 	}
 
 	// Remove trailing slash and path for consistency

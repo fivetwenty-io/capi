@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,18 +8,22 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAppsClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var req capi.AppCreateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.Equal(t, "test-app", req.Name)
 		assert.Equal(t, "space-guid", req.Relationships.Space.Data.GUID)
 
@@ -38,13 +42,13 @@ func TestAppsClient_Create(t *testing.T) {
 			Relationships: req.Relationships,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(app)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(app)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	app, err := client.Apps().Create(context.Background(), &capi.AppCreateRequest{
@@ -63,9 +67,11 @@ func TestAppsClient_Create(t *testing.T) {
 }
 
 func TestAppsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		app := capi.App{
 			Resource: capi.Resource{
@@ -75,11 +81,11 @@ func TestAppsClient_Get(t *testing.T) {
 			State: "STARTED",
 		}
 
-		_ = json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(writer).Encode(app)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	app, err := client.Apps().Get(context.Background(), "app-guid")
@@ -90,11 +96,13 @@ func TestAppsClient_Get(t *testing.T) {
 }
 
 func TestAppsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
-		assert.Equal(t, "10", r.URL.Query().Get("per_page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "1", request.URL.Query().Get("page"))
+		assert.Equal(t, "10", request.URL.Query().Get("per_page"))
 
 		response := capi.ListResponse[capi.App]{
 			Pagination: capi.Pagination{
@@ -115,11 +123,11 @@ func TestAppsClient_List(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	params := capi.NewQueryParams().WithPage(1).WithPerPage(10)
@@ -132,12 +140,15 @@ func TestAppsClient_List(t *testing.T) {
 }
 
 func TestAppsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req capi.AppUpdateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.Equal(t, "updated-app", *req.Name)
 
 		app := capi.App{
@@ -146,11 +157,11 @@ func TestAppsClient_Update(t *testing.T) {
 			State:    "STOPPED",
 		}
 
-		_ = json.NewEncoder(w).Encode(app)
+		_ = json.NewEncoder(writer).Encode(app)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	newName := "updated-app"
@@ -163,94 +174,62 @@ func TestAppsClient_Update(t *testing.T) {
 }
 
 func TestAppsClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.Apps().Delete(context.Background(), "app-guid")
 	require.NoError(t, err)
 }
 
-func TestAppsClient_Start(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/actions/start", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+func TestAppsClient_ActionMethods(t *testing.T) {
+	t.Parallel()
 
-		app := capi.App{
-			Resource: capi.Resource{GUID: "app-guid"},
-			Name:     "test-app",
-			State:    "STARTED",
-		}
+	tests := []TestAppActionOperation{
+		{
+			Name:          "Start",
+			Action:        "start",
+			ExpectedState: "STARTED",
+			ActionFunc: func(c *Client) func(context.Context, string) (*capi.App, error) {
+				return c.Apps().Start
+			},
+		},
+		{
+			Name:          "Stop",
+			Action:        "stop",
+			ExpectedState: "STOPPED",
+			ActionFunc: func(c *Client) func(context.Context, string) (*capi.App, error) {
+				return c.Apps().Stop
+			},
+		},
+		{
+			Name:          "Restart",
+			Action:        "restart",
+			ExpectedState: "STARTED",
+			ActionFunc: func(c *Client) func(context.Context, string) (*capi.App, error) {
+				return c.Apps().Restart
+			},
+		},
+	}
 
-		_ = json.NewEncoder(w).Encode(app)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	app, err := client.Apps().Start(context.Background(), "app-guid")
-	require.NoError(t, err)
-	assert.Equal(t, "STARTED", app.State)
-}
-
-func TestAppsClient_Stop(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/actions/stop", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-
-		app := capi.App{
-			Resource: capi.Resource{GUID: "app-guid"},
-			Name:     "test-app",
-			State:    "STOPPED",
-		}
-
-		_ = json.NewEncoder(w).Encode(app)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	app, err := client.Apps().Stop(context.Background(), "app-guid")
-	require.NoError(t, err)
-	assert.Equal(t, "STOPPED", app.State)
-}
-
-func TestAppsClient_Restart(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/actions/restart", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-
-		app := capi.App{
-			Resource: capi.Resource{GUID: "app-guid"},
-			Name:     "test-app",
-			State:    "STARTED",
-		}
-
-		_ = json.NewEncoder(w).Encode(app)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	app, err := client.Apps().Restart(context.Background(), "app-guid")
-	require.NoError(t, err)
-	assert.Equal(t, "STARTED", app.State)
+	RunAppActionTests(t, tests)
 }
 
 func TestAppsClient_GetEnv(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/env", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/env", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		env := capi.AppEnvironment{
 			StagingEnvJSON: map[string]interface{}{
@@ -272,11 +251,11 @@ func TestAppsClient_GetEnv(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(env)
+		_ = json.NewEncoder(writer).Encode(env)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	env, err := client.Apps().GetEnv(context.Background(), "app-guid")
@@ -286,9 +265,11 @@ func TestAppsClient_GetEnv(t *testing.T) {
 }
 
 func TestAppsClient_GetEnvVars(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/environment_variables", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/environment_variables", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		response := map[string]interface{}{
 			"var": map[string]interface{}{
@@ -297,11 +278,11 @@ func TestAppsClient_GetEnvVars(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	vars, err := client.Apps().GetEnvVars(context.Background(), "app-guid")
@@ -311,13 +292,20 @@ func TestAppsClient_GetEnvVars(t *testing.T) {
 }
 
 func TestAppsClient_UpdateEnvVars(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/environment_variables", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/environment_variables", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req map[string]interface{}
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		assert.Equal(t, "new_value", req["var"].(map[string]interface{})["NEW_KEY"])
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
+		if varMap, ok := req["var"].(map[string]interface{}); ok {
+			assert.Equal(t, "new_value", varMap["NEW_KEY"])
+		} else {
+			t.Errorf("req[\"var\"] is not a map[string]interface{}")
+		}
 
 		response := map[string]interface{}{
 			"var": map[string]interface{}{
@@ -326,11 +314,11 @@ func TestAppsClient_UpdateEnvVars(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	vars, err := client.Apps().UpdateEnvVars(context.Background(), "app-guid", map[string]interface{}{
@@ -341,19 +329,21 @@ func TestAppsClient_UpdateEnvVars(t *testing.T) {
 }
 
 func TestAppsClient_GetCurrentDroplet(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/droplets/current", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/droplets/current", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		droplet := capi.Droplet{
 			Resource: capi.Resource{GUID: "droplet-guid"},
 		}
 
-		_ = json.NewEncoder(w).Encode(droplet)
+		_ = json.NewEncoder(writer).Encode(droplet)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	droplet, err := client.Apps().GetCurrentDroplet(context.Background(), "app-guid")
@@ -362,19 +352,22 @@ func TestAppsClient_GetCurrentDroplet(t *testing.T) {
 }
 
 func TestAppsClient_SetCurrentDroplet(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/relationships/current_droplet", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/relationships/current_droplet", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req capi.Relationship
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.Equal(t, "droplet-guid", req.Data.GUID)
 
-		_ = json.NewEncoder(w).Encode(req)
+		_ = json.NewEncoder(writer).Encode(req)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	rel, err := client.Apps().SetCurrentDroplet(context.Background(), "app-guid", "droplet-guid")
@@ -383,20 +376,22 @@ func TestAppsClient_SetCurrentDroplet(t *testing.T) {
 }
 
 func TestAppsClient_GetSSHEnabled(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/ssh_enabled", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/ssh_enabled", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		sshEnabled := capi.AppSSHEnabled{
 			Enabled: true,
 			Reason:  "",
 		}
 
-		_ = json.NewEncoder(w).Encode(sshEnabled)
+		_ = json.NewEncoder(writer).Encode(sshEnabled)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	ssh, err := client.Apps().GetSSHEnabled(context.Background(), "app-guid")
@@ -405,20 +400,22 @@ func TestAppsClient_GetSSHEnabled(t *testing.T) {
 }
 
 func TestAppsClient_GetPermissions(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/permissions", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/permissions", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		permissions := capi.AppPermissions{
 			ReadBasicData:     true,
 			ReadSensitiveData: false,
 		}
 
-		_ = json.NewEncoder(w).Encode(permissions)
+		_ = json.NewEncoder(writer).Encode(permissions)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	perms, err := client.Apps().GetPermissions(context.Background(), "app-guid")
@@ -428,15 +425,17 @@ func TestAppsClient_GetPermissions(t *testing.T) {
 }
 
 func TestAppsClient_ClearBuildpackCache(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/actions/clear_buildpack_cache", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/actions/clear_buildpack_cache", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.Apps().ClearBuildpackCache(context.Background(), "app-guid")
@@ -444,9 +443,11 @@ func TestAppsClient_ClearBuildpackCache(t *testing.T) {
 }
 
 func TestAppsClient_GetManifest(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/manifest", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/manifest", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		manifest := `applications:
 - name: test-app
@@ -454,12 +455,12 @@ func TestAppsClient_GetManifest(t *testing.T) {
   instances: 2
   buildpack: nodejs_buildpack`
 
-		w.Header().Set("Content-Type", "application/x-yaml")
-		_, _ = w.Write([]byte(manifest))
+		writer.Header().Set("Content-Type", "application/x-yaml")
+		_, _ = writer.Write([]byte(manifest))
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	manifest, err := client.Apps().GetManifest(context.Background(), "app-guid")

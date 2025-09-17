@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,82 +8,91 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func createTestAppUsageEvent() capi.AppUsageEvent {
+	previousState := "STOPPED"
+	previousInstanceCount := 1
+	previousMemoryInMB := 256
+	buildpackName := "nodejs_buildpack"
+	buildpackGUID := "buildpack-guid"
+	taskName := "migrate"
+	taskGUID := "task-guid"
+	parentAppName := "parent-app"
+	parentAppGUID := "parent-app-guid"
+
+	return capi.AppUsageEvent{
+		Resource: capi.Resource{
+			GUID:      "event-guid",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		State:                         "STARTED",
+		PreviousState:                 &previousState,
+		InstanceCount:                 2,
+		PreviousInstanceCount:         &previousInstanceCount,
+		MemoryInMBPerInstance:         512,
+		PreviousMemoryInMBPerInstance: &previousMemoryInMB,
+		AppName:                       "test-app",
+		AppGUID:                       "app-guid",
+		SpaceName:                     "test-space",
+		SpaceGUID:                     "space-guid",
+		OrganizationName:              "test-org",
+		OrganizationGUID:              "org-guid",
+		BuildpackName:                 &buildpackName,
+		BuildpackGUID:                 &buildpackGUID,
+		ProcessType:                   "web",
+		TaskName:                      &taskName,
+		TaskGUID:                      &taskGUID,
+		ParentAppName:                 &parentAppName,
+		ParentAppGUID:                 &parentAppGUID,
+		Package: capi.AppUsageEventPackage{
+			State: "READY",
+		},
+	}
+}
+
 func TestAppUsageEventsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/app_usage_events/event-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
 
-		previousState := "STOPPED"
-		previousInstanceCount := 1
-		previousMemoryInMB := 256
-		buildpackName := "nodejs_buildpack"
-		buildpackGUID := "buildpack-guid"
-		taskName := "migrate"
-		taskGUID := "task-guid"
-		parentAppName := "parent-app"
-		parentAppGUID := "parent-app-guid"
+	event := createTestAppUsageEvent()
 
-		event := capi.AppUsageEvent{
-			Resource: capi.Resource{
-				GUID:      "event-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			State:                         "STARTED",
-			PreviousState:                 &previousState,
-			InstanceCount:                 2,
-			PreviousInstanceCount:         &previousInstanceCount,
-			MemoryInMBPerInstance:         512,
-			PreviousMemoryInMBPerInstance: &previousMemoryInMB,
-			AppName:                       "test-app",
-			AppGUID:                       "app-guid",
-			SpaceName:                     "test-space",
-			SpaceGUID:                     "space-guid",
-			OrganizationName:              "test-org",
-			OrganizationGUID:              "org-guid",
-			BuildpackName:                 &buildpackName,
-			BuildpackGUID:                 &buildpackGUID,
-			ProcessType:                   "web",
-			TaskName:                      &taskName,
-			TaskGUID:                      &taskGUID,
-			ParentAppName:                 &parentAppName,
-			ParentAppGUID:                 &parentAppGUID,
-			Package: capi.AppUsageEventPackage{
-				State: "READY",
-			},
-		}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/app_usage_events/event-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
-		_ = json.NewEncoder(w).Encode(event)
+		_ = json.NewEncoder(writer).Encode(event)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	event, err := client.AppUsageEvents().Get(context.Background(), "event-guid")
+	result, err := client.AppUsageEvents().Get(context.Background(), "event-guid")
 	require.NoError(t, err)
-	assert.Equal(t, "event-guid", event.GUID)
-	assert.Equal(t, "STARTED", event.State)
-	assert.Equal(t, "STOPPED", *event.PreviousState)
-	assert.Equal(t, 2, event.InstanceCount)
-	assert.Equal(t, 1, *event.PreviousInstanceCount)
-	assert.Equal(t, 512, event.MemoryInMBPerInstance)
-	assert.Equal(t, 256, *event.PreviousMemoryInMBPerInstance)
-	assert.Equal(t, "test-app", event.AppName)
-	assert.Equal(t, "nodejs_buildpack", *event.BuildpackName)
+	assert.Equal(t, "event-guid", result.GUID)
+	assert.Equal(t, "STARTED", result.State)
+	assert.Equal(t, "STOPPED", *result.PreviousState)
+	assert.Equal(t, 2, result.InstanceCount)
+	assert.Equal(t, 1, *result.PreviousInstanceCount)
+	assert.Equal(t, 512, result.MemoryInMBPerInstance)
+	assert.Equal(t, 256, *result.PreviousMemoryInMBPerInstance)
+	assert.Equal(t, "test-app", result.AppName)
+	assert.Equal(t, "nodejs_buildpack", *result.BuildpackName)
 }
 
 func TestAppUsageEventsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/app_usage_events", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
-		assert.Equal(t, "10", r.URL.Query().Get("per_page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/app_usage_events", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "1", request.URL.Query().Get("page"))
+		assert.Equal(t, "10", request.URL.Query().Get("per_page"))
 
 		response := capi.ListResponse[capi.AppUsageEvent]{
 			Pagination: capi.Pagination{
@@ -120,11 +129,11 @@ func TestAppUsageEventsClient_List(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	params := capi.NewQueryParams().WithPage(1).WithPerPage(10)
@@ -139,16 +148,18 @@ func TestAppUsageEventsClient_List(t *testing.T) {
 }
 
 func TestAppUsageEventsClient_PurgeAndReseed(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/app_usage_events/actions/destructively_purge_all_and_reseed", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte("{}"))
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/app_usage_events/actions/destructively_purge_all_and_reseed", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		writer.WriteHeader(http.StatusAccepted)
+		_, _ = writer.Write([]byte("{}"))
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.AppUsageEvents().PurgeAndReseed(context.Background())

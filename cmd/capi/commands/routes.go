@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -14,7 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewRoutesCommand creates the routes command group
+// NewRoutesCommand creates the routes command group.
 func NewRoutesCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "routes",
@@ -35,126 +37,17 @@ func NewRoutesCommand() *cobra.Command {
 }
 
 func newRoutesListCommand() *cobra.Command {
-	var spaceName string
-	var domainName string
+	var (
+		spaceName  string
+		domainName string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List routes",
 		Long:  "List all routes the user has access to",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-			params := capi.NewQueryParams()
-
-			// Filter by space if specified
-			if spaceName != "" {
-				// Find space by name
-				spaceParams := capi.NewQueryParams()
-				spaceParams.WithFilter("names", spaceName)
-
-				// Add org filter if targeted
-				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
-					spaceParams.WithFilter("organization_guids", orgGUID)
-				}
-
-				spaces, err := client.Spaces().List(ctx, spaceParams)
-				if err != nil {
-					return fmt.Errorf("failed to find space: %w", err)
-				}
-				if len(spaces.Resources) == 0 {
-					return fmt.Errorf("space '%s' not found", spaceName)
-				}
-
-				params.WithFilter("space_guids", spaces.Resources[0].GUID)
-			} else if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
-				// Use targeted space
-				params.WithFilter("space_guids", spaceGUID)
-			}
-
-			// Filter by domain if specified
-			if domainName != "" {
-				// Find domain by name
-				domainParams := capi.NewQueryParams()
-				domainParams.WithFilter("names", domainName)
-
-				domains, err := client.Domains().List(ctx, domainParams)
-				if err != nil {
-					return fmt.Errorf("failed to find domain: %w", err)
-				}
-				if len(domains.Resources) == 0 {
-					return fmt.Errorf("domain '%s' not found", domainName)
-				}
-
-				params.WithFilter("domain_guids", domains.Resources[0].GUID)
-			}
-
-			routes, err := client.Routes().List(ctx, params)
-			if err != nil {
-				return fmt.Errorf("failed to list routes: %w", err)
-			}
-
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(routes.Resources)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(routes.Resources)
-			default:
-				if len(routes.Resources) == 0 {
-					fmt.Println("No routes found")
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("URL", "GUID", "Protocol", "Host", "Path", "Port", "Destinations", "Created", "Updated")
-
-				for _, route := range routes.Resources {
-					path := route.Path
-					if path == "" {
-						path = "/"
-					}
-
-					port := ""
-					if route.Port != nil {
-						port = strconv.Itoa(*route.Port)
-					}
-
-					destinations := ""
-					if len(route.Destinations) > 0 {
-						destCount := len(route.Destinations)
-						if destCount == 1 {
-							destinations = "1 destination"
-						} else {
-							destinations = fmt.Sprintf("%d destinations", destCount)
-						}
-					}
-
-					created := ""
-					if !route.CreatedAt.IsZero() {
-						created = route.CreatedAt.Format("2006-01-02 15:04:05")
-					}
-
-					updated := ""
-					if !route.UpdatedAt.IsZero() {
-						updated = route.UpdatedAt.Format("2006-01-02 15:04:05")
-					}
-
-					_ = table.Append(route.URL, route.GUID, route.Protocol, route.Host, path, port, destinations, created, updated)
-				}
-
-				_ = table.Render()
-			}
-
-			return nil
+			return runRoutesList(cmd, spaceName, domainName)
 		},
 	}
 
@@ -164,11 +57,164 @@ func newRoutesListCommand() *cobra.Command {
 	return cmd
 }
 
+func runRoutesList(cmd *cobra.Command, spaceName, domainName string) error {
+	client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	params := capi.NewQueryParams()
+
+	// Apply space filter
+	err = applySpaceFilter(ctx, client, params, spaceName)
+	if err != nil {
+		return err
+	}
+
+	// Apply domain filter
+	err = applyDomainFilter(ctx, client, params, domainName)
+	if err != nil {
+		return err
+	}
+
+	routes, err := client.Routes().List(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to list routes: %w", err)
+	}
+
+	// Output results
+	return renderRoutesOutput(routes.Resources)
+}
+
+func applySpaceFilter(ctx context.Context, client capi.Client, params *capi.QueryParams, spaceName string) error {
+	if spaceName != "" {
+		spaceGUID, err := resolveSpaceGUIDWithOrgFilter(ctx, client, spaceName)
+		if err != nil {
+			return err
+		}
+
+		params.WithFilter("space_guids", spaceGUID)
+	} else if spaceGUID := viper.GetString("space_guid"); spaceGUID != "" {
+		// Use targeted space
+		params.WithFilter("space_guids", spaceGUID)
+	}
+
+	return nil
+}
+
+func applyDomainFilter(ctx context.Context, client capi.Client, params *capi.QueryParams, domainName string) error {
+	if domainName == "" {
+		return nil
+	}
+
+	domainGUID, err := resolveDomainGUID(ctx, client, domainName)
+	if err != nil {
+		return err
+	}
+
+	params.WithFilter("domain_guids", domainGUID)
+
+	return nil
+}
+
+func resolveDomainGUID(ctx context.Context, client capi.Client, domainName string) (string, error) {
+	domainParams := capi.NewQueryParams()
+	domainParams.WithFilter("names", domainName)
+
+	domains, err := client.Domains().List(ctx, domainParams)
+	if err != nil {
+		return "", fmt.Errorf("failed to find domain: %w", err)
+	}
+
+	if len(domains.Resources) == 0 {
+		return "", fmt.Errorf("domain '%s': %w", domainName, ErrDomainNotFound)
+	}
+
+	return domains.Resources[0].GUID, nil
+}
+
+func renderRoutesOutput(routes []capi.Route) error {
+	renderer := &StandardOutputRenderer[capi.Route]{
+		RenderTable: func(resources []capi.Route, pag *capi.Pagination, allPgs bool) error {
+			return renderRoutesTable(resources)
+		},
+	}
+
+	output := viper.GetString("output")
+
+	return renderer.Render(routes, nil, false, output)
+}
+
+func renderRoutesTable(routes []capi.Route) error {
+	if len(routes) == 0 {
+		_, _ = os.Stdout.WriteString("No routes found\n")
+
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("URL", "GUID", "Protocol", "Host", "Path", "Port", "Destinations", "Created", "Updated")
+
+	for _, route := range routes {
+		path := formatRoutePath(route.Path)
+		port := formatRoutePort(route.Port)
+		destinations := formatRouteDestinations(route.Destinations)
+		created := formatRouteTimestamp(route.CreatedAt)
+		updated := formatRouteTimestamp(route.UpdatedAt)
+
+		_ = table.Append(route.URL, route.GUID, route.Protocol, route.Host, path, port, destinations, created, updated)
+	}
+
+	_ = table.Render()
+
+	return nil
+}
+
+func formatRoutePath(path string) string {
+	if path == "" {
+		return "/"
+	}
+
+	return path
+}
+
+func formatRoutePort(port *int) string {
+	if port != nil {
+		return strconv.Itoa(*port)
+	}
+
+	return ""
+}
+
+func formatRouteDestinations(destinations []capi.RouteDestination) string {
+	destCount := len(destinations)
+	if destCount == 0 {
+		return ""
+	}
+
+	if destCount == 1 {
+		return "1 destination"
+	}
+
+	return fmt.Sprintf("%d destinations", destCount)
+}
+
+func formatRouteTimestamp(timestamp time.Time) string {
+	if timestamp.IsZero() {
+		return ""
+	}
+
+	return timestamp.Format("2006-01-02 15:04:05")
+}
+
 func newRoutesCreateCommand() *cobra.Command {
-	var spaceName string
-	var hostname string
-	var path string
-	var port int
+	var (
+		spaceName string
+		hostname  string
+		path      string
+		port      int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "create DOMAIN_NAME",
@@ -185,87 +231,24 @@ func newRoutesCreateCommand() *cobra.Command {
 
 			ctx := context.Background()
 
-			// Find domain by name
-			domainParams := capi.NewQueryParams()
-			domainParams.WithFilter("names", domainName)
-
-			domains, err := client.Domains().List(ctx, domainParams)
+			domain, err := findDomainByName(ctx, client, domainName)
 			if err != nil {
-				return fmt.Errorf("failed to find domain: %w", err)
-			}
-			if len(domains.Resources) == 0 {
-				return fmt.Errorf("domain '%s' not found", domainName)
+				return err
 			}
 
-			domain := domains.Resources[0]
-
-			// Find space
-			var spaceGUID string
-			if spaceName != "" {
-				// Find space by name
-				spaceParams := capi.NewQueryParams()
-				spaceParams.WithFilter("names", spaceName)
-
-				// Add org filter if targeted
-				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
-					spaceParams.WithFilter("organization_guids", orgGUID)
-				}
-
-				spaces, err := client.Spaces().List(ctx, spaceParams)
-				if err != nil {
-					return fmt.Errorf("failed to find space: %w", err)
-				}
-				if len(spaces.Resources) == 0 {
-					return fmt.Errorf("space '%s' not found", spaceName)
-				}
-
-				spaceGUID = spaces.Resources[0].GUID
-			} else if targetedSpaceGUID := viper.GetString("space_guid"); targetedSpaceGUID != "" {
-				spaceGUID = targetedSpaceGUID
-			} else {
-				return fmt.Errorf("no space specified and no space targeted")
+			spaceGUID, err := resolveSpaceGUID(ctx, client, spaceName)
+			if err != nil {
+				return err
 			}
 
-			// Create route request
-			createReq := &capi.RouteCreateRequest{
-				Relationships: capi.RouteRelationships{
-					Space: capi.Relationship{
-						Data: &capi.RelationshipData{GUID: spaceGUID},
-					},
-					Domain: capi.Relationship{
-						Data: &capi.RelationshipData{GUID: domain.GUID},
-					},
-				},
-			}
+			createReq := buildRouteCreateRequest(spaceGUID, domain.GUID, hostname, path, port, cmd.Flags().Changed("port"))
 
-			if hostname != "" {
-				createReq.Host = &hostname
-			}
-
-			if path != "" {
-				createReq.Path = &path
-			}
-
-			if cmd.Flags().Changed("port") {
-				createReq.Port = &port
-			}
-
-			// Create route
 			route, err := client.Routes().Create(ctx, createReq)
 			if err != nil {
 				return fmt.Errorf("failed to create route: %w", err)
 			}
 
-			fmt.Printf("Successfully created route: %s\n", route.URL)
-			fmt.Printf("  GUID: %s\n", route.GUID)
-			fmt.Printf("  Protocol: %s\n", route.Protocol)
-			fmt.Printf("  Host: %s\n", route.Host)
-			if route.Path != "" {
-				fmt.Printf("  Path: %s\n", route.Path)
-			}
-			if route.Port != nil {
-				fmt.Printf("  Port: %d\n", *route.Port)
-			}
+			printCreatedRoute(route)
 
 			return nil
 		},
@@ -277,6 +260,64 @@ func newRoutesCreateCommand() *cobra.Command {
 	cmd.Flags().IntVar(&port, "port", 0, "port for the route (for TCP routes)")
 
 	return cmd
+}
+
+func findDomainByName(ctx context.Context, client capi.Client, domainName string) (*capi.Domain, error) {
+	domainParams := capi.NewQueryParams()
+	domainParams.WithFilter("names", domainName)
+
+	domains, err := client.Domains().List(ctx, domainParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find domain: %w", err)
+	}
+
+	if len(domains.Resources) == 0 {
+		return nil, fmt.Errorf("domain '%s': %w", domainName, ErrDomainNotFound)
+	}
+
+	return &domains.Resources[0], nil
+}
+
+func buildRouteCreateRequest(spaceGUID, domainGUID, hostname, path string, port int, portChanged bool) *capi.RouteCreateRequest {
+	createReq := &capi.RouteCreateRequest{
+		Relationships: capi.RouteRelationships{
+			Space: capi.Relationship{
+				Data: &capi.RelationshipData{GUID: spaceGUID},
+			},
+			Domain: capi.Relationship{
+				Data: &capi.RelationshipData{GUID: domainGUID},
+			},
+		},
+	}
+
+	if hostname != "" {
+		createReq.Host = &hostname
+	}
+
+	if path != "" {
+		createReq.Path = &path
+	}
+
+	if portChanged {
+		createReq.Port = &port
+	}
+
+	return createReq
+}
+
+func printCreatedRoute(route *capi.Route) {
+	_, _ = fmt.Fprintf(os.Stdout, "Successfully created route: %s\n", route.URL)
+	_, _ = fmt.Fprintf(os.Stdout, "  GUID: %s\n", route.GUID)
+	_, _ = fmt.Fprintf(os.Stdout, "  Protocol: %s\n", route.Protocol)
+	_, _ = fmt.Fprintf(os.Stdout, "  Host: %s\n", route.Host)
+
+	if route.Path != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "  Path: %s\n", route.Path)
+	}
+
+	if route.Port != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "  Port: %d\n", *route.Port)
+	}
 }
 
 func newRoutesDeleteCommand() *cobra.Command {
@@ -297,61 +338,21 @@ func newRoutesDeleteCommand() *cobra.Command {
 
 			ctx := context.Background()
 
-			// Try to find route by GUID first, then by URL
-			var routeGUID string
-			var routeURL string
-
-			// Try as GUID first
-			route, err := client.Routes().Get(ctx, routeIdentifier)
-			if err == nil {
-				routeGUID = route.GUID
-				routeURL = route.URL
-			} else {
-				// Try to find by URL (this would require listing and filtering)
-				params := capi.NewQueryParams()
-				routes, err := client.Routes().List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to list routes: %w", err)
-				}
-
-				for _, r := range routes.Resources {
-					if r.URL == routeIdentifier {
-						routeGUID = r.GUID
-						routeURL = r.URL
-						break
-					}
-				}
-
-				if routeGUID == "" {
-					return fmt.Errorf("route '%s' not found", routeIdentifier)
-				}
+			routeGUID, routeURL, err := findRouteByIdentifier(ctx, client, routeIdentifier)
+			if err != nil {
+				return err
 			}
 
-			// Confirm deletion unless forced
 			if !force {
-				fmt.Printf("Are you sure you want to delete route '%s'? (y/N): ", routeURL)
-				var response string
-				_, _ = fmt.Scanln(&response)
-				if response != "y" && response != "Y" && response != "yes" && response != "YES" {
-					fmt.Println("Deletion cancelled.")
+				confirmed := confirmRouteDeletion(routeURL)
+				if !confirmed {
+					_, _ = os.Stdout.WriteString("Deletion cancelled.\n")
+
 					return nil
 				}
 			}
 
-			// Delete route
-			job, err := client.Routes().Delete(ctx, routeGUID)
-			if err != nil {
-				return fmt.Errorf("failed to delete route: %w", err)
-			}
-
-			if job != nil {
-				fmt.Printf("Route deletion job created: %s\n", job.GUID)
-				fmt.Printf("Successfully initiated deletion of route '%s'\n", routeURL)
-			} else {
-				fmt.Printf("Successfully deleted route '%s'\n", routeURL)
-			}
-
-			return nil
+			return deleteRoute(ctx, client, routeGUID, routeURL)
 		},
 	}
 
@@ -360,12 +361,62 @@ func newRoutesDeleteCommand() *cobra.Command {
 	return cmd
 }
 
+func findRouteByIdentifier(ctx context.Context, client capi.Client, routeIdentifier string) (string, string, error) {
+	// Try as GUID first
+	route, err := client.Routes().Get(ctx, routeIdentifier)
+	if err == nil {
+		return route.GUID, route.URL, nil
+	}
+
+	// Try to find by URL
+	params := capi.NewQueryParams()
+
+	routes, err := client.Routes().List(ctx, params)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to list routes: %w", err)
+	}
+
+	for _, r := range routes.Resources {
+		if r.URL == routeIdentifier {
+			return r.GUID, r.URL, nil
+		}
+	}
+
+	return "", "", fmt.Errorf("route '%s': %w", routeIdentifier, ErrRouteNotFound)
+}
+
+func confirmRouteDeletion(routeURL string) bool {
+	_, _ = fmt.Fprintf(os.Stdout, "Are you sure you want to delete route '%s'? (y/N): ", routeURL)
+
+	var response string
+
+	_, _ = fmt.Scanln(&response)
+
+	return response == "y" || response == "Y" || response == constants.ConfirmationYes || response == "YES"
+}
+
+func deleteRoute(ctx context.Context, client capi.Client, routeGUID, routeURL string) error {
+	job, err := client.Routes().Delete(ctx, routeGUID)
+	if err != nil {
+		return fmt.Errorf("failed to delete route: %w", err)
+	}
+
+	if job != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Route deletion job created: %s\n", job.GUID)
+		_, _ = fmt.Fprintf(os.Stdout, "Successfully initiated deletion of route '%s'\n", routeURL)
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "Successfully deleted route '%s'\n", routeURL)
+	}
+
+	return nil
+}
+
 func newRoutesShareCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "share ROUTE_GUID_OR_URL SPACE_GUID [SPACE_GUID...]",
 		Short: "Share route with spaces",
 		Long:  "Share a route with one or more spaces",
-		Args:  cobra.MinimumNArgs(2),
+		Args:  cobra.MinimumNArgs(constants.TwoArgumentsMax),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			routeIdentifier := args[0]
 			spaceGUIDs := args[1:]
@@ -377,53 +428,76 @@ func newRoutesShareCommand() *cobra.Command {
 
 			ctx := context.Background()
 
-			// Try to find route by GUID first, then by URL
-			route, err := client.Routes().Get(ctx, routeIdentifier)
+			route, err := findRouteByIdentifierOrURL(ctx, client, routeIdentifier)
 			if err != nil {
-				// Try to find by URL
-				params := capi.NewQueryParams()
-				routes, err := client.Routes().List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to list routes: %w", err)
-				}
-
-				for _, r := range routes.Resources {
-					if r.URL == routeIdentifier {
-						route = &r
-						break
-					}
-				}
-
-				if route == nil {
-					return fmt.Errorf("route '%s' not found", routeIdentifier)
-				}
+				return err
 			}
 
-			// Share with spaces
 			relationship, err := client.Routes().ShareWithSpace(ctx, route.GUID, spaceGUIDs)
 			if err != nil {
 				return fmt.Errorf("sharing route: %w", err)
 			}
 
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(relationship)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(relationship)
-			default:
-				fmt.Printf("✓ Route '%s' shared with %d space(s)\n", route.URL, len(spaceGUIDs))
-				for _, spaceGUID := range spaceGUIDs {
-					fmt.Printf("  - %s\n", spaceGUID)
-				}
-			}
-
-			return nil
+			return renderRouteShareResult(relationship, route.URL, spaceGUIDs)
 		},
 	}
+}
+
+func findRouteByIdentifierOrURL(ctx context.Context, client capi.Client, routeIdentifier string) (*capi.Route, error) {
+	// Try to find route by GUID first
+	route, err := client.Routes().Get(ctx, routeIdentifier)
+	if err == nil {
+		return route, nil
+	}
+
+	// Try to find by URL
+	params := capi.NewQueryParams()
+
+	routes, err := client.Routes().List(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list routes: %w", err)
+	}
+
+	for _, r := range routes.Resources {
+		if r.URL == routeIdentifier {
+			return &r, nil
+		}
+	}
+
+	return nil, fmt.Errorf("route '%s': %w", routeIdentifier, ErrRouteNotFound)
+}
+
+func renderRouteShareResult(relationship *capi.ToManyRelationship, routeURL string, spaceGUIDs []string) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(relationship)
+		if err != nil {
+			return fmt.Errorf("failed to encode relationship: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(relationship)
+		if err != nil {
+			return fmt.Errorf("failed to encode relationship: %w", err)
+		}
+
+		return nil
+	default:
+		_, _ = fmt.Fprintf(os.Stdout, "✓ Route '%s' shared with %d space(s)\n", routeURL, len(spaceGUIDs))
+
+		for _, spaceGUID := range spaceGUIDs {
+			_, _ = fmt.Fprintf(os.Stdout, "  - %s\n", spaceGUID)
+		}
+	}
+
+	return nil
 }
 
 func newRoutesUnshareCommand() *cobra.Command {
@@ -431,7 +505,7 @@ func newRoutesUnshareCommand() *cobra.Command {
 		Use:   "unshare ROUTE_GUID_OR_URL SPACE_GUID",
 		Short: "Unshare route from space",
 		Long:  "Remove sharing of a route from a space",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(constants.TwoArgumentsMax),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			routeIdentifier := args[0]
 			spaceGUID := args[1]
@@ -456,12 +530,13 @@ func newRoutesUnshareCommand() *cobra.Command {
 				for _, r := range routes.Resources {
 					if r.URL == routeIdentifier {
 						route = &r
+
 						break
 					}
 				}
 
 				if route == nil {
-					return fmt.Errorf("route '%s' not found", routeIdentifier)
+					return fmt.Errorf("route '%s': %w", routeIdentifier, ErrRouteNotFound)
 				}
 			}
 
@@ -471,7 +546,8 @@ func newRoutesUnshareCommand() *cobra.Command {
 				return fmt.Errorf("unsharing route: %w", err)
 			}
 
-			fmt.Printf("✓ Route '%s' unshared from space '%s'\n", route.URL, spaceGUID)
+			_, _ = fmt.Fprintf(os.Stdout, "✓ Route '%s' unshared from space '%s'\n", route.URL, spaceGUID)
+
 			return nil
 		},
 	}
@@ -482,7 +558,7 @@ func newRoutesTransferCommand() *cobra.Command {
 		Use:   "transfer ROUTE_GUID_OR_URL SPACE_GUID",
 		Short: "Transfer route ownership to space",
 		Long:  "Transfer ownership of a route to a different space",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(constants.TwoArgumentsMax),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			routeIdentifier := args[0]
 			spaceGUID := args[1]
@@ -507,12 +583,13 @@ func newRoutesTransferCommand() *cobra.Command {
 				for _, r := range routes.Resources {
 					if r.URL == routeIdentifier {
 						route = &r
+
 						break
 					}
 				}
 
 				if route == nil {
-					return fmt.Errorf("route '%s' not found", routeIdentifier)
+					return fmt.Errorf("route '%s': %w", routeIdentifier, ErrRouteNotFound)
 				}
 			}
 
@@ -524,15 +601,17 @@ func newRoutesTransferCommand() *cobra.Command {
 
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(updatedRoute)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(updatedRoute)
 			default:
-				fmt.Printf("✓ Route '%s' ownership transferred to space '%s'\n", route.URL, spaceGUID)
+				_, _ = fmt.Fprintf(os.Stdout, "✓ Route '%s' ownership transferred to space '%s'\n", route.URL, spaceGUID)
 			}
 
 			return nil
@@ -556,72 +635,83 @@ func newRoutesListSharedCommand() *cobra.Command {
 
 			ctx := context.Background()
 
-			// Try to find route by GUID first, then by URL
-			route, err := client.Routes().Get(ctx, routeIdentifier)
+			route, err := findRouteByIdentifierOrURL(ctx, client, routeIdentifier)
 			if err != nil {
-				// Try to find by URL
-				params := capi.NewQueryParams()
-				routes, err := client.Routes().List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to list routes: %w", err)
-				}
-
-				for _, r := range routes.Resources {
-					if r.URL == routeIdentifier {
-						route = &r
-						break
-					}
-				}
-
-				if route == nil {
-					return fmt.Errorf("route '%s' not found", routeIdentifier)
-				}
+				return err
 			}
 
-			// List shared spaces
 			sharedSpaces, err := client.Routes().ListSharedSpaces(ctx, route.GUID)
 			if err != nil {
 				return fmt.Errorf("listing shared spaces: %w", err)
 			}
 
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(sharedSpaces)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(sharedSpaces)
-			default:
-				if len(sharedSpaces.Resources) == 0 {
-					fmt.Printf("Route '%s' is not shared with any spaces\n", route.URL)
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("Space Name", "Space GUID", "Organization")
-
-				for _, space := range sharedSpaces.Resources {
-					orgName := ""
-					if space.Relationships.Organization.Data != nil {
-						// Try to get org name - if it fails, just use GUID
-						if org, err := client.Organizations().Get(ctx, space.Relationships.Organization.Data.GUID); err == nil {
-							orgName = org.Name
-						} else {
-							orgName = space.Relationships.Organization.Data.GUID
-						}
-					}
-					_ = table.Append(space.Name, space.GUID, orgName)
-				}
-
-				fmt.Printf("Shared spaces for route '%s':\n\n", route.URL)
-				if err := table.Render(); err != nil {
-					return fmt.Errorf("failed to render table: %w", err)
-				}
-			}
-
-			return nil
+			return renderSharedSpaces(ctx, client, route.URL, sharedSpaces)
 		},
 	}
+}
+
+func renderSharedSpaces(ctx context.Context, client capi.Client, routeURL string, sharedSpaces *capi.ListResponse[capi.Space]) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(sharedSpaces)
+		if err != nil {
+			return fmt.Errorf("failed to encode shared spaces: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(sharedSpaces)
+		if err != nil {
+			return fmt.Errorf("failed to encode shared spaces: %w", err)
+		}
+
+		return nil
+	default:
+		return renderSharedSpacesTable(ctx, client, routeURL, sharedSpaces.Resources)
+	}
+}
+
+func renderSharedSpacesTable(ctx context.Context, client capi.Client, routeURL string, spaces []capi.Space) error {
+	if len(spaces) == 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "Route '%s' is not shared with any spaces\n", routeURL)
+
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Space Name", "Space GUID", "Organization")
+
+	for _, space := range spaces {
+		orgName := getOrganizationName(ctx, client, space)
+		_ = table.Append(space.Name, space.GUID, orgName)
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "Shared spaces for route '%s':\n\n", routeURL)
+
+	err := table.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render shared spaces table: %w", err)
+	}
+
+	return nil
+}
+
+func getOrganizationName(ctx context.Context, client capi.Client, space capi.Space) string {
+	if space.Relationships.Organization.Data == nil {
+		return ""
+	}
+
+	// Try to get org name - if it fails, just use GUID
+	org, err := client.Organizations().Get(ctx, space.Relationships.Organization.Data.GUID)
+	if err == nil {
+		return org.Name
+	}
+
+	return space.Relationships.Organization.Data.GUID
 }

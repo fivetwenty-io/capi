@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,25 +8,32 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceInstancesClient_Create_Managed(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		var request capi.ServiceInstanceCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Equal(t, "managed", request.Type)
-		assert.Equal(t, "my-instance", request.Name)
-		assert.Equal(t, "space-guid", request.Relationships.Space.Data.GUID)
-		assert.Equal(t, "plan-guid", request.Relationships.ServicePlan.Data.GUID)
+		var requestBody capi.ServiceInstanceCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "managed", requestBody.Type)
+		assert.Equal(t, "my-instance", requestBody.Name)
+		assert.Equal(t, "space-guid", requestBody.Relationships.Space.Data.GUID)
+		assert.Equal(t, "plan-guid", requestBody.Relationships.ServicePlan.Data.GUID)
 
 		// Managed instances return a job
 		job := capi.Job{
@@ -37,15 +44,15 @@ func TestServiceInstancesClient_Create_Managed(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", "/v3/jobs/job-guid")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	request := &capi.ServiceInstanceCreateRequest{
 		Type: "managed",
@@ -77,18 +84,23 @@ func TestServiceInstancesClient_Create_Managed(t *testing.T) {
 	assert.Equal(t, "service_instance.create", job.Operation)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceInstancesClient_Create_UserProvided(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		var request capi.ServiceInstanceCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Equal(t, "user-provided", request.Type)
-		assert.Equal(t, "my-ups", request.Name)
-		assert.Equal(t, "space-guid", request.Relationships.Space.Data.GUID)
+		var requestBody capi.ServiceInstanceCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "user-provided", requestBody.Type)
+		assert.Equal(t, "my-ups", requestBody.Name)
+		assert.Equal(t, "space-guid", requestBody.Relationships.Space.Data.GUID)
 
 		// User-provided instances return the instance directly
 		now := time.Now()
@@ -108,8 +120,8 @@ func TestServiceInstancesClient_Create_UserProvided(t *testing.T) {
 				CreatedAt:   &now,
 				UpdatedAt:   &now,
 			},
-			SyslogDrainURL:  request.SyslogDrainURL,
-			RouteServiceURL: request.RouteServiceURL,
+			SyslogDrainURL:  requestBody.SyslogDrainURL,
+			RouteServiceURL: requestBody.RouteServiceURL,
 			Relationships: capi.ServiceInstanceRelationships{
 				Space: capi.Relationship{
 					Data: &capi.RelationshipData{
@@ -119,14 +131,14 @@ func TestServiceInstancesClient_Create_UserProvided(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(instance)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(instance)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	syslogURL := "https://syslog.example.com"
 	routeURL := "https://route.example.com"
@@ -160,9 +172,12 @@ func TestServiceInstancesClient_Create_UserProvided(t *testing.T) {
 }
 
 func TestServiceInstancesClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		instance := capi.ServiceInstance{
@@ -178,7 +193,7 @@ func TestServiceInstancesClient_Get(t *testing.T) {
 				Version: "1.0.0",
 			},
 			UpgradeAvailable: false,
-			DashboardURL:     stringPtr("https://dashboard.example.com"),
+			DashboardURL:     StringPtr("https://dashboard.example.com"),
 			LastOperation: &capi.ServiceInstanceLastOperation{
 				Type:        "create",
 				State:       "succeeded",
@@ -200,13 +215,13 @@ func TestServiceInstancesClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(instance)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(instance)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	instance, err := serviceInstances.Get(context.Background(), "instance-guid")
 	require.NoError(t, err)
@@ -218,77 +233,77 @@ func TestServiceInstancesClient_Get(t *testing.T) {
 	assert.Contains(t, instance.Tags, "postgresql")
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different endpoints with different query params and assertions
 func TestServiceInstancesClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "space-guid", r.URL.Query().Get("space_guids"))
-		assert.Equal(t, "my-instance", r.URL.Query().Get("names"))
+	t.Parallel()
 
-		now := time.Now()
-		response := capi.ListResponse[capi.ServiceInstance]{
-			Pagination: capi.Pagination{
-				TotalResults: 2,
-				TotalPages:   1,
-				First:        capi.Link{Href: "/v3/service_instances?page=1"},
-				Last:         capi.Link{Href: "/v3/service_instances?page=1"},
+	now := time.Now()
+	responseData := []capi.ServiceInstance{
+		{
+			Resource: capi.Resource{
+				GUID:      "instance-guid-1",
+				CreatedAt: now,
+				UpdatedAt: now,
 			},
-			Resources: []capi.ServiceInstance{
-				{
-					Resource: capi.Resource{
-						GUID:      "instance-guid-1",
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-					Name: "my-instance-1",
-					Type: "managed",
-				},
-				{
-					Resource: capi.Resource{
-						GUID:      "instance-guid-2",
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-					Name: "my-instance-2",
-					Type: "user-provided",
-				},
+			Name: "my-instance-1",
+			Type: "managed",
+		},
+		{
+			Resource: capi.Resource{
+				GUID:      "instance-guid-2",
+				CreatedAt: now,
+				UpdatedAt: now,
 			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
-
-	params := &capi.QueryParams{
-		Filters: map[string][]string{
-			"space_guids": {"space-guid"},
-			"names":       {"my-instance"},
+			Name: "my-instance-2",
+			Type: "user-provided",
 		},
 	}
 
-	list, err := serviceInstances.List(context.Background(), params)
-	require.NoError(t, err)
-	assert.NotNil(t, list)
-	assert.Equal(t, 2, list.Pagination.TotalResults)
-	assert.Len(t, list.Resources, 2)
-	assert.Equal(t, "my-instance-1", list.Resources[0].Name)
-	assert.Equal(t, "managed", list.Resources[0].Type)
-	assert.Equal(t, "my-instance-2", list.Resources[1].Name)
-	assert.Equal(t, "user-provided", list.Resources[1].Type)
+	RunServiceListTest(t, "service instances list", "/v3/service_instances",
+		func(request *http.Request) {
+			assert.Equal(t, "space-guid", request.URL.Query().Get("space_guids"))
+			assert.Equal(t, "my-instance", request.URL.Query().Get("names"))
+		},
+		responseData,
+		func(httpClient *internalhttp.Client) interface{} {
+			return NewServiceInstancesClient(httpClient)
+		},
+		func(client interface{}) (*capi.ListResponse[capi.ServiceInstance], error) {
+			params := &capi.QueryParams{
+				Filters: map[string][]string{
+					"space_guids": {"space-guid"},
+					"names":       {"my-instance"},
+				},
+			}
+
+			serviceInstancesClient, ok := client.(*ServiceInstancesClient)
+			if !ok {
+				return nil, constants.ErrInvalidClientType
+			}
+
+			return serviceInstancesClient.List(context.Background(), params)
+		},
+		func(resources []capi.ServiceInstance) {
+			assert.Equal(t, "my-instance-1", resources[0].Name)
+			assert.Equal(t, "managed", resources[0].Type)
+			assert.Equal(t, "my-instance-2", resources[1].Name)
+			assert.Equal(t, "user-provided", resources[1].Type)
+		},
+	)
 }
 
 func TestServiceInstancesClient_Update_Managed(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		var request capi.ServiceInstanceUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
+
+		var requestBody capi.ServiceInstanceUpdateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		// Managed instances return a job for updates
 		job := capi.Job{
@@ -299,15 +314,15 @@ func TestServiceInstancesClient_Update_Managed(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", "/v3/jobs/job-guid")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	newName := "updated-instance"
 	request := &capi.ServiceInstanceUpdateRequest{
@@ -328,14 +343,18 @@ func TestServiceInstancesClient_Update_Managed(t *testing.T) {
 }
 
 func TestServiceInstancesClient_Update_UserProvided(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		// Check for user-provided instance by examining the request
-		var request map[string]interface{}
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+		var requestBody map[string]interface{}
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		// User-provided instances return the updated instance directly
 		now := time.Now()
@@ -350,14 +369,14 @@ func TestServiceInstancesClient_Update_UserProvided(t *testing.T) {
 			Tags: []string{"updated"},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(instance)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(instance)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	newName := "updated-ups"
 	request := &capi.ServiceInstanceUpdateRequest{
@@ -378,10 +397,13 @@ func TestServiceInstancesClient_Update_UserProvided(t *testing.T) {
 }
 
 func TestServiceInstancesClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
-		assert.Equal(t, "true", r.URL.Query().Get("purge"))
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+		assert.Equal(t, "true", request.URL.Query().Get("purge"))
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -391,15 +413,15 @@ func TestServiceInstancesClient_Delete(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", "/v3/jobs/job-guid")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	job, err := serviceInstances.Delete(context.Background(), "instance-guid")
 	require.NoError(t, err)
@@ -409,9 +431,12 @@ func TestServiceInstancesClient_Delete(t *testing.T) {
 }
 
 func TestServiceInstancesClient_GetParameters(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid/parameters", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid/parameters", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		params := capi.ServiceInstanceParameters{
 			Parameters: map[string]interface{}{
@@ -421,26 +446,29 @@ func TestServiceInstancesClient_GetParameters(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(params)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(params)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	params, err := serviceInstances.GetParameters(context.Background(), "instance-guid")
 	require.NoError(t, err)
 	assert.NotNil(t, params)
-	assert.Equal(t, float64(100), params.Parameters["max_connections"])
+	assert.InDelta(t, float64(100), params.Parameters["max_connections"], 0)
 	assert.Equal(t, true, params.Parameters["enable_ssl"])
 	assert.Equal(t, "mydb", params.Parameters["database_name"])
 }
 
 func TestServiceInstancesClient_ListSharedSpaces(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid/relationships/shared_spaces", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid/relationships/shared_spaces", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		relationships := capi.ServiceInstanceSharedSpacesRelationships{
 			Data: []capi.Relationship{
@@ -454,13 +482,13 @@ func TestServiceInstancesClient_ListSharedSpaces(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(relationships)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(relationships)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	sharedSpaces, err := serviceInstances.ListSharedSpaces(context.Background(), "instance-guid")
 	require.NoError(t, err)
@@ -471,14 +499,18 @@ func TestServiceInstancesClient_ListSharedSpaces(t *testing.T) {
 }
 
 func TestServiceInstancesClient_ShareWithSpaces(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid/relationships/shared_spaces", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		var request capi.ServiceInstanceShareRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
-		assert.Len(t, request.Data, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid/relationships/shared_spaces", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		var requestBody capi.ServiceInstanceShareRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+		assert.Len(t, requestBody.Data, 2)
 
 		relationships := capi.ServiceInstanceSharedSpacesRelationships{
 			Data: []capi.Relationship{
@@ -488,13 +520,13 @@ func TestServiceInstancesClient_ShareWithSpaces(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(relationships)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(relationships)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	request := &capi.ServiceInstanceShareRequest{
 		Data: []capi.Relationship{
@@ -510,51 +542,60 @@ func TestServiceInstancesClient_ShareWithSpaces(t *testing.T) {
 }
 
 func TestServiceInstancesClient_UnshareFromSpace(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid/relationships/shared_spaces/space-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid/relationships/shared_spaces/space-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	err := serviceInstances.UnshareFromSpace(context.Background(), "instance-guid", "space-guid")
 	require.NoError(t, err)
 }
 
 func TestServiceInstancesClient_GetNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNotFound)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		writer.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	instance, err := serviceInstances.Get(context.Background(), "instance-guid")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, instance)
 }
 
 func TestServiceInstancesClient_DeleteWithBindings(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_instances/instance-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		w.WriteHeader(http.StatusUnprocessableEntity)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusUnprocessableEntity)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	serviceInstances := NewServiceInstancesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
 
 	job, err := serviceInstances.Delete(context.Background(), "instance-guid")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, job)
 }

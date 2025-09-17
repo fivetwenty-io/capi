@@ -1,8 +1,9 @@
-package client
+package client_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
@@ -18,7 +20,10 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestDomainsClient_Create(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		request      *capi.DomainCreateRequest
@@ -145,42 +150,47 @@ func TestDomainsClient_Create(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.DomainCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			domain, err := client.Domains().Create(context.Background(), tt.request)
+			domain, err := c.Domains().Create(context.Background(), testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, domain)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, domain)
 				assert.NotEmpty(t, domain.GUID)
-				assert.Equal(t, tt.request.Name, domain.Name)
+				assert.Equal(t, testCase.request.Name, domain.Name)
 			}
 		})
 	}
 }
 
 func TestDomainsClient_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -227,46 +237,23 @@ func TestDomainsClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			domain, err := client.Domains().Get(context.Background(), tt.guid)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, domain)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, domain)
-				assert.Equal(t, tt.guid, domain.GUID)
-				assert.Equal(t, "example.com", domain.Name)
-			}
-		})
-	}
+	runGetTestsForDomains(t, tests)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestDomainsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/domains", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/domains", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if names := query.Get("names"); names != "" {
 			assert.Equal(t, "example.com,test.com", names)
 		}
+
 		if orgGuids := query.Get("organization_guids"); orgGuids != "" {
 			assert.Equal(t, "org-1,org-2", orgGuids)
 		}
@@ -304,13 +291,13 @@ func TestDomainsClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -334,33 +321,9 @@ func TestDomainsClient_List(t *testing.T) {
 	require.NotNil(t, result)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different endpoints with different request/response types
 func TestDomainsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/domains/test-domain-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
-
-		var requestBody capi.DomainUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
-
-		response := capi.Domain{
-			Resource: capi.Resource{
-				GUID:      "test-domain-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			Name:     "example.com",
-			Metadata: requestBody.Metadata,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
+	t.Parallel()
 
 	request := &capi.DomainUpdateRequest{
 		Metadata: &capi.Metadata{
@@ -373,18 +336,35 @@ func TestDomainsClient_Update(t *testing.T) {
 		},
 	}
 
-	domain, err := client.Domains().Update(context.Background(), "test-domain-guid", request)
-	require.NoError(t, err)
-	require.NotNil(t, domain)
-	assert.Equal(t, "test-domain-guid", domain.GUID)
-	assert.Equal(t, "staging", domain.Metadata.Labels["environment"])
-	assert.Equal(t, "Updated domain", domain.Metadata.Annotations["note"])
+	response := &capi.Domain{
+		Resource: capi.Resource{
+			GUID:      "test-domain-guid",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		Name: "example.com",
+		Metadata: &capi.Metadata{
+			Labels: map[string]string{
+				"environment": "staging",
+			},
+			Annotations: map[string]string{
+				"note": "Updated domain",
+			},
+		},
+	}
+
+	RunStandardUpdateTest(t, "domain", "test-domain-guid", "/v3/domains/test-domain-guid", request, response,
+		func(c *Client) func(context.Context, string, *capi.DomainUpdateRequest) (*capi.Domain, error) {
+			return c.Domains().Update
+		})
 }
 
 func TestDomainsClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/domains/test-domain-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/domains/test-domain-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -394,16 +374,16 @@ func TestDomainsClient_Delete(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	job, err := client.Domains().Delete(context.Background(), "test-domain-guid")
+	job, err := c.Domains().Delete(context.Background(), "test-domain-guid")
 	require.NoError(t, err)
 	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
@@ -412,15 +392,18 @@ func TestDomainsClient_Delete(t *testing.T) {
 }
 
 func TestDomainsClient_ShareWithOrganization(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/domains/test-domain-guid/relationships/shared_organizations", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/domains/test-domain-guid/relationships/shared_organizations", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var requestBody struct {
 			Data []capi.RelationshipData `json:"data"`
 		}
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Len(t, requestBody.Data, 2)
 
 		response := capi.ToManyRelationship{
@@ -431,43 +414,47 @@ func TestDomainsClient_ShareWithOrganization(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	relationship, err := client.Domains().ShareWithOrganization(context.Background(), "test-domain-guid", []string{"org-1", "org-2"})
+	relationship, err := c.Domains().ShareWithOrganization(context.Background(), "test-domain-guid", []string{"org-1", "org-2"})
 	require.NoError(t, err)
 	require.NotNil(t, relationship)
 	assert.Len(t, relationship.Data, 3)
 }
 
 func TestDomainsClient_UnshareFromOrganization(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/domains/test-domain-guid/relationships/shared_organizations/org-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
-		w.WriteHeader(http.StatusNoContent)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/domains/test-domain-guid/relationships/shared_organizations/org-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	err = client.Domains().UnshareFromOrganization(context.Background(), "test-domain-guid", "org-guid")
+	err = c.Domains().UnshareFromOrganization(context.Background(), "test-domain-guid", "org-guid")
 	require.NoError(t, err)
 }
 
 func TestDomainsClient_CheckRouteReservations(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/domains/test-domain-guid/route_reservations", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/domains/test-domain-guid/route_reservations", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters
-		query := r.URL.Query()
+		query := request.URL.Query()
 		assert.Equal(t, "api", query.Get("host"))
 		assert.Equal(t, "/v1", query.Get("path"))
 
@@ -482,13 +469,13 @@ func TestDomainsClient_CheckRouteReservations(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.RouteReservationRequest{
@@ -502,4 +489,33 @@ func TestDomainsClient_CheckRouteReservations(t *testing.T) {
 	assert.NotNil(t, reservation.MatchingRoute)
 	assert.Equal(t, "route-guid", reservation.MatchingRoute.GUID)
 	assert.Equal(t, "api", reservation.MatchingRoute.Host)
+}
+
+// runGetTestsForDomains runs domain get tests.
+func runGetTestsForDomains(t *testing.T, tests []struct {
+	name         string
+	guid         string
+	response     interface{}
+	statusCode   int
+	expectedPath string
+	wantErr      bool
+	errMessage   string
+}) {
+	t.Helper()
+
+	for _, testCase := range tests {
+		RunGetTestWithValidation(t, testCase.name, testCase.guid, testCase.expectedPath, testCase.statusCode, testCase.response, testCase.wantErr, testCase.errMessage, func(c *Client, guid string) error {
+			domain, err := c.Domains().Get(context.Background(), guid)
+			if err == nil {
+				assert.Equal(t, guid, domain.GUID)
+				assert.Equal(t, "example.com", domain.Name)
+			}
+
+			if err != nil {
+				return fmt.Errorf("failed to get domain: %w", err)
+			}
+
+			return nil
+		})
+	}
 }

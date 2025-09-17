@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,60 +8,55 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOrganizationQuotasClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/organization_quotas", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+	RunQuotaCreateTest(t, "organization quota create", "/v3/organization_quotas", "test-quota", 1024,
+		func(name string) *capi.OrganizationQuotaCreateRequest {
+			totalMemory := 1024
 
-		var req capi.OrganizationQuotaCreateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		assert.Equal(t, "test-quota", req.Name)
-
-		totalMemory := 1024
-		quota := capi.OrganizationQuota{
-			Resource: capi.Resource{
-				GUID:      "quota-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			Name: req.Name,
-			Apps: &capi.OrganizationQuotaApps{
-				TotalMemoryInMB: &totalMemory,
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(quota)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	totalMemory := 1024
-	quota, err := client.OrganizationQuotas().Create(context.Background(), &capi.OrganizationQuotaCreateRequest{
-		Name: "test-quota",
-		Apps: &capi.OrganizationQuotaApps{
-			TotalMemoryInMB: &totalMemory,
+			return &capi.OrganizationQuotaCreateRequest{
+				Name: name,
+				Apps: &capi.OrganizationQuotaApps{
+					TotalMemoryInMB: &totalMemory,
+				},
+			}
 		},
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "quota-guid", quota.GUID)
-	assert.Equal(t, "test-quota", quota.Name)
-	assert.Equal(t, 1024, *quota.Apps.TotalMemoryInMB)
+		func(guid, name string, totalMemory int) *capi.OrganizationQuota {
+			return &capi.OrganizationQuota{
+				Resource: capi.Resource{
+					GUID:      guid,
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				},
+				Name: name,
+				Apps: &capi.OrganizationQuotaApps{
+					TotalMemoryInMB: &totalMemory,
+				},
+			}
+		},
+		func(c *Client) func(context.Context, *capi.OrganizationQuotaCreateRequest) (*capi.OrganizationQuota, error) {
+			return c.OrganizationQuotas().Create
+		},
+		func(quota *capi.OrganizationQuota) {
+			assert.Equal(t, "quota-guid", quota.GUID)
+			assert.Equal(t, "test-quota", quota.Name)
+			assert.Equal(t, 1024, *quota.Apps.TotalMemoryInMB)
+		},
+	)
 }
 
 func TestOrganizationQuotasClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/organization_quotas/quota-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/organization_quotas/quota-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		totalMemory := 2048
 		quota := capi.OrganizationQuota{
@@ -74,14 +69,14 @@ func TestOrganizationQuotasClient_Get(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(quota)
+		_ = json.NewEncoder(writer).Encode(quota)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	quota, err := client.OrganizationQuotas().Get(context.Background(), "quota-guid")
+	quota, err := c.OrganizationQuotas().Get(context.Background(), "quota-guid")
 	require.NoError(t, err)
 	assert.Equal(t, "quota-guid", quota.GUID)
 	assert.Equal(t, "test-quota", quota.Name)
@@ -89,11 +84,13 @@ func TestOrganizationQuotasClient_Get(t *testing.T) {
 }
 
 func TestOrganizationQuotasClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/organization_quotas", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
-		assert.Equal(t, "10", r.URL.Query().Get("per_page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/organization_quotas", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "1", request.URL.Query().Get("page"))
+		assert.Equal(t, "10", request.URL.Query().Get("per_page"))
 
 		totalMemory1 := 1024
 		totalMemory2 := 2048
@@ -120,15 +117,15 @@ func TestOrganizationQuotasClient_List(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	params := capi.NewQueryParams().WithPage(1).WithPerPage(10)
-	result, err := client.OrganizationQuotas().List(context.Background(), params)
+	result, err := c.OrganizationQuotas().List(context.Background(), params)
 
 	require.NoError(t, err)
 	assert.Len(t, result.Resources, 2)
@@ -136,72 +133,73 @@ func TestOrganizationQuotasClient_List(t *testing.T) {
 	assert.Equal(t, "quota-2", result.Resources[1].Name)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different resource types
 func TestOrganizationQuotasClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/organization_quotas/quota-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
-
-		var req capi.OrganizationQuotaUpdateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		assert.Equal(t, "updated-quota", *req.Name)
-
-		quota := capi.OrganizationQuota{
-			Resource: capi.Resource{GUID: "quota-guid"},
-			Name:     *req.Name,
-		}
-
-		_ = json.NewEncoder(w).Encode(quota)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	newName := "updated-quota"
-	quota, err := client.OrganizationQuotas().Update(context.Background(), "quota-guid", &capi.OrganizationQuotaUpdateRequest{
-		Name: &newName,
+	t.Parallel()
+	RunNameUpdateTest(t, NameUpdateTestCase[capi.OrganizationQuotaUpdateRequest, capi.OrganizationQuota]{
+		ResourceType: "organization quota",
+		ResourceGUID: "quota-guid",
+		ResourcePath: "/v3/organization_quotas/quota-guid",
+		NewName:      "updated-quota",
+		CreateRequest: func(name string) *capi.OrganizationQuotaUpdateRequest {
+			return &capi.OrganizationQuotaUpdateRequest{Name: &name}
+		},
+		CreateResponse: func(guid, name string) *capi.OrganizationQuota {
+			return &capi.OrganizationQuota{
+				Resource: capi.Resource{GUID: guid},
+				Name:     name,
+			}
+		},
+		ExtractName:     func(req *capi.OrganizationQuotaUpdateRequest) string { return *req.Name },
+		ExtractNameResp: func(resp *capi.OrganizationQuota) string { return resp.Name },
+		UpdateFunc: func(c *Client) func(context.Context, string, *capi.OrganizationQuotaUpdateRequest) (*capi.OrganizationQuota, error) {
+			return c.OrganizationQuotas().Update
+		},
 	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "updated-quota", quota.Name)
 }
 
 func TestOrganizationQuotasClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/organization_quotas/quota-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/organization_quotas/quota-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	err = client.OrganizationQuotas().Delete(context.Background(), "quota-guid")
+	err = c.OrganizationQuotas().Delete(context.Background(), "quota-guid")
 	require.NoError(t, err)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different relationship endpoints for different resource types
 func TestOrganizationQuotasClient_ApplyToOrganizations(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/organization_quotas/quota-guid/relationships/organizations", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		var req capi.ToManyRelationship
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		assert.Len(t, req.Data, 2)
-		assert.Equal(t, "org-1", req.Data[0].GUID)
-		assert.Equal(t, "org-2", req.Data[1].GUID)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/organization_quotas/quota-guid/relationships/organizations", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		var requestBody capi.ToManyRelationship
+
+		_ = json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.Len(t, requestBody.Data, 2)
+		assert.Equal(t, "org-1", requestBody.Data[0].GUID)
+		assert.Equal(t, "org-2", requestBody.Data[1].GUID)
 
 		response := capi.ToManyRelationship{
-			Data: req.Data,
+			Data: requestBody.Data,
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	rel, err := client.OrganizationQuotas().ApplyToOrganizations(context.Background(), "quota-guid", []string{"org-1", "org-2"})

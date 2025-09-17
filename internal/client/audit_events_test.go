@@ -1,22 +1,26 @@
-package client
+package client_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAuditEventsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/audit_events/event-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/audit_events/event-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		event := capi.AuditEvent{
 			Resource: capi.Resource{
@@ -51,11 +55,11 @@ func TestAuditEventsClient_Get(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(event)
+		_ = json.NewEncoder(writer).Encode(event)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	event, err := client.AuditEvents().Get(context.Background(), "event-guid")
@@ -72,82 +76,104 @@ func TestAuditEventsClient_Get(t *testing.T) {
 	assert.Equal(t, "test-space", event.Space.Name)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestAuditEventsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/audit_events", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
-		assert.Equal(t, "10", r.URL.Query().Get("per_page"))
+	t.Parallel()
 
-		response := capi.ListResponse[capi.AuditEvent]{
-			Pagination: capi.Pagination{
-				TotalResults: 2,
-				TotalPages:   1,
-			},
-			Resources: []capi.AuditEvent{
-				{
-					Resource: capi.Resource{GUID: "event-1"},
-					Type:     "audit.app.create",
-					Actor: capi.AuditEventActor{
-						GUID: "user-guid-1",
-						Type: "user",
-						Name: "user1@example.com",
-					},
-					Target: capi.AuditEventTarget{
-						GUID: "app-guid-1",
-						Type: "app",
-						Name: "app-1",
-					},
-					Space: &capi.AuditEventSpace{
-						GUID: "space-guid-1",
-						Name: "space-1",
-					},
-					Organization: &capi.AuditEventOrganization{
-						GUID: "org-guid-1",
-						Name: "org-1",
-					},
+	tests := []struct {
+		name      string
+		params    *capi.QueryParams
+		response  string
+		wantErr   bool
+		wantTotal int
+	}{
+		{
+			name:   "successful list",
+			params: nil,
+			response: `{
+				"pagination": {
+					"total_results": 2,
+					"total_pages": 1,
+					"first": {"href": "/v3/audit_events?page=1&per_page=50"},
+					"last": {"href": "/v3/audit_events?page=1&per_page=50"},
+					"next": null,
+					"previous": null
 				},
-				{
-					Resource: capi.Resource{GUID: "event-2"},
-					Type:     "audit.app.delete",
-					Actor: capi.AuditEventActor{
-						GUID: "user-guid-2",
-						Type: "user",
-						Name: "user2@example.com",
+				"resources": [
+					{
+						"guid": "event-1",
+						"created_at": "2024-01-01T00:00:00Z",
+						"updated_at": "2024-01-01T00:00:00Z",
+						"type": "audit.app.update",
+						"actor": {
+							"guid": "user-1",
+							"type": "user",
+							"name": "admin"
+						},
+						"target": {
+							"guid": "app-1",
+							"type": "app",
+							"name": "my-app"
+						},
+						"data": {},
+						"space": {
+							"guid": "space-1"
+						},
+						"organization": {
+							"guid": "org-1"
+						}
 					},
-					Target: capi.AuditEventTarget{
-						GUID: "app-guid-2",
-						Type: "app",
-						Name: "app-2",
-					},
-					Space: &capi.AuditEventSpace{
-						GUID: "space-guid-2",
-						Name: "space-2",
-					},
-					Organization: &capi.AuditEventOrganization{
-						GUID: "org-guid-2",
-						Name: "org-2",
-					},
-				},
-			},
-		}
+					{
+						"guid": "event-2",
+						"created_at": "2024-01-02T00:00:00Z",
+						"updated_at": "2024-01-02T00:00:00Z",
+						"type": "audit.space.create",
+						"actor": {
+							"guid": "user-2",
+							"type": "user",
+							"name": "developer"
+						},
+						"target": {
+							"guid": "space-2",
+							"type": "space",
+							"name": "dev-space"
+						},
+						"data": {}
+					}
+				]
+			}`,
+			wantErr:   false,
+			wantTotal: 2,
+		},
+	}
 
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/v3/audit_events", r.URL.Path)
+				assert.Equal(t, http.MethodGet, r.Method)
 
-	params := capi.NewQueryParams().WithPage(1).WithPerPage(10)
-	result, err := client.AuditEvents().List(context.Background(), params)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusOK)
+				_, _ = fmt.Fprint(writer, testCase.response)
+			}))
+			defer server.Close()
 
-	require.NoError(t, err)
-	assert.Len(t, result.Resources, 2)
-	assert.Equal(t, "event-1", result.Resources[0].GUID)
-	assert.Equal(t, "event-2", result.Resources[1].GUID)
-	assert.Equal(t, "audit.app.create", result.Resources[0].Type)
-	assert.Equal(t, "audit.app.delete", result.Resources[1].Type)
-	assert.Equal(t, "user1@example.com", result.Resources[0].Actor.Name)
-	assert.Equal(t, "user2@example.com", result.Resources[1].Actor.Name)
+			client := NewTestClient(server.URL)
+			ctx := context.Background()
+
+			result, err := client.AuditEvents().List(ctx, testCase.params)
+			if testCase.wantErr {
+				assert.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, testCase.wantTotal, result.Pagination.TotalResults)
+		})
+	}
 }

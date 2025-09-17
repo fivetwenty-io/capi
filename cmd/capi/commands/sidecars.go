@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"os"
 	"strings"
 
@@ -14,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewSidecarsCommand creates the sidecars command group
+// NewSidecarsCommand creates the sidecars command group.
 func NewSidecarsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sidecars",
@@ -54,12 +55,14 @@ func newSidecarsGetCommand() *cobra.Command {
 			// Output results
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(sidecar)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(sidecar)
 			default:
 				table := tablewriter.NewWriter(os.Stdout)
@@ -84,7 +87,7 @@ func newSidecarsGetCommand() *cobra.Command {
 					_ = table.Append("App GUID", sidecar.Relationships.App.Data.GUID)
 				}
 
-				fmt.Printf("Sidecar details:\n\n")
+				_, _ = os.Stdout.WriteString("Sidecar details:\n\n")
 				_ = table.Render()
 			}
 
@@ -141,7 +144,8 @@ func newSidecarsUpdateCommand() *cobra.Command {
 				return fmt.Errorf("failed to update sidecar: %w", err)
 			}
 
-			fmt.Printf("Successfully updated sidecar '%s'\n", updatedSidecar.Name)
+			_, _ = fmt.Fprintf(os.Stdout, "Successfully updated sidecar '%s'\n", updatedSidecar.Name)
+
 			return nil
 		},
 	}
@@ -166,11 +170,12 @@ func newSidecarsDeleteCommand() *cobra.Command {
 			sidecarGUID := args[0]
 
 			if !force {
-				fmt.Printf("Really delete sidecar '%s'? (y/N): ", sidecarGUID)
+				_, _ = fmt.Fprintf(os.Stdout, "Really delete sidecar '%s'? (y/N): ", sidecarGUID)
 				var response string
 				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
-					fmt.Println("Cancelled")
+					_, _ = os.Stdout.WriteString("Cancelled\n")
+
 					return nil
 				}
 			}
@@ -194,7 +199,8 @@ func newSidecarsDeleteCommand() *cobra.Command {
 				return fmt.Errorf("failed to delete sidecar: %w", err)
 			}
 
-			fmt.Printf("Successfully deleted sidecar '%s'\n", sidecar.Name)
+			_, _ = fmt.Fprintf(os.Stdout, "Successfully deleted sidecar '%s'\n", sidecar.Name)
+
 			return nil
 		},
 	}
@@ -232,79 +238,139 @@ func newSidecarsListForProcessCommand() *cobra.Command {
 				return fmt.Errorf("failed to list sidecars for process: %w", err)
 			}
 
-			// Fetch all pages if requested
-			allSidecars := sidecars.Resources
-			if allPages && sidecars.Pagination.TotalPages > 1 {
-				for page := 2; page <= sidecars.Pagination.TotalPages; page++ {
-					params.Page = page
-					moreSidecars, err := client.Sidecars().ListForProcess(ctx, processGUID, params)
-					if err != nil {
-						return fmt.Errorf("failed to fetch page %d: %w", page, err)
-					}
-					allSidecars = append(allSidecars, moreSidecars.Resources...)
-				}
+			allSidecars, err := fetchAllSidecarPages(ctx, client, processGUID, sidecars, params, allPages)
+			if err != nil {
+				return err
 			}
 
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(allSidecars)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(allSidecars)
-			default:
-				if len(allSidecars) == 0 {
-					fmt.Printf("No sidecars found for process %s\n", processGUID)
-					return nil
-				}
-
-				fmt.Printf("Sidecars for process %s:\n\n", processGUID)
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("Name", "GUID", "Command", "Process Types", "Memory", "Origin", "Created")
-
-				for _, sidecar := range allSidecars {
-					memoryStr := "default"
-					if sidecar.MemoryInMB != nil {
-						memoryStr = fmt.Sprintf("%d MB", *sidecar.MemoryInMB)
-					}
-
-					processTypesStr := strings.Join(sidecar.ProcessTypes, ", ")
-					if len(processTypesStr) > 50 {
-						processTypesStr = processTypesStr[:47] + "..."
-					}
-
-					commandStr := sidecar.Command
-					if len(commandStr) > 40 {
-						commandStr = commandStr[:37] + "..."
-					}
-
-					_ = table.Append(
-						sidecar.Name,
-						sidecar.GUID,
-						commandStr,
-						processTypesStr,
-						memoryStr,
-						sidecar.Origin,
-						sidecar.CreatedAt.Format("2006-01-02"),
-					)
-				}
-
-				_ = table.Render()
-
-				if !allPages && sidecars.Pagination.TotalPages > 1 {
-					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", sidecars.Pagination.TotalPages)
-				}
-			}
-
-			return nil
+			return outputSidecarsForProcess(processGUID, allSidecars, sidecars.Pagination, allPages)
 		},
 	}
 
 	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
-	cmd.Flags().IntVar(&perPage, "per-page", 50, "results per page")
+	cmd.Flags().IntVar(&perPage, "per-page", constants.StandardPageSize, "results per page")
 
 	return cmd
+}
+
+// fetchAllSidecarPages fetches all pages of sidecars if requested.
+func fetchAllSidecarPages(ctx context.Context, client capi.Client, processGUID string, initial *capi.ListResponse[capi.Sidecar], params *capi.QueryParams, allPages bool) ([]capi.Sidecar, error) {
+	allSidecars := initial.Resources
+
+	if !allPages || initial.Pagination.TotalPages <= 1 {
+		return allSidecars, nil
+	}
+
+	for page := 2; page <= initial.Pagination.TotalPages; page++ {
+		params.Page = page
+
+		moreSidecars, err := client.Sidecars().ListForProcess(ctx, processGUID, params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch page %d: %w", page, err)
+		}
+
+		allSidecars = append(allSidecars, moreSidecars.Resources...)
+	}
+
+	return allSidecars, nil
+}
+
+// outputSidecarsForProcess handles output formatting for sidecars.
+func outputSidecarsForProcess(processGUID string, sidecars []capi.Sidecar, pagination capi.Pagination, allPages bool) error {
+	output := viper.GetString("output")
+
+	switch output {
+	case OutputFormatJSON:
+		return outputSidecarsJSON(sidecars)
+	case OutputFormatYAML:
+		return outputSidecarsYAML(sidecars)
+	default:
+		return outputSidecarsTable(processGUID, sidecars, &pagination, allPages)
+	}
+}
+
+// outputSidecarsJSON outputs sidecars in JSON format.
+func outputSidecarsJSON(sidecars []capi.Sidecar) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+
+	err := encoder.Encode(sidecars)
+	if err != nil {
+		return fmt.Errorf("encoding sidecars to JSON: %w", err)
+	}
+
+	return nil
+}
+
+// outputSidecarsYAML outputs sidecars in YAML format.
+func outputSidecarsYAML(sidecars []capi.Sidecar) error {
+	encoder := yaml.NewEncoder(os.Stdout)
+
+	err := encoder.Encode(sidecars)
+	if err != nil {
+		return fmt.Errorf("encoding sidecars to YAML: %w", err)
+	}
+
+	return nil
+}
+
+// outputSidecarsTable outputs sidecars in table format.
+func outputSidecarsTable(processGUID string, sidecars []capi.Sidecar, pagination *capi.Pagination, allPages bool) error {
+	if len(sidecars) == 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "No sidecars found for process %s\n", processGUID)
+
+		return nil
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "Sidecars for process %s:\n\n", processGUID)
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Name", "GUID", "Command", "Process Types", "Memory", "Origin", "Created")
+
+	for _, sidecar := range sidecars {
+		_ = table.Append(formatSidecarRow(sidecar)...)
+	}
+
+	_ = table.Render()
+
+	if !allPages && pagination.TotalPages > 1 {
+		_, _ = fmt.Fprintf(os.Stdout, "\nShowing page 1 of %d. Use --all to fetch all pages.\n", pagination.TotalPages)
+	}
+
+	return nil
+}
+
+// formatSidecarRow formats a single sidecar for table display.
+func formatSidecarRow(sidecar capi.Sidecar) []interface{} {
+	memoryStr := formatSidecarMemory(sidecar.MemoryInMB)
+	processTypesStr := truncateSidecarString(strings.Join(sidecar.ProcessTypes, ", "), constants.ProcessTypesDisplayLength)
+	commandStr := truncateSidecarString(sidecar.Command, constants.ShortCommandDisplayLength)
+
+	return []interface{}{
+		sidecar.Name,
+		sidecar.GUID,
+		commandStr,
+		processTypesStr,
+		memoryStr,
+		sidecar.Origin,
+		sidecar.CreatedAt.Format("2006-01-02"),
+	}
+}
+
+// formatSidecarMemory formats memory value for display.
+func formatSidecarMemory(memoryInMB *int) string {
+	if memoryInMB == nil {
+		return "default"
+	}
+
+	return fmt.Sprintf("%d MB", *memoryInMB)
+}
+
+// truncateSidecarString truncates a string to specified length with ellipsis.
+func truncateSidecarString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+
+	return s[:maxLen-3] + "..."
 }

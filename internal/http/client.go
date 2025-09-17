@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,11 +13,12 @@ import (
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/auth"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-// Logger interface for HTTP client logging
+// Logger interface for HTTP client logging.
 type Logger interface {
 	Debug(msg string, fields map[string]interface{})
 	Info(msg string, fields map[string]interface{})
@@ -24,7 +26,7 @@ type Logger interface {
 	Error(msg string, fields map[string]interface{})
 }
 
-// Client wraps the HTTP client with retry logic and authentication
+// Client wraps the HTTP client with retry logic and authentication.
 type Client struct {
 	baseURL      string
 	httpClient   *retryablehttp.Client
@@ -34,38 +36,44 @@ type Client struct {
 	userAgent    string
 }
 
-// Option configures the HTTP client
+// Option configures the HTTP client.
+// Static errors for err113 compliance.
+var (
+	ErrAPIError                = errors.New("API error")
+	ErrNoTokenManagerAvailable = errors.New("no token manager available")
+)
+
 type Option func(*Client)
 
-// WithLogger sets the logger for the client
+// WithLogger sets the logger for the client.
 func WithLogger(logger Logger) Option {
 	return func(c *Client) {
 		c.logger = logger
 	}
 }
 
-// WithDebug enables debug logging
+// WithDebug enables debug logging.
 func WithDebug(debug bool) Option {
 	return func(c *Client) {
 		c.debug = debug
 	}
 }
 
-// WithUserAgent sets the user agent string
+// WithUserAgent sets the user agent string.
 func WithUserAgent(userAgent string) Option {
 	return func(c *Client) {
 		c.userAgent = userAgent
 	}
 }
 
-// WithHTTPClient sets a custom HTTP client
+// WithHTTPClient sets a custom HTTP client.
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient.HTTPClient = httpClient
 	}
 }
 
-// WithRetryConfig configures retry behavior
+// WithRetryConfig configures retry behavior.
 func WithRetryConfig(retryMax int, retryWaitMin, retryWaitMax time.Duration) Option {
 	return func(c *Client) {
 		c.httpClient.RetryMax = retryMax
@@ -74,12 +82,12 @@ func WithRetryConfig(retryMax int, retryWaitMin, retryWaitMax time.Duration) Opt
 	}
 }
 
-// NewClient creates a new HTTP client
+// NewClient creates a new HTTP client.
 func NewClient(baseURL string, tokenManager auth.TokenManager, opts ...Option) *Client {
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 3
 	retryClient.RetryWaitMin = 1 * time.Second
-	retryClient.RetryWaitMax = 30 * time.Second
+	retryClient.RetryWaitMax = constants.ExtendedRetryWaitMax
 	retryClient.Logger = nil // We'll do our own logging
 
 	// Custom retry policy
@@ -91,7 +99,7 @@ func NewClient(baseURL string, tokenManager auth.TokenManager, opts ...Option) *
 
 		// Retry on connection errors
 		if err != nil {
-			return true, nil
+			return true, err
 		}
 
 		// Check the response code
@@ -100,7 +108,7 @@ func NewClient(baseURL string, tokenManager auth.TokenManager, opts ...Option) *
 		}
 
 		// Retry on rate limiting
-		if resp.StatusCode == 429 {
+		if resp.StatusCode == http.StatusTooManyRequests {
 			return true, nil
 		}
 
@@ -123,7 +131,7 @@ func NewClient(baseURL string, tokenManager auth.TokenManager, opts ...Option) *
 	return client
 }
 
-// Request represents an HTTP request
+// Request represents an HTTP request.
 type Request struct {
 	Method  string
 	Path    string
@@ -133,14 +141,14 @@ type Request struct {
 	isRetry bool
 }
 
-// Response represents an HTTP response
+// Response represents an HTTP response.
 type Response struct {
 	StatusCode int
 	Body       []byte
 	Headers    http.Header
 }
 
-// Do executes an HTTP request with authentication and retry logic
+// Do executes an HTTP request with authentication and retry logic.
 func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	// Build full URL
 	fullURL, err := c.buildURL(req.Path, req.Query)
@@ -149,13 +157,9 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	}
 
 	// Prepare body
-	var bodyReader io.Reader
-	if req.Body != nil {
-		bodyBytes, err := json.Marshal(req.Body)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling request body: %w", err)
-		}
-		bodyReader = bytes.NewReader(bodyBytes)
+	bodyReader, err := c.prepareRequestBody(req.Body)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create retryable request
@@ -164,79 +168,23 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
-	// Add authentication
-	if c.tokenManager != nil {
-		token, err := c.tokenManager.GetToken(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("getting auth token: %w", err)
-		}
-		httpReq.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	// Set headers
-	httpReq.Header.Set("Accept", "application/json")
-	httpReq.Header.Set("User-Agent", c.userAgent)
-	if req.Body != nil {
-		httpReq.Header.Set("Content-Type", "application/json")
-	}
-
-	// Add custom headers
-	for key, value := range req.Headers {
-		httpReq.Header.Set(key, value)
-	}
-
-	// Log request if debug is enabled
-	if c.debug && c.logger != nil {
-		c.logRequest(httpReq)
+	// Setup authentication and headers
+	err = c.setupAuthAndHeaders(ctx, httpReq, req)
+	if err != nil {
+		return nil, err
 	}
 
 	// Execute request
-	httpResp, err := c.httpClient.Do(httpReq)
+	response, err := c.executeHTTPRequest(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer func() {
-		if err := httpResp.Body.Close(); err != nil {
-			// Log error but don't return it to avoid masking original error
-			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
-		}
-	}()
-
-	// Read response body
-	respBody, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response body: %w", err)
+		return nil, err
 	}
 
-	response := &Response{
-		StatusCode: httpResp.StatusCode,
-		Body:       respBody,
-		Headers:    httpResp.Header,
-	}
-
-	// Log response if debug is enabled
-	if c.debug && c.logger != nil {
-		c.logResponse(response)
-	}
-
-	// Check for errors
-	if httpResp.StatusCode >= 400 {
-		// Handle authentication errors with retry
-		if httpResp.StatusCode == 401 && c.tokenManager != nil && !req.isRetry {
-			// Try to refresh token and retry once
-			if err := c.tokenManager.RefreshToken(ctx); err == nil {
-				retryReq := *req
-				retryReq.isRetry = true
-				return c.Do(ctx, &retryReq)
-			}
-		}
-		return response, c.parseError(response)
-	}
-
-	return response, nil
+	// Handle error responses with retry logic
+	return c.handleResponseError(ctx, response, req)
 }
 
-// Get performs a GET request
+// Get performs a GET request.
 func (c *Client) Get(ctx context.Context, path string, query url.Values) (*Response, error) {
 	return c.Do(ctx, &Request{
 		Method: "GET",
@@ -245,7 +193,7 @@ func (c *Client) Get(ctx context.Context, path string, query url.Values) (*Respo
 	})
 }
 
-// Post performs a POST request
+// Post performs a POST request.
 func (c *Client) Post(ctx context.Context, path string, body interface{}) (*Response, error) {
 	return c.Do(ctx, &Request{
 		Method: "POST",
@@ -254,7 +202,7 @@ func (c *Client) Post(ctx context.Context, path string, body interface{}) (*Resp
 	})
 }
 
-// Put performs a PUT request
+// Put performs a PUT request.
 func (c *Client) Put(ctx context.Context, path string, body interface{}) (*Response, error) {
 	return c.Do(ctx, &Request{
 		Method: "PUT",
@@ -263,7 +211,7 @@ func (c *Client) Put(ctx context.Context, path string, body interface{}) (*Respo
 	})
 }
 
-// Patch performs a PATCH request
+// Patch performs a PATCH request.
 func (c *Client) Patch(ctx context.Context, path string, body interface{}) (*Response, error) {
 	return c.Do(ctx, &Request{
 		Method: "PATCH",
@@ -272,7 +220,7 @@ func (c *Client) Patch(ctx context.Context, path string, body interface{}) (*Res
 	})
 }
 
-// Delete performs a DELETE request
+// Delete performs a DELETE request.
 func (c *Client) Delete(ctx context.Context, path string) (*Response, error) {
 	return c.Do(ctx, &Request{
 		Method: "DELETE",
@@ -280,7 +228,7 @@ func (c *Client) Delete(ctx context.Context, path string) (*Response, error) {
 	})
 }
 
-// DeleteWithQuery performs a DELETE request with query parameters
+// DeleteWithQuery performs a DELETE request with query parameters.
 func (c *Client) DeleteWithQuery(ctx context.Context, path string, queryParams url.Values) (*Response, error) {
 	return c.Do(ctx, &Request{
 		Method: "DELETE",
@@ -289,7 +237,7 @@ func (c *Client) DeleteWithQuery(ctx context.Context, path string, queryParams u
 	})
 }
 
-// PostRaw performs a POST request with raw body data and content type
+// PostRaw performs a POST request with raw body data and content type.
 func (c *Client) PostRaw(ctx context.Context, path string, body []byte, contentType string) (*Response, error) {
 	// Build full URL
 	fullURL, err := c.buildURL(path, nil)
@@ -309,12 +257,14 @@ func (c *Client) PostRaw(ctx context.Context, path string, body []byte, contentT
 		if err != nil {
 			return nil, fmt.Errorf("getting auth token: %w", err)
 		}
+
 		httpReq.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	// Set headers
 	httpReq.Header.Set("Content-Type", contentType)
 	httpReq.Header.Set("Accept", "application/json")
+
 	if c.userAgent != "" {
 		httpReq.Header.Set("User-Agent", c.userAgent)
 	}
@@ -329,8 +279,10 @@ func (c *Client) PostRaw(ctx context.Context, path string, body []byte, contentT
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
+
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
+		err := resp.Body.Close()
+		if err != nil {
 			// Log error but don't return it to avoid masking original error
 			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
 		}
@@ -355,44 +307,164 @@ func (c *Client) PostRaw(ctx context.Context, path string, body []byte, contentT
 	}
 
 	// Check for errors
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= constants.HTTPStatusBadRequest {
 		return response, c.parseError(response)
 	}
 
 	return response, nil
 }
 
-// buildURL constructs the full URL for a request
-func (c *Client) buildURL(path string, query url.Values) (string, error) {
-	u, err := url.Parse(c.baseURL)
+// GetAuthToken returns the current authentication token.
+func (c *Client) GetAuthToken(ctx context.Context) (string, error) {
+	if c.tokenManager == nil {
+		return "", ErrNoTokenManagerAvailable
+	}
+
+	token, err := c.tokenManager.GetToken(ctx)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get token: %w", err)
 	}
 
-	u.Path = path
-	if query != nil {
-		u.RawQuery = query.Encode()
-	}
-
-	return u.String(), nil
+	return token, nil
 }
 
-// parseError parses an error response from the API
+// prepareRequestBody marshals the request body to JSON if present.
+func (c *Client) prepareRequestBody(body interface{}) (io.Reader, error) {
+	if body == nil {
+		return nil, nil
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling request body: %w", err)
+	}
+
+	return bytes.NewReader(bodyBytes), nil
+}
+
+// setupAuthAndHeaders configures authentication and headers for the request.
+func (c *Client) setupAuthAndHeaders(ctx context.Context, httpReq *retryablehttp.Request, req *Request) error {
+	// Add authentication
+	if c.tokenManager != nil {
+		token, err := c.tokenManager.GetToken(ctx)
+		if err != nil {
+			return fmt.Errorf("getting auth token: %w", err)
+		}
+
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	// Set standard headers
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("User-Agent", c.userAgent)
+
+	if req.Body != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
+
+	// Add custom headers
+	for key, value := range req.Headers {
+		httpReq.Header.Set(key, value)
+	}
+
+	return nil
+}
+
+// executeHTTPRequest performs the actual HTTP request with error handling.
+func (c *Client) executeHTTPRequest(httpReq *retryablehttp.Request) (*Response, error) {
+	// Log request if debug is enabled
+	if c.debug && c.logger != nil {
+		c.logRequest(httpReq)
+	}
+
+	// Execute request
+	httpResp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("executing request: %w", err)
+	}
+
+	defer func() {
+		err := httpResp.Body.Close()
+		if err != nil {
+			// Log error but don't return it to avoid masking original error
+			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		}
+	}()
+
+	// Read response body
+	respBody, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	response := &Response{
+		StatusCode: httpResp.StatusCode,
+		Body:       respBody,
+		Headers:    httpResp.Header,
+	}
+
+	// Log response if debug is enabled
+	if c.debug && c.logger != nil {
+		c.logResponse(response)
+	}
+
+	return response, nil
+}
+
+// handleResponseError processes HTTP error responses with retry logic.
+func (c *Client) handleResponseError(ctx context.Context, response *Response, req *Request) (*Response, error) {
+	if response.StatusCode < constants.HTTPStatusBadRequest {
+		return response, nil
+	}
+
+	// Handle authentication errors with retry
+	if response.StatusCode == http.StatusUnauthorized && c.tokenManager != nil && !req.isRetry {
+		// Try to refresh token and retry once
+		err := c.tokenManager.RefreshToken(ctx)
+		if err == nil {
+			retryReq := *req
+			retryReq.isRetry = true
+
+			return c.Do(ctx, &retryReq)
+		}
+	}
+
+	return response, c.parseError(response)
+}
+
+// buildURL constructs the full URL for a request.
+func (c *Client) buildURL(path string, query url.Values) (string, error) {
+	parsedURL, err := url.Parse(c.baseURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse base URL: %w", err)
+	}
+
+	parsedURL.Path = path
+	if query != nil {
+		parsedURL.RawQuery = query.Encode()
+	}
+
+	return parsedURL.String(), nil
+}
+
+// parseError parses an error response from the API.
 func (c *Client) parseError(resp *Response) error {
-	var errResp capi.ErrorResponse
-	if err := json.Unmarshal(resp.Body, &errResp); err != nil {
-		// If we can't parse as ErrorResponse, return a generic error
-		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(resp.Body))
+	var errResp capi.ResponseError
+
+	err := json.Unmarshal(resp.Body, &errResp)
+	if err != nil {
+		// If we can't parse as ResponseError, return a generic error
+		return fmt.Errorf("%w (status %d): %s", ErrAPIError, resp.StatusCode, string(resp.Body))
 	}
 
 	if len(errResp.Errors) == 0 {
-		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(resp.Body))
+		return fmt.Errorf("%w (status %d): %s", ErrAPIError, resp.StatusCode, string(resp.Body))
 	}
 
 	return &errResp
 }
 
-// logRequest logs the HTTP request details
+// logRequest logs the HTTP request details.
 func (c *Client) logRequest(req *retryablehttp.Request) {
 	fields := map[string]interface{}{
 		"method": req.Method,
@@ -401,6 +473,7 @@ func (c *Client) logRequest(req *retryablehttp.Request) {
 
 	// Log headers (excluding sensitive ones)
 	headers := make(map[string]string)
+
 	for key, values := range req.Header {
 		if key != "Authorization" {
 			headers[key] = values[0]
@@ -408,12 +481,13 @@ func (c *Client) logRequest(req *retryablehttp.Request) {
 			headers[key] = "[REDACTED]"
 		}
 	}
+
 	fields["headers"] = headers
 
 	c.logger.Debug("HTTP Request", fields)
 }
 
-// logResponse logs the HTTP response details
+// logResponse logs the HTTP response details.
 func (c *Client) logResponse(resp *Response) {
 	fields := map[string]interface{}{
 		"status_code": resp.StatusCode,
@@ -425,6 +499,7 @@ func (c *Client) logResponse(resp *Response) {
 	for key, values := range resp.Headers {
 		headers[key] = values[0]
 	}
+
 	fields["headers"] = headers
 
 	// Log body snippet if not too large
@@ -433,12 +508,4 @@ func (c *Client) logResponse(resp *Response) {
 	}
 
 	c.logger.Debug("HTTP Response", fields)
-}
-
-// GetAuthToken returns the current authentication token
-func (c *Client) GetAuthToken(ctx context.Context) (string, error) {
-	if c.tokenManager == nil {
-		return "", fmt.Errorf("no token manager available")
-	}
-	return c.tokenManager.GetToken(ctx)
 }

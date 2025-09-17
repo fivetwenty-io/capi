@@ -12,6 +12,7 @@ import (
 )
 
 func TestCacheInterceptor(t *testing.T) {
+	t.Parallel()
 	// Create cache manager
 	cache := capi.NewMemoryCache(100)
 	manager := capi.NewCacheManager(cache, nil)
@@ -24,15 +25,13 @@ func TestCacheInterceptor(t *testing.T) {
 
 	// Test GET request caching
 	req := &capi.Request{
-		Method:  "GET",
-		Path:    "/v3/apps",
-		Context: ctx,
+		Method: "GET",
+		Path:   "/v3/apps",
 	}
 
 	// First request - should not be cached
 	err := reqInterceptor(ctx, req)
-	assert.NoError(t, err)
-	assert.Nil(t, req.Context.Value("cached_response"))
+	require.NoError(t, err)
 
 	// Simulate response
 	resp := &capi.Response{
@@ -43,32 +42,30 @@ func TestCacheInterceptor(t *testing.T) {
 
 	// Response interceptor should cache it
 	err = respInterceptor(ctx, req, resp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Second request - should be cached
 	req2 := &capi.Request{
-		Method:  "GET",
-		Path:    "/v3/apps",
-		Context: ctx,
+		Method: "GET",
+		Path:   "/v3/apps",
 	}
 
 	err = reqInterceptor(ctx, req2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Note: In a real implementation, the cached response would be in context
 
 	// Test POST request - should not be cached
 	postReq := &capi.Request{
-		Method:  "POST",
-		Path:    "/v3/apps",
-		Context: ctx,
+		Method: "POST",
+		Path:   "/v3/apps",
 	}
 
 	err = reqInterceptor(ctx, postReq)
-	assert.NoError(t, err)
-	assert.Nil(t, postReq.Context.Value("cached_response"))
+	require.NoError(t, err)
 }
 
 func TestConditionalRequestInterceptor(t *testing.T) {
+	t.Parallel()
 	// Create cache manager with an entry that has an ETag
 	cache := capi.NewMemoryCache(100)
 	manager := capi.NewCacheManager(cache, nil)
@@ -88,11 +85,10 @@ func TestConditionalRequestInterceptor(t *testing.T) {
 		Method:  "GET",
 		Path:    "/v3/apps/123",
 		Headers: make(http.Header),
-		Context: ctx,
 	}
 
 	err = interceptor(ctx, req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "abc123", req.Headers.Get("If-None-Match"))
 
 	// Test non-GET request
@@ -100,15 +96,15 @@ func TestConditionalRequestInterceptor(t *testing.T) {
 		Method:  "POST",
 		Path:    "/v3/apps",
 		Headers: make(http.Header),
-		Context: ctx,
 	}
 
 	err = interceptor(ctx, postReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, postReq.Headers.Get("If-None-Match"))
 }
 
 func TestCacheInvalidationInterceptor(t *testing.T) {
+	t.Parallel()
 	// Create cache manager
 	cache := capi.NewMemoryCache(100)
 	manager := capi.NewCacheManager(cache, nil)
@@ -137,7 +133,7 @@ func TestCacheInvalidationInterceptor(t *testing.T) {
 	}
 
 	err = interceptor(ctx, req, resp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// In a real implementation, this would invalidate related cache entries
 
 	// Test failed mutation (should not invalidate)
@@ -150,11 +146,13 @@ func TestCacheInvalidationInterceptor(t *testing.T) {
 	}
 
 	err = interceptor(ctx, req2, resp2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Cache should still have the entries
 }
 
 func TestSmartCacheConfig(t *testing.T) {
+	t.Parallel()
+
 	config := capi.DefaultSmartCacheConfig()
 	assert.True(t, config.EnableSmartInvalidation)
 	assert.True(t, config.EnableConditionalRequests)
@@ -164,6 +162,7 @@ func TestSmartCacheConfig(t *testing.T) {
 }
 
 func TestConfigureSmartCache(t *testing.T) {
+	t.Parallel()
 	// Create components
 	chain := capi.NewInterceptorChain()
 	cache := capi.NewMemoryCache(100)
@@ -176,17 +175,17 @@ func TestConfigureSmartCache(t *testing.T) {
 	// Verify interceptors were added
 	ctx := context.Background()
 	req := &capi.Request{
-		Method:  "GET",
-		Path:    "/v3/apps",
-		Context: ctx,
+		Method: "GET",
+		Path:   "/v3/apps",
 	}
 
 	// This should not error if interceptors were added correctly
 	err := chain.ExecuteRequestInterceptors(ctx, req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestCacheWarmer(t *testing.T) {
+	t.Parallel()
 	// This test is simplified - in production you'd use a proper mock client
 	// For now, we'll just test the warmer creation
 
@@ -202,6 +201,8 @@ func TestCacheWarmer(t *testing.T) {
 }
 
 func TestCachingPolicy_ShouldCacheExtended(t *testing.T) {
+	t.Parallel()
+
 	policy := capi.DefaultCachingPolicy()
 
 	// Test GET request

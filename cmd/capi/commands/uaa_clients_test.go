@@ -1,3 +1,4 @@
+//nolint:testpackage // Need access to internal types
 package commands
 
 import (
@@ -7,6 +8,8 @@ import (
 )
 
 func TestCreateUsersCreateClientCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersCreateClientCommand()
 	assert.Equal(t, "create-client <client-id>", cmd.Use)
 	assert.Equal(t, "Create OAuth client", cmd.Short)
@@ -27,6 +30,8 @@ func TestCreateUsersCreateClientCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetClientCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetClientCommand()
 	assert.Equal(t, "get-client <client-id>", cmd.Use)
 	assert.Equal(t, "Get client details", cmd.Short)
@@ -38,6 +43,8 @@ func TestCreateUsersGetClientCommand(t *testing.T) {
 }
 
 func TestCreateUsersListClientsCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersListClientsCommand()
 	assert.Equal(t, "list-clients", cmd.Use)
 	assert.Equal(t, "List OAuth clients", cmd.Short)
@@ -54,6 +61,8 @@ func TestCreateUsersListClientsCommand(t *testing.T) {
 }
 
 func TestCreateUsersUpdateClientCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersUpdateClientCommand()
 	assert.Equal(t, "update-client <client-id>", cmd.Use)
 	assert.Equal(t, "Update OAuth client", cmd.Short)
@@ -73,6 +82,8 @@ func TestCreateUsersUpdateClientCommand(t *testing.T) {
 }
 
 func TestCreateUsersSetClientSecretCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersSetClientSecretCommand()
 	assert.Equal(t, "set-client-secret <client-id>", cmd.Use)
 	assert.Equal(t, "Update client secret", cmd.Short)
@@ -84,6 +95,8 @@ func TestCreateUsersSetClientSecretCommand(t *testing.T) {
 }
 
 func TestCreateUsersDeleteClientCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersDeleteClientCommand()
 	assert.Equal(t, "delete-client <client-id>", cmd.Use)
 	assert.Equal(t, "Delete OAuth client", cmd.Short)

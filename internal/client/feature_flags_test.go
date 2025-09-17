@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
@@ -15,13 +16,15 @@ import (
 )
 
 func TestFeatureFlagsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/feature_flags/my_feature_flag", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/feature_flags/my_feature_flag", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		customError := "error message the user sees"
-		ff := capi.FeatureFlag{
+		featureFlag := capi.FeatureFlag{
 			Name:               "my_feature_flag",
 			Enabled:            true,
 			UpdatedAt:          &now,
@@ -33,30 +36,32 @@ func TestFeatureFlagsClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ff)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(featureFlag)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	featureFlags := NewFeatureFlagsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	featureFlags := NewFeatureFlagsClient(httpClient)
 
-	ff, err := featureFlags.Get(context.Background(), "my_feature_flag")
+	featureFlag, err := featureFlags.Get(context.Background(), "my_feature_flag")
 	require.NoError(t, err)
-	assert.NotNil(t, ff)
-	assert.Equal(t, "my_feature_flag", ff.Name)
-	assert.True(t, ff.Enabled)
-	assert.NotNil(t, ff.UpdatedAt)
-	assert.NotNil(t, ff.CustomErrorMessage)
-	assert.Equal(t, "error message the user sees", *ff.CustomErrorMessage)
+	assert.NotNil(t, featureFlag)
+	assert.Equal(t, "my_feature_flag", featureFlag.Name)
+	assert.True(t, featureFlag.Enabled)
+	assert.NotNil(t, featureFlag.UpdatedAt)
+	assert.NotNil(t, featureFlag.CustomErrorMessage)
+	assert.Equal(t, "error message the user sees", *featureFlag.CustomErrorMessage)
 }
 
 func TestFeatureFlagsClient_Get_NotConfigured(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/feature_flags/app_scaling", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
 
-		ff := capi.FeatureFlag{
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/feature_flags/app_scaling", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		featureFlag := capi.FeatureFlag{
 			Name:               "app_scaling",
 			Enabled:            true,
 			UpdatedAt:          nil, // Not configured flags have null updated_at
@@ -68,29 +73,32 @@ func TestFeatureFlagsClient_Get_NotConfigured(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ff)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(featureFlag)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	featureFlags := NewFeatureFlagsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	featureFlags := NewFeatureFlagsClient(httpClient)
 
-	ff, err := featureFlags.Get(context.Background(), "app_scaling")
+	featureFlag, err := featureFlags.Get(context.Background(), "app_scaling")
 	require.NoError(t, err)
-	assert.NotNil(t, ff)
-	assert.Equal(t, "app_scaling", ff.Name)
-	assert.True(t, ff.Enabled)
-	assert.Nil(t, ff.UpdatedAt)
-	assert.Nil(t, ff.CustomErrorMessage)
+	assert.NotNil(t, featureFlag)
+	assert.Equal(t, "app_scaling", featureFlag.Name)
+	assert.True(t, featureFlag.Enabled)
+	assert.Nil(t, featureFlag.UpdatedAt)
+	assert.Nil(t, featureFlag.CustomErrorMessage)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestFeatureFlagsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/feature_flags", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "2", r.URL.Query().Get("per_page"))
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/feature_flags", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "2", request.URL.Query().Get("per_page"))
+		assert.Equal(t, "1", request.URL.Query().Get("page"))
 
 		now := time.Now()
 		customError := "error message the user sees"
@@ -128,13 +136,13 @@ func TestFeatureFlagsClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	featureFlags := NewFeatureFlagsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	featureFlags := NewFeatureFlagsClient(httpClient)
 
 	params := &capi.QueryParams{
 		Page:    1,
@@ -154,24 +162,27 @@ func TestFeatureFlagsClient_List(t *testing.T) {
 }
 
 func TestFeatureFlagsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/feature_flags/my_feature_flag", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
 
-		var request capi.FeatureFlagUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/feature_flags/my_feature_flag", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
-		assert.False(t, request.Enabled)
-		assert.NotNil(t, request.CustomErrorMessage)
-		assert.Equal(t, "custom error", *request.CustomErrorMessage)
+		var requestBody capi.FeatureFlagUpdateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.False(t, requestBody.Enabled)
+		assert.NotNil(t, requestBody.CustomErrorMessage)
+		assert.Equal(t, "custom error", *requestBody.CustomErrorMessage)
 
 		now := time.Now()
-		ff := capi.FeatureFlag{
+		featureFlag := capi.FeatureFlag{
 			Name:               "my_feature_flag",
-			Enabled:            request.Enabled,
+			Enabled:            requestBody.Enabled,
 			UpdatedAt:          &now,
-			CustomErrorMessage: request.CustomErrorMessage,
+			CustomErrorMessage: requestBody.CustomErrorMessage,
 			Links: capi.Links{
 				"self": capi.Link{
 					Href: "/v3/feature_flags/my_feature_flag",
@@ -179,13 +190,13 @@ func TestFeatureFlagsClient_Update(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ff)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(featureFlag)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	featureFlags := NewFeatureFlagsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	featureFlags := NewFeatureFlagsClient(httpClient)
 
 	customError := "custom error"
 	request := &capi.FeatureFlagUpdateRequest{
@@ -193,32 +204,35 @@ func TestFeatureFlagsClient_Update(t *testing.T) {
 		CustomErrorMessage: &customError,
 	}
 
-	ff, err := featureFlags.Update(context.Background(), "my_feature_flag", request)
+	featureFlag, err := featureFlags.Update(context.Background(), "my_feature_flag", request)
 	require.NoError(t, err)
-	assert.NotNil(t, ff)
-	assert.Equal(t, "my_feature_flag", ff.Name)
-	assert.False(t, ff.Enabled)
-	assert.NotNil(t, ff.UpdatedAt)
-	assert.NotNil(t, ff.CustomErrorMessage)
-	assert.Equal(t, "custom error", *ff.CustomErrorMessage)
+	assert.NotNil(t, featureFlag)
+	assert.Equal(t, "my_feature_flag", featureFlag.Name)
+	assert.False(t, featureFlag.Enabled)
+	assert.NotNil(t, featureFlag.UpdatedAt)
+	assert.NotNil(t, featureFlag.CustomErrorMessage)
+	assert.Equal(t, "custom error", *featureFlag.CustomErrorMessage)
 }
 
 func TestFeatureFlagsClient_Update_EnableOnly(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/feature_flags/diego_docker", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
 
-		var request capi.FeatureFlagUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/feature_flags/diego_docker", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
-		assert.True(t, request.Enabled)
-		assert.Nil(t, request.CustomErrorMessage)
+		var requestBody capi.FeatureFlagUpdateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.True(t, requestBody.Enabled)
+		assert.Nil(t, requestBody.CustomErrorMessage)
 
 		now := time.Now()
-		ff := capi.FeatureFlag{
+		featureFlag := capi.FeatureFlag{
 			Name:               "diego_docker",
-			Enabled:            request.Enabled,
+			Enabled:            requestBody.Enabled,
 			UpdatedAt:          &now,
 			CustomErrorMessage: nil,
 			Links: capi.Links{
@@ -228,23 +242,23 @@ func TestFeatureFlagsClient_Update_EnableOnly(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ff)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(featureFlag)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	featureFlags := NewFeatureFlagsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	featureFlags := NewFeatureFlagsClient(httpClient)
 
 	request := &capi.FeatureFlagUpdateRequest{
 		Enabled: true,
 	}
 
-	ff, err := featureFlags.Update(context.Background(), "diego_docker", request)
+	featureFlag, err := featureFlags.Update(context.Background(), "diego_docker", request)
 	require.NoError(t, err)
-	assert.NotNil(t, ff)
-	assert.Equal(t, "diego_docker", ff.Name)
-	assert.True(t, ff.Enabled)
-	assert.NotNil(t, ff.UpdatedAt)
-	assert.Nil(t, ff.CustomErrorMessage)
+	assert.NotNil(t, featureFlag)
+	assert.Equal(t, "diego_docker", featureFlag.Name)
+	assert.True(t, featureFlag.Enabled)
+	assert.NotNil(t, featureFlag.UpdatedAt)
+	assert.Nil(t, featureFlag.CustomErrorMessage)
 }

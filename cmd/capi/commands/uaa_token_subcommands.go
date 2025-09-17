@@ -4,9 +4,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUAATokenCommand creates the token sub-command group
+// NewUAATokenCommand creates the token sub-command group.
 func NewUAATokenCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	config := CommandConfig{
 		Use:   "token",
 		Short: "Manage UAA OAuth tokens",
 		Long: `Manage UAA OAuth tokens and token operations.
@@ -30,61 +30,16 @@ This command group provides comprehensive token management capabilities includin
 
   # Get token signing keys
   capi uaa token get-keys`,
-		Run: func(cmd *cobra.Command, args []string) {
-			_ = cmd.Help()
+		SubCommands: []SubCommandConfig{
+			{Name: "authcode", CommandFunc: createUsersGetAuthcodeTokenCommand, Use: "get-authcode"},
+			{Name: "client-credentials", CommandFunc: createUsersGetClientCredentialsTokenCommand, Use: "get-client-credentials"},
+			{Name: "password", CommandFunc: createUsersGetPasswordTokenCommand, Use: "get-password"},
+			{Name: "implicit", CommandFunc: createUsersGetImplicitTokenCommand, Use: "get-implicit"},
+			{Name: "refresh", CommandFunc: createUsersRefreshTokenCommand, Use: "refresh"},
+			{Name: "key", CommandFunc: createUsersGetTokenKeyCommand, Use: "get-key"},
+			{Name: "keys", CommandFunc: createUsersGetTokenKeysCommand, Use: "get-keys"},
 		},
 	}
 
-	// Add token management commands with new naming
-	cmd.AddCommand(createTokenGetAuthcodeCommand())
-	cmd.AddCommand(createTokenGetClientCredentialsCommand())
-	cmd.AddCommand(createTokenGetPasswordCommand())
-	cmd.AddCommand(createTokenGetImplicitCommand())
-	cmd.AddCommand(createTokenRefreshCommand())
-	cmd.AddCommand(createTokenGetKeyCommand())
-	cmd.AddCommand(createTokenGetKeysCommand())
-
-	return cmd
-}
-
-func createTokenGetAuthcodeCommand() *cobra.Command {
-	cmd := createUsersGetAuthcodeTokenCommand()
-	cmd.Use = "get-authcode"
-	return cmd
-}
-
-func createTokenGetClientCredentialsCommand() *cobra.Command {
-	cmd := createUsersGetClientCredentialsTokenCommand()
-	cmd.Use = "get-client-credentials"
-	return cmd
-}
-
-func createTokenGetPasswordCommand() *cobra.Command {
-	cmd := createUsersGetPasswordTokenCommand()
-	cmd.Use = "get-password"
-	return cmd
-}
-
-func createTokenGetImplicitCommand() *cobra.Command {
-	cmd := createUsersGetImplicitTokenCommand()
-	cmd.Use = "get-implicit"
-	return cmd
-}
-
-func createTokenRefreshCommand() *cobra.Command {
-	cmd := createUsersRefreshTokenCommand()
-	cmd.Use = "refresh"
-	return cmd
-}
-
-func createTokenGetKeyCommand() *cobra.Command {
-	cmd := createUsersGetTokenKeyCommand()
-	cmd.Use = "get-key"
-	return cmd
-}
-
-func createTokenGetKeysCommand() *cobra.Command {
-	cmd := createUsersGetTokenKeysCommand()
-	cmd.Use = "get-keys"
-	return cmd
+	return CreateUAASubCommandGroup(config)
 }

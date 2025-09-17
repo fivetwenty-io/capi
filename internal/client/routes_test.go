@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestRoutesClient_Create(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		request      *capi.RouteCreateRequest
@@ -29,8 +33,8 @@ func TestRoutesClient_Create(t *testing.T) {
 			expectedPath: "/v3/routes",
 			statusCode:   http.StatusCreated,
 			request: &capi.RouteCreateRequest{
-				Host: stringPtr("api"),
-				Path: stringPtr("/v1"),
+				Host: StringPtr("api"),
+				Path: StringPtr("/v1"),
 				Relationships: capi.RouteRelationships{
 					Space:  capi.Relationship{Data: &capi.RelationshipData{GUID: "space-guid"}},
 					Domain: capi.Relationship{Data: &capi.RelationshipData{GUID: "domain-guid"}},
@@ -109,7 +113,7 @@ func TestRoutesClient_Create(t *testing.T) {
 			expectedPath: "/v3/routes",
 			statusCode:   http.StatusUnprocessableEntity,
 			request: &capi.RouteCreateRequest{
-				Host: stringPtr("existing"),
+				Host: StringPtr("existing"),
 				Relationships: capi.RouteRelationships{
 					Space:  capi.Relationship{Data: &capi.RelationshipData{GUID: "space-guid"}},
 					Domain: capi.Relationship{Data: &capi.RelationshipData{GUID: "domain-guid"}},
@@ -129,30 +133,33 @@ func TestRoutesClient_Create(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.RouteCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			route, err := client.Routes().Create(context.Background(), tt.request)
+			route, err := client.Routes().Create(context.Background(), testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, route)
 			} else {
 				require.NoError(t, err)
@@ -163,7 +170,10 @@ func TestRoutesClient_Create(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestRoutesClient_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -210,45 +220,51 @@ func TestRoutesClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "GET", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			route, err := client.Routes().Get(context.Background(), tt.guid)
+			route, err := client.Routes().Get(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, route)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, route)
-				assert.Equal(t, tt.guid, route.GUID)
+				assert.Equal(t, testCase.guid, route.GUID)
 			}
 		})
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestRoutesClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if hosts := query.Get("hosts"); hosts != "" {
 			assert.Equal(t, "api,www", hosts)
 		}
+
 		if spaceGuids := query.Get("space_guids"); spaceGuids != "" {
 			assert.Equal(t, "space-1,space-2", spaceGuids)
 		}
@@ -287,13 +303,13 @@ func TestRoutesClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -317,13 +333,16 @@ func TestRoutesClient_List(t *testing.T) {
 }
 
 func TestRoutesClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody capi.RouteUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		response := capi.Route{
 			Resource: capi.Resource{
@@ -338,13 +357,13 @@ func TestRoutesClient_Update(t *testing.T) {
 			Metadata: requestBody.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.RouteUpdateRequest{
@@ -366,9 +385,11 @@ func TestRoutesClient_Update(t *testing.T) {
 }
 
 func TestRoutesClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -378,13 +399,13 @@ func TestRoutesClient_Delete(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	job, err := client.Routes().Delete(context.Background(), "test-route-guid")
@@ -395,9 +416,11 @@ func TestRoutesClient_Delete(t *testing.T) {
 }
 
 func TestRoutesClient_ListDestinations(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid/destinations", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid/destinations", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		response := capi.RouteDestinations{
 			Destinations: []capi.RouteDestination{
@@ -411,7 +434,7 @@ func TestRoutesClient_ListDestinations(t *testing.T) {
 						},
 					},
 					Port:     intPtr(8080),
-					Protocol: stringPtr("http1"),
+					Protocol: StringPtr("http1"),
 					Weight:   intPtr(100),
 				},
 				{
@@ -431,13 +454,13 @@ func TestRoutesClient_ListDestinations(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	destinations, err := client.Routes().ListDestinations(context.Background(), "test-route-guid")
@@ -449,15 +472,18 @@ func TestRoutesClient_ListDestinations(t *testing.T) {
 }
 
 func TestRoutesClient_InsertDestinations(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid/destinations", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid/destinations", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var requestBody struct {
 			Destinations []capi.RouteDestination `json:"destinations"`
 		}
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Len(t, requestBody.Destinations, 1)
 
 		response := capi.RouteDestinations{
@@ -477,13 +503,13 @@ func TestRoutesClient_InsertDestinations(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	newDestinations := []capi.RouteDestination{
@@ -501,28 +527,31 @@ func TestRoutesClient_InsertDestinations(t *testing.T) {
 }
 
 func TestRoutesClient_ReplaceDestinations(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid/destinations", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid/destinations", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody struct {
 			Destinations []capi.RouteDestination `json:"destinations"`
 		}
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Len(t, requestBody.Destinations, 1)
 
 		response := capi.RouteDestinations{
 			Destinations: requestBody.Destinations,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	newDestinations := []capi.RouteDestination{
@@ -540,15 +569,18 @@ func TestRoutesClient_ReplaceDestinations(t *testing.T) {
 }
 
 func TestRoutesClient_UpdateDestination(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid/destinations/dest-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid/destinations/dest-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody struct {
 			Protocol string `json:"protocol"`
 		}
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Equal(t, "http2", requestBody.Protocol)
 
 		response := capi.RouteDestination{
@@ -556,16 +588,16 @@ func TestRoutesClient_UpdateDestination(t *testing.T) {
 			App: capi.RouteDestinationApp{
 				GUID: "app-1",
 			},
-			Protocol: stringPtr("http2"),
+			Protocol: StringPtr("http2"),
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	destination, err := client.Routes().UpdateDestination(context.Background(), "test-route-guid", "dest-guid", "http2")
@@ -576,14 +608,16 @@ func TestRoutesClient_UpdateDestination(t *testing.T) {
 }
 
 func TestRoutesClient_RemoveDestination(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid/destinations/dest-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
-		w.WriteHeader(http.StatusNoContent)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid/destinations/dest-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.Routes().RemoveDestination(context.Background(), "test-route-guid", "dest-guid")
@@ -591,15 +625,18 @@ func TestRoutesClient_RemoveDestination(t *testing.T) {
 }
 
 func TestRoutesClient_ShareWithSpace(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid/relationships/shared_spaces", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid/relationships/shared_spaces", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var requestBody struct {
 			Data []capi.RelationshipData `json:"data"`
 		}
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Len(t, requestBody.Data, 2)
 
 		response := capi.ToManyRelationship{
@@ -610,13 +647,13 @@ func TestRoutesClient_ShareWithSpace(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	relationship, err := client.Routes().ShareWithSpace(context.Background(), "test-route-guid", []string{"space-1", "space-2"})
@@ -626,14 +663,16 @@ func TestRoutesClient_ShareWithSpace(t *testing.T) {
 }
 
 func TestRoutesClient_UnshareFromSpace(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid/relationships/shared_spaces/space-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
-		w.WriteHeader(http.StatusNoContent)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid/relationships/shared_spaces/space-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.Routes().UnshareFromSpace(context.Background(), "test-route-guid", "space-guid")
@@ -641,15 +680,18 @@ func TestRoutesClient_UnshareFromSpace(t *testing.T) {
 }
 
 func TestRoutesClient_TransferOwnership(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/routes/test-route-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/routes/test-route-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody struct {
 			Relationships capi.RouteRelationships `json:"relationships"`
 		}
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Equal(t, "new-space-guid", requestBody.Relationships.Space.Data.GUID)
 
 		response := capi.Route{
@@ -668,13 +710,13 @@ func TestRoutesClient_TransferOwnership(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	route, err := client.Routes().TransferOwnership(context.Background(), "test-route-guid", "new-space-guid")

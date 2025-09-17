@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -18,10 +20,90 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// createUsersGetAuthcodeTokenCommand creates the authorization code token command
+// createUsersGetAuthcodeTokenCommand creates the authorization code token command.
+// promptForAuthcodeInputs prompts user for missing authorization code grant inputs.
+func promptForAuthcodeInputs(clientID, clientSecret, authCode, redirectURI *string) error {
+	if *clientID == "" {
+		log.Print("Client ID: ")
+
+		_, _ = fmt.Scanln(clientID)
+	}
+
+	if *clientSecret == "" {
+		log.Print("Client Secret: ")
+
+		secretBytes, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read client secret: %w", err)
+		}
+
+		*clientSecret = string(secretBytes)
+
+		_, _ = os.Stdout.WriteString("\n") // Add newline after password input
+	}
+
+	if *authCode == "" {
+		log.Print("Authorization Code: ")
+
+		_, _ = fmt.Scanln(authCode)
+	}
+
+	if *redirectURI == "" {
+		log.Print("Redirect URI: ")
+
+		_, _ = fmt.Scanln(redirectURI)
+	}
+
+	return nil
+}
+
+// getAuthcodeToken retrieves and stores the authorization code token.
+func getAuthcodeToken(config *Config, clientID, clientSecret, authCode, redirectURI string, tokenFormat int) error {
+	// Parse redirect URI
+	redirectURL, err := url.Parse(redirectURI)
+	if err != nil {
+		return fmt.Errorf("invalid redirect URI: %w", err)
+	}
+
+	// Create UAA client with authorization code authentication
+	authOpt := uaa.WithAuthorizationCode(clientID, clientSecret, authCode, uaa.TokenFormat(tokenFormat), redirectURL)
+
+	client, err := uaa.New(config.UAAEndpoint, authOpt)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	// Get token
+	ctx := context.Background()
+
+	token, err := client.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get authorization code token: %w", err)
+	}
+
+	// Store tokens in config
+	config.UAAToken = token.AccessToken
+	if token.RefreshToken != "" {
+		config.UAARefreshToken = token.RefreshToken
+	}
+
+	config.UAAClientID = clientID
+
+	// Save configuration
+	err = saveConfigStruct(config)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
+	}
+
+	// Display token information
+	return displayTokenInfo(token, "Authorization Code Grant")
+}
+
 func createUsersGetAuthcodeTokenCommand() *cobra.Command {
-	var clientID, clientSecret, redirectURI, authCode string
-	var tokenFormat int
+	var (
+		clientID, clientSecret, redirectURI, authCode string
+		tokenFormat                                   int
+	)
 
 	cmd := &cobra.Command{
 		Use:     "get-authcode-token",
@@ -42,66 +124,17 @@ obtained by directing users to the UAA authorization URL in a browser.`,
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Prompt for required fields if not provided
-			if clientID == "" {
-				fmt.Print("Client ID: ")
-				_, _ = fmt.Scanln(&clientID)
-			}
-			if clientSecret == "" {
-				fmt.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(int(syscall.Stdin))
-				if err != nil {
-					return fmt.Errorf("failed to read client secret: %w", err)
-				}
-				clientSecret = string(secretBytes)
-				fmt.Println() // Add newline after password input
-			}
-			if authCode == "" {
-				fmt.Print("Authorization Code: ")
-				_, _ = fmt.Scanln(&authCode)
-			}
-			if redirectURI == "" {
-				fmt.Print("Redirect URI: ")
-				_, _ = fmt.Scanln(&redirectURI)
-			}
-
-			// Parse redirect URI
-			redirectURL, err := url.Parse(redirectURI)
+			err := promptForAuthcodeInputs(&clientID, &clientSecret, &authCode, &redirectURI)
 			if err != nil {
-				return fmt.Errorf("invalid redirect URI: %w", err)
+				return err
 			}
 
-			// Create UAA client with authorization code authentication
-			authOpt := uaa.WithAuthorizationCode(clientID, clientSecret, authCode, uaa.TokenFormat(tokenFormat), redirectURL)
-			client, err := uaa.New(config.UAAEndpoint, authOpt)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			// Get token
-			ctx := context.Background()
-			token, err := client.Token(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to get authorization code token: %w", err)
-			}
-
-			// Store tokens in config
-			config.UAAToken = token.AccessToken
-			if token.RefreshToken != "" {
-				config.UAARefreshToken = token.RefreshToken
-			}
-			config.UAAClientID = clientID
-
-			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
-				fmt.Printf("Warning: Failed to save token to configuration: %v\n", err)
-			}
-
-			// Display token information
-			return displayTokenInfo(token, "Authorization Code Grant")
+			// Get and store the token
+			return getAuthcodeToken(config, clientID, clientSecret, authCode, redirectURI, tokenFormat)
 		},
 	}
 
@@ -114,10 +147,12 @@ obtained by directing users to the UAA authorization URL in a browser.`,
 	return cmd
 }
 
-// createUsersGetClientCredentialsTokenCommand creates the client credentials token command
+// createUsersGetClientCredentialsTokenCommand creates the client credentials token command.
 func createUsersGetClientCredentialsTokenCommand() *cobra.Command {
-	var clientID, clientSecret string
-	var tokenFormat int
+	var (
+		clientID, clientSecret string
+		tokenFormat            int
+	)
 
 	cmd := &cobra.Command{
 		Use:     "get-client-credentials-token",
@@ -140,22 +175,22 @@ interaction is required. The client authenticates using its own credentials.`,
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Prompt for required fields if not provided
 			if clientID == "" {
-				fmt.Print("Client ID: ")
+				log.Print("Client ID: ")
 				_, _ = fmt.Scanln(&clientID)
 			}
 			if clientSecret == "" {
-				fmt.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(int(syscall.Stdin))
+				log.Print("Client Secret: ")
+				secretBytes, err := term.ReadPassword(syscall.Stdin)
 				if err != nil {
 					return fmt.Errorf("failed to read client secret: %w", err)
 				}
 				clientSecret = string(secretBytes)
-				fmt.Println() // Add newline after password input
+				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
 			}
 
 			// Create UAA client with client credentials authentication
@@ -180,8 +215,9 @@ interaction is required. The client authenticates using its own credentials.`,
 			config.UAAClientID = clientID
 
 			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
-				fmt.Printf("Warning: Failed to save token to configuration: %v\n", err)
+			err = saveConfigStruct(config)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
 			}
 
 			// Display token information
@@ -196,10 +232,12 @@ interaction is required. The client authenticates using its own credentials.`,
 	return cmd
 }
 
-// createUsersGetPasswordTokenCommand creates the password token command
+// createUsersGetPasswordTokenCommand creates the password token command.
 func createUsersGetPasswordTokenCommand() *cobra.Command {
-	var clientID, clientSecret, username, password string
-	var tokenFormat int
+	var (
+		clientID, clientSecret, username, password string
+		tokenFormat                                int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "get-password-token",
@@ -213,35 +251,35 @@ handling user credentials directly.`,
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Prompt for required fields if not provided
 			if clientID == "" {
-				fmt.Print("Client ID: ")
+				log.Print("Client ID: ")
 				_, _ = fmt.Scanln(&clientID)
 			}
 			if clientSecret == "" {
-				fmt.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(int(syscall.Stdin))
+				log.Print("Client Secret: ")
+				secretBytes, err := term.ReadPassword(syscall.Stdin)
 				if err != nil {
 					return fmt.Errorf("failed to read client secret: %w", err)
 				}
 				clientSecret = string(secretBytes)
-				fmt.Println() // Add newline after password input
+				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
 			}
 			if username == "" {
-				fmt.Print("Username: ")
+				log.Print("Username: ")
 				_, _ = fmt.Scanln(&username)
 			}
 			if password == "" {
-				fmt.Print("Password: ")
-				passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
+				log.Print("Password: ")
+				passwordBytes, err := term.ReadPassword(syscall.Stdin)
 				if err != nil {
 					return fmt.Errorf("failed to read password: %w", err)
 				}
 				password = string(passwordBytes)
-				fmt.Println() // Add newline after password input
+				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
 			}
 
 			// Create UAA client with password credentials authentication
@@ -267,8 +305,9 @@ handling user credentials directly.`,
 			config.Username = username
 
 			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
-				fmt.Printf("Warning: Failed to save token to configuration: %v\n", err)
+			err = saveConfigStruct(config)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
 			}
 
 			// Display token information
@@ -285,10 +324,12 @@ handling user credentials directly.`,
 	return cmd
 }
 
-// createUsersRefreshTokenCommand creates the refresh token command
+// createUsersRefreshTokenCommand creates the refresh token command.
 func createUsersRefreshTokenCommand() *cobra.Command {
-	var clientID, clientSecret, refreshToken string
-	var tokenFormat int
+	var (
+		clientID, clientSecret, refreshToken string
+		tokenFormat                          int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "refresh-token",
@@ -302,7 +343,7 @@ current configuration.`,
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Use stored values if not provided via flags
@@ -315,20 +356,20 @@ current configuration.`,
 
 			// Prompt for required fields if not available
 			if clientID == "" {
-				fmt.Print("Client ID: ")
+				log.Print("Client ID: ")
 				_, _ = fmt.Scanln(&clientID)
 			}
 			if clientSecret == "" {
-				fmt.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(int(syscall.Stdin))
+				log.Print("Client Secret: ")
+				secretBytes, err := term.ReadPassword(syscall.Stdin)
 				if err != nil {
 					return fmt.Errorf("failed to read client secret: %w", err)
 				}
 				clientSecret = string(secretBytes)
-				fmt.Println() // Add newline after password input
+				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
 			}
 			if refreshToken == "" {
-				return fmt.Errorf("no refresh token available. Use another grant type to obtain a token first")
+				return constants.ErrNoRefreshToken
 			}
 
 			// Create UAA client with refresh token authentication
@@ -353,8 +394,9 @@ current configuration.`,
 			config.UAAClientID = clientID
 
 			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
-				fmt.Printf("Warning: Failed to save token to configuration: %v\n", err)
+			err = saveConfigStruct(config)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
 			}
 
 			// Display token information
@@ -370,88 +412,117 @@ current configuration.`,
 	return cmd
 }
 
-// createUsersGetTokenKeyCommand creates the get token key command
-func createUsersGetTokenKeyCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "get-token-key",
-		Short: "View JWT signing key",
-		Long:  "View the current key used for validating UAA's JWT token signatures",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			// Get token key
-			key, err := uaaClient.Client().TokenKey()
-			if err != nil {
-				return fmt.Errorf("failed to get token key: %w", err)
-			}
-
-			// Display key based on output format
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(key)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(key)
-			default:
-				return displayTokenKeyTable(key)
-			}
-		},
-	}
+// createUsersGetTokenKeyCommand creates the get token key command.
+// tokenKeyCommandConfig defines the parameters for creating token key commands.
+type tokenKeyCommandConfig struct {
+	use          string
+	short        string
+	long         string
+	fetchKeys    func(*UAAClientWrapper) (interface{}, error)
+	displayTable func(interface{}) error
 }
 
-// createUsersGetTokenKeysCommand creates the get token keys command
-func createUsersGetTokenKeysCommand() *cobra.Command {
+// createTokenKeyCommand creates a standardized command for token key retrieval.
+func createTokenKeyCommand(config tokenKeyCommandConfig) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get-token-keys",
-		Short: "View all JWT signing keys",
-		Long:  "View all keys the UAA has used to sign JWT tokens",
+		Use:   config.use,
+		Short: config.short,
+		Long:  config.long,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
+			uaaConfig := loadConfig()
 
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+			if GetEffectiveUAAEndpoint(uaaConfig) == "" {
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
+			uaaClient, err := NewUAAClient(uaaConfig)
 			if err != nil {
 				return fmt.Errorf("failed to create UAA client: %w", err)
 			}
 
-			// Get token keys
-			keys, err := uaaClient.Client().TokenKeys()
+			// Fetch keys
+			keys, err := config.fetchKeys(uaaClient)
 			if err != nil {
-				return fmt.Errorf("failed to get token keys: %w", err)
+				return err
 			}
 
 			// Display keys based on output format
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(keys)
-			case "yaml":
+
+				err := encoder.Encode(keys)
+				if err != nil {
+					return fmt.Errorf("encoding keys to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(keys)
+
+				err := encoder.Encode(keys)
+				if err != nil {
+					return fmt.Errorf("encoding keys to YAML: %w", err)
+				}
+
+				return nil
 			default:
-				return displayTokenKeysTable(keys)
+				return config.displayTable(keys)
 			}
 		},
 	}
+}
+
+func createUsersGetTokenKeyCommand() *cobra.Command {
+	return createTokenKeyCommand(tokenKeyCommandConfig{
+		use:   "get-token-key",
+		short: "View JWT signing key",
+		long:  "View the current key used for validating UAA's JWT token signatures",
+		fetchKeys: func(uaaClient *UAAClientWrapper) (interface{}, error) {
+			key, err := uaaClient.Client().TokenKey()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get token key: %w", err)
+			}
+
+			return key, nil
+		},
+		displayTable: func(keys interface{}) error {
+			key, ok := keys.(*uaa.JWK)
+			if !ok {
+				return fmt.Errorf("%w, got %T", constants.ErrExpectedJWKPointer, keys)
+			}
+
+			return displayTokenKeyTable(key)
+		},
+	})
+}
+
+// createUsersGetTokenKeysCommand creates the get token keys command.
+func createUsersGetTokenKeysCommand() *cobra.Command {
+	return createTokenKeyCommand(tokenKeyCommandConfig{
+		use:   "get-token-keys",
+		short: "View all JWT signing keys",
+		long:  "View all keys the UAA has used to sign JWT tokens",
+		fetchKeys: func(uaaClient *UAAClientWrapper) (interface{}, error) {
+			keys, err := uaaClient.Client().TokenKeys()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get token keys: %w", err)
+			}
+
+			return keys, nil
+		},
+		displayTable: func(keys interface{}) error {
+			keySlice, ok := keys.([]uaa.JWK)
+			if !ok {
+				return fmt.Errorf("%w, got %T", constants.ErrExpectedJWKSlice, keys)
+			}
+
+			return displayTokenKeysTable(keySlice)
+		},
+	})
 }
 
 // Helper functions for token display
@@ -475,18 +546,31 @@ func displayTokenInfo(token *oauth2.Token, grantType string) error {
 	if token.Extra("scope") != nil {
 		tokenInfo["scope"] = token.Extra("scope")
 	}
+
 	if token.Extra("jti") != nil {
 		tokenInfo["jti"] = token.Extra("jti")
 	}
 
 	switch output {
-	case "json":
+	case OutputFormatJSON:
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(tokenInfo)
-	case "yaml":
+
+		err := encoder.Encode(tokenInfo)
+		if err != nil {
+			return fmt.Errorf("encoding token info to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
-		return encoder.Encode(tokenInfo)
+
+		err := encoder.Encode(tokenInfo)
+		if err != nil {
+			return fmt.Errorf("encoding token info to YAML: %w", err)
+		}
+
+		return nil
 	default:
 		return displayTokenTable(token, grantType)
 	}
@@ -513,7 +597,9 @@ func displayTokenTable(token *oauth2.Token, grantType string) error {
 	}
 
 	_ = table.Render()
-	fmt.Println("Token stored in configuration")
+
+	_, _ = os.Stdout.WriteString("Token stored in configuration\n")
+
 	return nil
 }
 
@@ -524,26 +610,33 @@ func displayTokenKeyTable(key *uaa.JWK) error {
 	if key.Kty != "" {
 		_ = table.Append("Key Type", key.Kty)
 	}
+
 	if key.Kid != "" {
 		_ = table.Append("Key ID", key.Kid)
 	}
+
 	if key.Alg != "" {
 		_ = table.Append("Algorithm", key.Alg)
 	}
+
 	if key.Use != "" {
 		_ = table.Append("Use", key.Use)
 	}
+
 	if key.Value != "" {
 		_ = table.Append("Value", key.Value)
 	}
+
 	if key.E != "" {
 		_ = table.Append("Exponent", key.E)
 	}
+
 	if key.N != "" {
 		_ = table.Append("Modulus", key.N)
 	}
 
 	_ = table.Render()
+
 	return nil
 }
 
@@ -561,6 +654,7 @@ func displayTokenKeysTable(keys []uaa.JWK) error {
 	}
 
 	_ = table.Render()
+
 	return nil
 }
 
@@ -568,5 +662,6 @@ func getStringValue(value string) string {
 	if value == "" {
 		return "(not set)"
 	}
+
 	return value
 }

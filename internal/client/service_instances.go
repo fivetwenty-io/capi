@@ -4,26 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 
-	"github.com/fivetwenty-io/capi/v3/internal/http"
+	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
-// ServiceInstancesClient implements the capi.ServiceInstancesClient interface
+// ServiceInstancesClient implements the capi.ServiceInstancesClient interface.
 type ServiceInstancesClient struct {
-	httpClient *http.Client
+	httpClient *http_internal.Client
 }
 
-// NewServiceInstancesClient creates a new ServiceInstancesClient
-func NewServiceInstancesClient(httpClient *http.Client) *ServiceInstancesClient {
+// NewServiceInstancesClient creates a new ServiceInstancesClient.
+func NewServiceInstancesClient(httpClient *http_internal.Client) *ServiceInstancesClient {
 	return &ServiceInstancesClient{
 		httpClient: httpClient,
 	}
 }
 
 // Create creates a new service instance
-// Returns *ServiceInstance for user-provided instances, *Job for managed instances
+// Returns *ServiceInstance for user-provided instances, *Job for managed instances.
 func (c *ServiceInstancesClient) Create(ctx context.Context, request *capi.ServiceInstanceCreateRequest) (interface{}, error) {
 	path := "/v3/service_instances"
 
@@ -33,26 +34,32 @@ func (c *ServiceInstancesClient) Create(ctx context.Context, request *capi.Servi
 	}
 
 	// Check if it's a managed instance (returns 202 with Job) or user-provided (returns 201 with instance)
-	if resp.StatusCode == 202 {
+	if resp.StatusCode == http.StatusAccepted {
 		// Managed instance - returns a job
 		var job capi.Job
-		if err := json.Unmarshal(resp.Body, &job); err != nil {
+
+		err := json.Unmarshal(resp.Body, &job)
+		if err != nil {
 			return nil, fmt.Errorf("parsing job response: %w", err)
 		}
+
 		return &job, nil
 	} else {
 		// User-provided instance - returns the instance directly
 		var instance capi.ServiceInstance
-		if err := json.Unmarshal(resp.Body, &instance); err != nil {
+
+		err := json.Unmarshal(resp.Body, &instance)
+		if err != nil {
 			return nil, fmt.Errorf("parsing service instance response: %w", err)
 		}
+
 		return &instance, nil
 	}
 }
 
-// Get retrieves a specific service instance
+// Get retrieves a specific service instance.
 func (c *ServiceInstancesClient) Get(ctx context.Context, guid string) (*capi.ServiceInstance, error) {
-	path := fmt.Sprintf("/v3/service_instances/%s", guid)
+	path := "/v3/service_instances/" + guid
 
 	resp, err := c.httpClient.Get(ctx, path, nil)
 	if err != nil {
@@ -60,14 +67,16 @@ func (c *ServiceInstancesClient) Get(ctx context.Context, guid string) (*capi.Se
 	}
 
 	var instance capi.ServiceInstance
-	if err := json.Unmarshal(resp.Body, &instance); err != nil {
+
+	err = json.Unmarshal(resp.Body, &instance)
+	if err != nil {
 		return nil, fmt.Errorf("parsing service instance response: %w", err)
 	}
 
 	return &instance, nil
 }
 
-// List lists all service instances
+// List lists all service instances.
 func (c *ServiceInstancesClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.ServiceInstance], error) {
 	path := "/v3/service_instances"
 
@@ -82,7 +91,9 @@ func (c *ServiceInstancesClient) List(ctx context.Context, params *capi.QueryPar
 	}
 
 	var result capi.ListResponse[capi.ServiceInstance]
-	if err := json.Unmarshal(resp.Body, &result); err != nil {
+
+	err = json.Unmarshal(resp.Body, &result)
+	if err != nil {
 		return nil, fmt.Errorf("parsing service instances list response: %w", err)
 	}
 
@@ -90,9 +101,9 @@ func (c *ServiceInstancesClient) List(ctx context.Context, params *capi.QueryPar
 }
 
 // Update updates a service instance
-// Returns *ServiceInstance for user-provided instances, *Job for managed instances
+// Returns *ServiceInstance for user-provided instances, *Job for managed instances.
 func (c *ServiceInstancesClient) Update(ctx context.Context, guid string, request *capi.ServiceInstanceUpdateRequest) (interface{}, error) {
-	path := fmt.Sprintf("/v3/service_instances/%s", guid)
+	path := "/v3/service_instances/" + guid
 
 	resp, err := c.httpClient.Patch(ctx, path, request)
 	if err != nil {
@@ -100,26 +111,32 @@ func (c *ServiceInstancesClient) Update(ctx context.Context, guid string, reques
 	}
 
 	// Check if it's a managed instance (returns 202 with Job) or user-provided (returns 200 with instance)
-	if resp.StatusCode == 202 {
+	if resp.StatusCode == http.StatusAccepted {
 		// Managed instance - returns a job
 		var job capi.Job
-		if err := json.Unmarshal(resp.Body, &job); err != nil {
+
+		err := json.Unmarshal(resp.Body, &job)
+		if err != nil {
 			return nil, fmt.Errorf("parsing job response: %w", err)
 		}
+
 		return &job, nil
 	} else {
 		// User-provided instance - returns the instance directly
 		var instance capi.ServiceInstance
-		if err := json.Unmarshal(resp.Body, &instance); err != nil {
+
+		err := json.Unmarshal(resp.Body, &instance)
+		if err != nil {
 			return nil, fmt.Errorf("parsing service instance response: %w", err)
 		}
+
 		return &instance, nil
 	}
 }
 
-// Delete deletes a service instance
+// Delete deletes a service instance.
 func (c *ServiceInstancesClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
-	path := fmt.Sprintf("/v3/service_instances/%s", guid)
+	path := "/v3/service_instances/" + guid
 
 	// Add purge query parameter by default to force delete
 	queryParams := url.Values{}
@@ -131,14 +148,16 @@ func (c *ServiceInstancesClient) Delete(ctx context.Context, guid string) (*capi
 	}
 
 	var job capi.Job
-	if err := json.Unmarshal(resp.Body, &job); err != nil {
+
+	err = json.Unmarshal(resp.Body, &job)
+	if err != nil {
 		return nil, fmt.Errorf("parsing job response: %w", err)
 	}
 
 	return &job, nil
 }
 
-// GetParameters retrieves parameters for a managed service instance
+// GetParameters retrieves parameters for a managed service instance.
 func (c *ServiceInstancesClient) GetParameters(ctx context.Context, guid string) (*capi.ServiceInstanceParameters, error) {
 	path := fmt.Sprintf("/v3/service_instances/%s/parameters", guid)
 
@@ -148,14 +167,16 @@ func (c *ServiceInstancesClient) GetParameters(ctx context.Context, guid string)
 	}
 
 	var params capi.ServiceInstanceParameters
-	if err := json.Unmarshal(resp.Body, &params); err != nil {
+
+	err = json.Unmarshal(resp.Body, &params)
+	if err != nil {
 		return nil, fmt.Errorf("parsing service instance parameters response: %w", err)
 	}
 
 	return &params, nil
 }
 
-// ListSharedSpaces lists the spaces a service instance is shared with
+// ListSharedSpaces lists the spaces a service instance is shared with.
 func (c *ServiceInstancesClient) ListSharedSpaces(ctx context.Context, guid string) (*capi.ServiceInstanceSharedSpacesRelationships, error) {
 	path := fmt.Sprintf("/v3/service_instances/%s/relationships/shared_spaces", guid)
 
@@ -165,14 +186,16 @@ func (c *ServiceInstancesClient) ListSharedSpaces(ctx context.Context, guid stri
 	}
 
 	var relationships capi.ServiceInstanceSharedSpacesRelationships
-	if err := json.Unmarshal(resp.Body, &relationships); err != nil {
+
+	err = json.Unmarshal(resp.Body, &relationships)
+	if err != nil {
 		return nil, fmt.Errorf("parsing shared spaces relationships response: %w", err)
 	}
 
 	return &relationships, nil
 }
 
-// ShareWithSpaces shares a service instance with additional spaces
+// ShareWithSpaces shares a service instance with additional spaces.
 func (c *ServiceInstancesClient) ShareWithSpaces(ctx context.Context, guid string, request *capi.ServiceInstanceShareRequest) (*capi.ServiceInstanceSharedSpacesRelationships, error) {
 	path := fmt.Sprintf("/v3/service_instances/%s/relationships/shared_spaces", guid)
 
@@ -182,14 +205,16 @@ func (c *ServiceInstancesClient) ShareWithSpaces(ctx context.Context, guid strin
 	}
 
 	var relationships capi.ServiceInstanceSharedSpacesRelationships
-	if err := json.Unmarshal(resp.Body, &relationships); err != nil {
+
+	err = json.Unmarshal(resp.Body, &relationships)
+	if err != nil {
 		return nil, fmt.Errorf("parsing shared spaces relationships response: %w", err)
 	}
 
 	return &relationships, nil
 }
 
-// UnshareFromSpace unshares a service instance from a specific space
+// UnshareFromSpace unshares a service instance from a specific space.
 func (c *ServiceInstancesClient) UnshareFromSpace(ctx context.Context, guid string, spaceGUID string) error {
 	path := fmt.Sprintf("/v3/service_instances/%s/relationships/shared_spaces/%s", guid, spaceGUID)
 

@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
@@ -15,16 +16,19 @@ import (
 )
 
 func TestStacksClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/stacks", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		var request capi.StackCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/stacks", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Equal(t, "cflinuxfs4", request.Name)
-		assert.Equal(t, "Ubuntu Jammy Stack", request.Description)
+		var requestBody capi.StackCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "cflinuxfs4", requestBody.Name)
+		assert.Equal(t, "Ubuntu Jammy Stack", requestBody.Description)
 
 		now := time.Now()
 		stack := capi.Stack{
@@ -33,12 +37,12 @@ func TestStacksClient_Create(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
-			Name:             request.Name,
-			Description:      request.Description,
+			Name:             requestBody.Name,
+			Description:      requestBody.Description,
 			BuildRootfsImage: "cloudfoundry/cflinuxfs4",
 			RunRootfsImage:   "cloudfoundry/cflinuxfs4",
 			Default:          true,
-			Metadata:         request.Metadata,
+			Metadata:         requestBody.Metadata,
 			Links: capi.Links{
 				"self": capi.Link{
 					Href: "https://api.example.org/v3/stacks/stack-guid",
@@ -46,14 +50,14 @@ func TestStacksClient_Create(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(stack)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(stack)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	stacks := NewStacksClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	stacks := NewStacksClient(httpClient)
 
 	request := &capi.StackCreateRequest{
 		Name:        "cflinuxfs4",
@@ -75,9 +79,11 @@ func TestStacksClient_Create(t *testing.T) {
 }
 
 func TestStacksClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/stacks/stack-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/stacks/stack-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		stack := capi.Stack{
@@ -93,13 +99,13 @@ func TestStacksClient_Get(t *testing.T) {
 			Default:          false,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(stack)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(stack)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	stacks := NewStacksClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	stacks := NewStacksClient(httpClient)
 
 	stack, err := stacks.Get(context.Background(), "stack-guid")
 	require.NoError(t, err)
@@ -111,10 +117,12 @@ func TestStacksClient_Get(t *testing.T) {
 }
 
 func TestStacksClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/stacks", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "cflinuxfs3,cflinuxfs4", r.URL.Query().Get("names"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/stacks", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "cflinuxfs3,cflinuxfs4", request.URL.Query().Get("names"))
 
 		now := time.Now()
 		response := capi.ListResponse[capi.Stack]{
@@ -152,13 +160,13 @@ func TestStacksClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	stacks := NewStacksClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	stacks := NewStacksClient(httpClient)
 
 	params := &capi.QueryParams{
 		Filters: map[string][]string{
@@ -178,16 +186,19 @@ func TestStacksClient_List(t *testing.T) {
 }
 
 func TestStacksClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/stacks/stack-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
 
-		var request capi.StackUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/stacks/stack-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
-		assert.NotNil(t, request.Metadata)
-		assert.Equal(t, "true", request.Metadata.Labels["updated"])
+		var requestBody capi.StackUpdateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.NotNil(t, requestBody.Metadata)
+		assert.Equal(t, "true", requestBody.Metadata.Labels["updated"])
 
 		now := time.Now()
 		stack := capi.Stack{
@@ -201,16 +212,16 @@ func TestStacksClient_Update(t *testing.T) {
 			BuildRootfsImage: "cloudfoundry/cflinuxfs4",
 			RunRootfsImage:   "cloudfoundry/cflinuxfs4",
 			Default:          true,
-			Metadata:         request.Metadata,
+			Metadata:         requestBody.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(stack)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(stack)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	stacks := NewStacksClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	stacks := NewStacksClient(httpClient)
 
 	request := &capi.StackUpdateRequest{
 		Metadata: &capi.Metadata{
@@ -232,25 +243,29 @@ func TestStacksClient_Update(t *testing.T) {
 }
 
 func TestStacksClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/stacks/stack-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/stacks/stack-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	stacks := NewStacksClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	stacks := NewStacksClient(httpClient)
 
 	err := stacks.Delete(context.Background(), "stack-guid")
 	require.NoError(t, err)
 }
 
 func TestStacksClient_ListApps(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/stacks/stack-guid/apps", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/stacks/stack-guid/apps", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		response := capi.ListResponse[capi.App]{
@@ -282,13 +297,13 @@ func TestStacksClient_ListApps(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	stacks := NewStacksClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	stacks := NewStacksClient(httpClient)
 
 	list, err := stacks.ListApps(context.Background(), "stack-guid", nil)
 	require.NoError(t, err)
@@ -302,18 +317,20 @@ func TestStacksClient_ListApps(t *testing.T) {
 }
 
 func TestStacksClient_GetNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/stacks/stack-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNotFound)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/stacks/stack-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		writer.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	stacks := NewStacksClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	stacks := NewStacksClient(httpClient)
 
 	stack, err := stacks.Get(context.Background(), "stack-guid")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, stack)
 }

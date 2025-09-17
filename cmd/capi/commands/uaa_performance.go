@@ -4,31 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
 	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 )
 
-// CacheEntry represents a cached item with expiry
+// CacheEntry represents a cached item with expiry.
 type CacheEntry struct {
 	Data      interface{}
 	ExpiresAt time.Time
 }
 
-// IsExpired checks if the cache entry has expired
+// IsExpired checks if the cache entry has expired.
 func (c *CacheEntry) IsExpired() bool {
 	return time.Now().After(c.ExpiresAt)
 }
 
-// UAACache provides caching functionality for UAA operations
+// UAACache provides caching functionality for UAA operations.
 type UAACache struct {
 	cache map[string]*CacheEntry
 	mutex sync.RWMutex
 	ttl   time.Duration
 }
 
-// NewUAACache creates a new cache with specified TTL
+// NewUAACache creates a new cache with specified TTL.
 func NewUAACache(ttl time.Duration) *UAACache {
 	cache := &UAACache{
 		cache: make(map[string]*CacheEntry),
@@ -42,7 +44,7 @@ func NewUAACache(ttl time.Duration) *UAACache {
 	return cache
 }
 
-// Get retrieves an item from cache
+// Get retrieves an item from cache.
 func (c *UAACache) Get(key string) (interface{}, bool) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
@@ -55,7 +57,7 @@ func (c *UAACache) Get(key string) (interface{}, bool) {
 	return entry.Data, true
 }
 
-// Set stores an item in cache
+// Set stores an item in cache.
 func (c *UAACache) Set(key string, data interface{}) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -66,7 +68,7 @@ func (c *UAACache) Set(key string, data interface{}) {
 	}
 }
 
-// Delete removes an item from cache
+// Delete removes an item from cache.
 func (c *UAACache) Delete(key string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -74,7 +76,7 @@ func (c *UAACache) Delete(key string) {
 	delete(c.cache, key)
 }
 
-// Clear removes all items from cache
+// Clear removes all items from cache.
 func (c *UAACache) Clear() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -82,83 +84,123 @@ func (c *UAACache) Clear() {
 	c.cache = make(map[string]*CacheEntry)
 }
 
-// cleanup periodically removes expired entries
+// cleanup periodically removes expired entries.
 func (c *UAACache) cleanup() {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(constants.UAACacheTTL)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		c.mutex.Lock()
+
 		for key, entry := range c.cache {
 			if entry.IsExpired() {
 				delete(c.cache, key)
 			}
 		}
+
 		c.mutex.Unlock()
 	}
 }
 
-// Global cache instance
-var globalCache = NewUAACache(10 * time.Minute)
+// UAAPerformanceService encapsulates UAA performance functionality.
+type UAAPerformanceService struct {
+	cache   *UAACache
+	metrics *PerformanceMetrics
+}
 
-// BatchOperation represents a batch operation request
+// NewUAAPerformanceService creates a new UAA performance service.
+func NewUAAPerformanceService() *UAAPerformanceService {
+	return &UAAPerformanceService{
+		cache: NewUAACache(constants.UAACacheTimeout),
+		metrics: &PerformanceMetrics{
+			operations: make(map[string][]time.Duration),
+		},
+	}
+}
+
+// GetDefaultPerformanceService returns a singleton instance for backward compatibility.
+func GetDefaultPerformanceService() *UAAPerformanceService {
+	return defaultPerformanceServiceSingleton.get()
+}
+
+type performanceServiceSingleton struct {
+	once     sync.Once
+	instance *UAAPerformanceService
+}
+
+func (s *performanceServiceSingleton) get() *UAAPerformanceService {
+	s.once.Do(func() {
+		s.instance = NewUAAPerformanceService()
+	})
+
+	return s.instance
+}
+
+// Package-level singleton instance
+//
+//nolint:gochecknoglobals // This needs to be a package-level singleton for proper functionality
+var defaultPerformanceServiceSingleton = &performanceServiceSingleton{}
+
+// BatchOperation represents a batch operation request.
 type BatchOperation struct {
-	Type     string      // "create", "update", "delete"
+	Type     string      // Create, Update, Delete
 	Resource string      // "user", "group", "client"
 	Data     interface{} // Operation data
 	ID       string      // Optional ID for updates/deletes
 }
 
-// BatchResult represents the result of a batch operation
+// BatchResult represents the result of a batch operation.
 type BatchResult struct {
 	Operation BatchOperation
 	Result    interface{}
 	Error     error
 }
 
-// BatchProcessor handles batch operations efficiently
+// BatchProcessor handles batch operations efficiently.
 type BatchProcessor struct {
 	client     *UAAClientWrapper
 	maxWorkers int
 	batchSize  int
 }
 
-// NewBatchProcessor creates a new batch processor
+// NewBatchProcessor creates a new batch processor.
 func NewBatchProcessor(client *UAAClientWrapper) *BatchProcessor {
 	return &BatchProcessor{
 		client:     client,
-		maxWorkers: 10,
-		batchSize:  50,
+		maxWorkers: constants.MaxWorkers,
+		batchSize:  constants.StandardPageSize,
 	}
 }
 
-// ProcessBatch executes multiple operations in parallel
+// ProcessBatch executes multiple operations in parallel.
 func (bp *BatchProcessor) ProcessBatch(operations []BatchOperation) []BatchResult {
 	results := make([]BatchResult, len(operations))
 	jobs := make(chan int, len(operations))
 
 	// Start worker goroutines
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 	for i := 0; i < bp.maxWorkers && i < len(operations); i++ {
-		wg.Add(1)
-		go bp.worker(jobs, operations, results, &wg)
+		waitGroup.Add(1)
+
+		go bp.worker(jobs, operations, results, &waitGroup)
 	}
 
 	// Send jobs
 	for i := range operations {
 		jobs <- i
 	}
+
 	close(jobs)
 
 	// Wait for completion
-	wg.Wait()
+	waitGroup.Wait()
 
 	return results
 }
 
-// worker processes batch operations
-func (bp *BatchProcessor) worker(jobs <-chan int, operations []BatchOperation, results []BatchResult, wg *sync.WaitGroup) {
-	defer wg.Done()
+// worker processes batch operations.
+func (bp *BatchProcessor) worker(jobs <-chan int, operations []BatchOperation, results []BatchResult, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
 
 	for i := range jobs {
 		op := operations[i]
@@ -171,104 +213,192 @@ func (bp *BatchProcessor) worker(jobs <-chan int, operations []BatchOperation, r
 	}
 }
 
-// executeOperation executes a single batch operation
-func (bp *BatchProcessor) executeOperation(op BatchOperation) (interface{}, error) {
-	switch op.Resource {
+// executeOperation executes a single batch operation.
+func (bp *BatchProcessor) executeOperation(operation BatchOperation) (interface{}, error) {
+	switch operation.Resource {
 	case "user":
-		return bp.executeUserOperation(op)
+		return bp.executeUserOperation(operation)
 	case "group":
-		return bp.executeGroupOperation(op)
+		return bp.executeGroupOperation(operation)
 	case "client":
-		return bp.executeClientOperation(op)
+		return bp.executeClientOperation(operation)
 	default:
-		return nil, fmt.Errorf("unsupported resource type: %s", op.Resource)
+		return nil, fmt.Errorf("%w: %s", constants.ErrUnsupportedResource, operation.Resource)
 	}
 }
 
-// executeUserOperation executes user-related batch operations
-func (bp *BatchProcessor) executeUserOperation(op BatchOperation) (interface{}, error) {
-	switch op.Type {
-	case "create":
-		if user, ok := op.Data.(uaa.User); ok {
-			return bp.client.Client().CreateUser(user)
-		}
-		return nil, fmt.Errorf("invalid user data for create operation")
+// executeUserOperation executes user-related batch operations.
+func (bp *BatchProcessor) executeUserOperation(operation BatchOperation) (interface{}, error) {
+	factory := &BatchOperationFactory{client: bp.client}
+	config := factory.CreateUserOperationConfig()
 
-	case "update":
-		if user, ok := op.Data.(uaa.User); ok {
-			return bp.client.Client().UpdateUser(user)
-		}
-		return nil, fmt.Errorf("invalid user data for update operation")
+	return bp.executeGenericOperation(operation, config)
+}
 
-	case "delete":
-		if op.ID != "" {
-			return bp.client.Client().DeleteUser(op.ID)
-		}
-		return nil, fmt.Errorf("user ID required for delete operation")
+// executeGroupOperation executes group-related batch operations.
+func (bp *BatchProcessor) executeGroupOperation(operation BatchOperation) (interface{}, error) {
+	factory := &BatchOperationFactory{client: bp.client}
+	config := factory.CreateGroupOperationConfig()
 
-	default:
-		return nil, fmt.Errorf("unsupported user operation: %s", op.Type)
+	return bp.executeGenericOperation(operation, config)
+}
+
+// executeClientOperation executes client-related batch operations.
+func (bp *BatchProcessor) executeClientOperation(operation BatchOperation) (interface{}, error) {
+	factory := &BatchOperationFactory{client: bp.client}
+	config := factory.CreateClientOperationConfig()
+
+	return bp.executeGenericOperation(operation, config)
+}
+
+// BatchOperationConfig defines the configuration for a batch operation type.
+// BatchOperationFactory creates batch operation configurations for different entity types.
+type BatchOperationFactory struct {
+	client *UAAClientWrapper
+}
+
+// CreateUserOperationConfig creates a configuration for user operations.
+func (f *BatchOperationFactory) CreateUserOperationConfig() BatchOperationConfig {
+	return BatchOperationConfig{
+		EntityType:     "user",
+		InvalidDataErr: constants.ErrInvalidUserData,
+		IDRequiredErr:  constants.ErrUserIDRequired,
+		CreateFunc: func(data interface{}) (interface{}, error) {
+			if user, ok := data.(uaa.User); ok {
+				return f.client.Client().CreateUser(user)
+			}
+
+			return nil, constants.ErrInvalidUserData
+		},
+		UpdateFunc: func(data interface{}) (interface{}, error) {
+			if user, ok := data.(uaa.User); ok {
+				return f.client.Client().UpdateUser(user)
+			}
+
+			return nil, constants.ErrInvalidUserData
+		},
+		DeleteFunc: func(id string) (interface{}, error) {
+			return f.client.Client().DeleteUser(id)
+		},
 	}
 }
 
-// executeGroupOperation executes group-related batch operations
-func (bp *BatchProcessor) executeGroupOperation(op BatchOperation) (interface{}, error) {
-	switch op.Type {
-	case "create":
-		if group, ok := op.Data.(uaa.Group); ok {
-			return bp.client.Client().CreateGroup(group)
-		}
-		return nil, fmt.Errorf("invalid group data for create operation")
+// CreateGroupOperationConfig creates a configuration for group operations.
+func (f *BatchOperationFactory) CreateGroupOperationConfig() BatchOperationConfig {
+	return BatchOperationConfig{
+		EntityType:     "group",
+		InvalidDataErr: constants.ErrInvalidGroupData,
+		IDRequiredErr:  constants.ErrGroupIDRequired,
+		CreateFunc: func(data interface{}) (interface{}, error) {
+			if group, ok := data.(uaa.Group); ok {
+				return f.client.Client().CreateGroup(group)
+			}
 
-	case "update":
-		if group, ok := op.Data.(uaa.Group); ok {
-			return bp.client.Client().UpdateGroup(group)
-		}
-		return nil, fmt.Errorf("invalid group data for update operation")
+			return nil, constants.ErrInvalidGroupData
+		},
+		UpdateFunc: func(data interface{}) (interface{}, error) {
+			if group, ok := data.(uaa.Group); ok {
+				return f.client.Client().UpdateGroup(group)
+			}
 
-	case "delete":
-		if op.ID != "" {
-			return bp.client.Client().DeleteGroup(op.ID)
-		}
-		return nil, fmt.Errorf("group ID required for delete operation")
-
-	default:
-		return nil, fmt.Errorf("unsupported group operation: %s", op.Type)
+			return nil, constants.ErrInvalidGroupData
+		},
+		DeleteFunc: func(id string) (interface{}, error) {
+			return f.client.Client().DeleteGroup(id)
+		},
 	}
 }
 
-// executeClientOperation executes client-related batch operations
-func (bp *BatchProcessor) executeClientOperation(op BatchOperation) (interface{}, error) {
-	switch op.Type {
-	case "create":
-		if client, ok := op.Data.(uaa.Client); ok {
-			return bp.client.Client().CreateClient(client)
-		}
-		return nil, fmt.Errorf("invalid client data for create operation")
+// CreateClientOperationConfig creates a configuration for client operations.
+func (f *BatchOperationFactory) CreateClientOperationConfig() BatchOperationConfig {
+	return BatchOperationConfig{
+		EntityType:     "client",
+		InvalidDataErr: constants.ErrInvalidClientData,
+		IDRequiredErr:  constants.ErrClientIDRequired,
+		CreateFunc: func(data interface{}) (interface{}, error) {
+			if client, ok := data.(uaa.Client); ok {
+				return f.client.Client().CreateClient(client)
+			}
 
-	case "update":
-		if client, ok := op.Data.(uaa.Client); ok {
-			return bp.client.Client().UpdateClient(client)
-		}
-		return nil, fmt.Errorf("invalid client data for update operation")
+			return nil, constants.ErrInvalidClientData
+		},
+		UpdateFunc: func(data interface{}) (interface{}, error) {
+			if client, ok := data.(uaa.Client); ok {
+				return f.client.Client().UpdateClient(client)
+			}
 
-	case "delete":
-		if op.ID != "" {
-			return bp.client.Client().DeleteClient(op.ID)
-		}
-		return nil, fmt.Errorf("client ID required for delete operation")
-
-	default:
-		return nil, fmt.Errorf("unsupported client operation: %s", op.Type)
+			return nil, constants.ErrInvalidClientData
+		},
+		DeleteFunc: func(id string) (interface{}, error) {
+			return f.client.Client().DeleteClient(id)
+		},
 	}
 }
 
-// CachedUserLookup performs cached user lookups
+type BatchOperationConfig struct {
+	EntityType     string
+	InvalidDataErr error
+	IDRequiredErr  error
+	CreateFunc     func(data interface{}) (interface{}, error)
+	UpdateFunc     func(data interface{}) (interface{}, error)
+	DeleteFunc     func(id string) (interface{}, error)
+}
+
+// executeGenericOperation executes a generic batch operation using the provided configuration.
+func (bp *BatchProcessor) executeGenericOperation(operation BatchOperation, config BatchOperationConfig) (interface{}, error) {
+	switch operation.Type {
+	case Create:
+		if operation.Data != nil {
+			result, err := config.CreateFunc(operation.Data)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create %s in batch operation: %w", config.EntityType, err)
+			}
+
+			return result, nil
+		}
+
+		return nil, config.InvalidDataErr
+
+	case Update:
+		if operation.Data != nil {
+			result, err := config.UpdateFunc(operation.Data)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update %s in batch operation: %w", config.EntityType, err)
+			}
+
+			return result, nil
+		}
+
+		return nil, config.InvalidDataErr
+
+	case Delete:
+		if operation.ID != "" {
+			result, err := config.DeleteFunc(operation.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to delete %s in batch operation: %w", config.EntityType, err)
+			}
+
+			return result, nil
+		}
+
+		return nil, config.IDRequiredErr
+
+	default:
+		return nil, fmt.Errorf("%w: %s", constants.ErrUnsupportedOperation, operation.Type)
+	}
+}
+
+// CachedUserLookup performs cached user lookups.
 func CachedUserLookup(client *UAAClientWrapper, username string) (*uaa.User, error) {
-	cacheKey := fmt.Sprintf("user:%s", username)
+	return GetDefaultPerformanceService().CachedUserLookup(client, username)
+}
+
+// CachedUserLookup performs cached user lookups.
+func (s *UAAPerformanceService) CachedUserLookup(client *UAAClientWrapper, username string) (*uaa.User, error) {
+	cacheKey := "user:" + username
 
 	// Check cache first
-	if cached, found := globalCache.Get(cacheKey); found {
+	if cached, found := s.cache.Get(cacheKey); found {
 		if user, ok := cached.(*uaa.User); ok {
 			return user, nil
 		}
@@ -277,20 +407,26 @@ func CachedUserLookup(client *UAAClientWrapper, username string) (*uaa.User, err
 	// Fetch from API
 	user, err := client.Client().GetUserByUsername(username, "", "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by username: %w", err)
 	}
 
 	// Cache the result
-	globalCache.Set(cacheKey, user)
+	s.cache.Set(cacheKey, user)
+
 	return user, nil
 }
 
-// CachedGroupLookup performs cached group lookups
+// CachedGroupLookup performs cached group lookups.
 func CachedGroupLookup(client *UAAClientWrapper, groupName string) (*uaa.Group, error) {
-	cacheKey := fmt.Sprintf("group:%s", groupName)
+	return GetDefaultPerformanceService().CachedGroupLookup(client, groupName)
+}
+
+// CachedGroupLookup performs cached group lookups.
+func (s *UAAPerformanceService) CachedGroupLookup(client *UAAClientWrapper, groupName string) (*uaa.Group, error) {
+	cacheKey := "group:" + groupName
 
 	// Check cache first
-	if cached, found := globalCache.Get(cacheKey); found {
+	if cached, found := s.cache.Get(cacheKey); found {
 		if group, ok := cached.(*uaa.Group); ok {
 			return group, nil
 		}
@@ -299,26 +435,32 @@ func CachedGroupLookup(client *UAAClientWrapper, groupName string) (*uaa.Group, 
 	// Fetch from API using list groups with filter
 	groups, _, err := client.Client().ListGroups(fmt.Sprintf("displayName eq \"%s\"", groupName), "", "", uaa.SortAscending, 1, 1)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list groups: %w", err)
 	}
 
 	if len(groups) == 0 {
-		return nil, fmt.Errorf("group not found: %s", groupName)
+		return nil, fmt.Errorf("%w: %s", constants.ErrGroupNotFound, groupName)
 	}
 
 	group := &groups[0]
 
 	// Cache the result
-	globalCache.Set(cacheKey, group)
+	s.cache.Set(cacheKey, group)
+
 	return group, nil
 }
 
-// CachedClientLookup performs cached client lookups
+// CachedClientLookup performs cached client lookups.
 func CachedClientLookup(client *UAAClientWrapper, clientID string) (*uaa.Client, error) {
-	cacheKey := fmt.Sprintf("client:%s", clientID)
+	return GetDefaultPerformanceService().CachedClientLookup(client, clientID)
+}
+
+// CachedClientLookup performs cached client lookups.
+func (s *UAAPerformanceService) CachedClientLookup(client *UAAClientWrapper, clientID string) (*uaa.Client, error) {
+	cacheKey := "client:" + clientID
 
 	// Check cache first
-	if cached, found := globalCache.Get(cacheKey); found {
+	if cached, found := s.cache.Get(cacheKey); found {
 		if clientObj, ok := cached.(*uaa.Client); ok {
 			return clientObj, nil
 		}
@@ -327,20 +469,26 @@ func CachedClientLookup(client *UAAClientWrapper, clientID string) (*uaa.Client,
 	// Fetch from API
 	clientObj, err := client.Client().GetClient(clientID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get client: %w", err)
 	}
 
 	// Cache the result
-	globalCache.Set(cacheKey, clientObj)
+	s.cache.Set(cacheKey, clientObj)
+
 	return clientObj, nil
 }
 
-// CachedServerInfo performs cached server info lookup
+// CachedServerInfo performs cached server info lookup.
 func CachedServerInfo(client *UAAClientWrapper) (map[string]interface{}, error) {
+	return GetDefaultPerformanceService().CachedServerInfo(client)
+}
+
+// CachedServerInfo performs cached server info lookup.
+func (s *UAAPerformanceService) CachedServerInfo(client *UAAClientWrapper) (map[string]interface{}, error) {
 	cacheKey := "server_info"
 
 	// Check cache first
-	if cached, found := globalCache.Get(cacheKey); found {
+	if cached, found := s.cache.Get(cacheKey); found {
 		if serverInfo, ok := cached.(map[string]interface{}); ok {
 			return serverInfo, nil
 		}
@@ -348,138 +496,95 @@ func CachedServerInfo(client *UAAClientWrapper) (map[string]interface{}, error) 
 
 	// Fetch from API
 	ctx := context.Background()
+
 	serverInfo, err := client.GetServerInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Cache the result
-	globalCache.Set(cacheKey, serverInfo)
+	s.cache.Set(cacheKey, serverInfo)
+
 	return serverInfo, nil
 }
 
-// InvalidateUserCache removes user-related cache entries
+// InvalidateUserCache removes user-related cache entries.
 func InvalidateUserCache(username string) {
-	globalCache.Delete(fmt.Sprintf("user:%s", username))
+	GetDefaultPerformanceService().InvalidateUserCache(username)
 }
 
-// InvalidateGroupCache removes group-related cache entries
+// InvalidateUserCache removes user-related cache entries.
+func (s *UAAPerformanceService) InvalidateUserCache(username string) {
+	s.cache.Delete("user:" + username)
+}
+
+// InvalidateGroupCache removes group-related cache entries.
 func InvalidateGroupCache(groupName string) {
-	globalCache.Delete(fmt.Sprintf("group:%s", groupName))
+	GetDefaultPerformanceService().InvalidateGroupCache(groupName)
 }
 
-// InvalidateClientCache removes client-related cache entries
+// InvalidateGroupCache removes group-related cache entries.
+func (s *UAAPerformanceService) InvalidateGroupCache(groupName string) {
+	s.cache.Delete("group:" + groupName)
+}
+
+// InvalidateClientCache removes client-related cache entries.
 func InvalidateClientCache(clientID string) {
-	globalCache.Delete(fmt.Sprintf("client:%s", clientID))
+	GetDefaultPerformanceService().InvalidateClientCache(clientID)
 }
 
-// OptimizedPagination handles efficient pagination for large datasets
+// InvalidateClientCache removes client-related cache entries.
+func (s *UAAPerformanceService) InvalidateClientCache(clientID string) {
+	s.cache.Delete("client:" + clientID)
+}
+
+// OptimizedPagination handles efficient pagination for large datasets.
 type OptimizedPagination struct {
-	client   *UAAClientWrapper
-	pageSize int
-	maxPages int
-	cache    bool
+	client     *UAAClientWrapper
+	pageSize   int
+	maxPages   int
+	cache      bool
+	cacheStore *UAACache
 }
 
-// NewOptimizedPagination creates a new optimized pagination handler
+// NewOptimizedPagination creates a new optimized pagination handler.
 func NewOptimizedPagination(client *UAAClientWrapper) *OptimizedPagination {
 	return &OptimizedPagination{
-		client:   client,
-		pageSize: 100, // Larger page size for efficiency
-		maxPages: 50,  // Prevent infinite loops
-		cache:    true,
+		client:     client,
+		pageSize:   constants.LargePageSize, // Larger page size for efficiency
+		maxPages:   constants.MaxPages,      // Prevent infinite loops
+		cache:      true,
+		cacheStore: GetDefaultPerformanceService().cache,
 	}
 }
 
-// GetAllUsers efficiently retrieves all users with caching
-func (op *OptimizedPagination) GetAllUsers(filter, sortBy, attributes string, sortOrder uaa.SortOrder) ([]uaa.User, error) {
-	cacheKey := fmt.Sprintf("all_users:%s:%s:%s:%s", filter, sortBy, attributes, sortOrder)
-
-	// Check cache if enabled
-	if op.cache {
-		if cached, found := globalCache.Get(cacheKey); found {
-			if users, ok := cached.([]uaa.User); ok {
-				return users, nil
-			}
-		}
-	}
-
-	// Fetch all users with optimized pagination
-	var allUsers []uaa.User
-	startIndex := 1
-
-	for page := 0; page < op.maxPages; page++ {
-		users, pagination, err := op.client.Client().ListUsers(filter, sortBy, attributes, sortOrder, startIndex, op.pageSize)
-		if err != nil {
-			return nil, err
-		}
-
-		allUsers = append(allUsers, users...)
-
-		// Check if we have more pages
-		if pagination.TotalResults <= startIndex+len(users)-1 {
-			break
-		}
-
-		startIndex += len(users)
-	}
-
-	// Cache the result if enabled
-	if op.cache {
-		globalCache.Set(cacheKey, allUsers)
-	}
-
-	return allUsers, nil
+// GetAllUsers efficiently retrieves all users with caching.
+func (optPagination *OptimizedPagination) GetAllUsers(filter, sortBy, attributes string, sortOrder uaa.SortOrder) ([]uaa.User, error) {
+	return optPagination.getAllUsers(
+		fmt.Sprintf("all_users:%s:%s:%s:%s", filter, sortBy, attributes, sortOrder),
+		func(startIndex int) ([]uaa.User, interface{}, error) {
+			return optPagination.client.Client().ListUsers(filter, sortBy, attributes, sortOrder, startIndex, optPagination.pageSize)
+		},
+	)
 }
 
-// GetAllGroups efficiently retrieves all groups with caching
-func (op *OptimizedPagination) GetAllGroups(filter, sortBy, attributes string, sortOrder uaa.SortOrder) ([]uaa.Group, error) {
-	cacheKey := fmt.Sprintf("all_groups:%s:%s:%s:%s", filter, sortBy, attributes, sortOrder)
-
-	// Check cache if enabled
-	if op.cache {
-		if cached, found := globalCache.Get(cacheKey); found {
-			if groups, ok := cached.([]uaa.Group); ok {
-				return groups, nil
-			}
-		}
-	}
-
-	// Fetch all groups with optimized pagination
-	var allGroups []uaa.Group
-	startIndex := 1
-
-	for page := 0; page < op.maxPages; page++ {
-		groups, pagination, err := op.client.Client().ListGroups(filter, sortBy, attributes, sortOrder, startIndex, op.pageSize)
-		if err != nil {
-			return nil, err
-		}
-
-		allGroups = append(allGroups, groups...)
-
-		// Check if we have more pages
-		if pagination.TotalResults <= startIndex+len(groups)-1 {
-			break
-		}
-
-		startIndex += len(groups)
-	}
-
-	// Cache the result if enabled
-	if op.cache {
-		globalCache.Set(cacheKey, allGroups)
-	}
-
-	return allGroups, nil
+// GetAllGroups efficiently retrieves all groups with caching.
+func (optPagination *OptimizedPagination) GetAllGroups(filter, sortBy, attributes string, sortOrder uaa.SortOrder) ([]uaa.Group, error) {
+	return optPagination.getAllGroups(
+		fmt.Sprintf("all_groups:%s:%s:%s:%s", filter, sortBy, attributes, sortOrder),
+		func(startIndex int) ([]uaa.Group, interface{}, error) {
+			return optPagination.client.Client().ListGroups(filter, sortBy, attributes, sortOrder, startIndex, optPagination.pageSize)
+		},
+	)
 }
 
-// GetAllClients efficiently retrieves all clients with caching
-func (op *OptimizedPagination) GetAllClients(filter, sortBy, attributes string, sortOrder uaa.SortOrder) ([]uaa.Client, error) {
+// GetAllClients efficiently retrieves all clients with caching.
+func (optPagination *OptimizedPagination) GetAllClients(filter, sortBy, attributes string, sortOrder uaa.SortOrder) ([]uaa.Client, error) {
 	cacheKey := fmt.Sprintf("all_clients:%s:%s:%s:%s", filter, sortBy, attributes, sortOrder)
 
 	// Check cache if enabled
-	if op.cache {
-		if cached, found := globalCache.Get(cacheKey); found {
+	if optPagination.cache {
+		if cached, found := optPagination.cacheStore.Get(cacheKey); found {
 			if clients, ok := cached.([]uaa.Client); ok {
 				return clients, nil
 			}
@@ -488,12 +593,13 @@ func (op *OptimizedPagination) GetAllClients(filter, sortBy, attributes string, 
 
 	// Fetch all clients with optimized pagination
 	var allClients []uaa.Client
+
 	startIndex := 1
 
-	for page := 0; page < op.maxPages; page++ {
-		clients, pagination, err := op.client.Client().ListClients(filter, sortBy, sortOrder, startIndex, op.pageSize)
+	for range optPagination.maxPages {
+		clients, pagination, err := optPagination.client.Client().ListClients(filter, sortBy, sortOrder, startIndex, optPagination.pageSize)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to list clients: %w", err)
 		}
 
 		allClients = append(allClients, clients...)
@@ -507,17 +613,85 @@ func (op *OptimizedPagination) GetAllClients(filter, sortBy, attributes string, 
 	}
 
 	// Cache the result if enabled
-	if op.cache {
-		globalCache.Set(cacheKey, allClients)
+	if optPagination.cache {
+		optPagination.cacheStore.Set(cacheKey, allClients)
 	}
 
 	return allClients, nil
 }
 
-// BulkUserImport handles efficient bulk user import from JSON
+// getAllUsers is a generic method to fetch all resources with optimized pagination.
+func (optPagination *OptimizedPagination) getAllUsers(
+	cacheKey string,
+	listFunc func(startIndex int) ([]uaa.User, interface{}, error),
+) ([]uaa.User, error) {
+	return getAllResourcesGeneric[uaa.User](optPagination, cacheKey, "users", listFunc)
+}
+
+// getAllGroups is a helper method to fetch all groups with optimized pagination.
+func (optPagination *OptimizedPagination) getAllGroups(
+	cacheKey string,
+	listFunc func(startIndex int) ([]uaa.Group, interface{}, error),
+) ([]uaa.Group, error) {
+	return getAllResourcesGeneric[uaa.Group](optPagination, cacheKey, "groups", listFunc)
+}
+
+// getAllResourcesGeneric is a generic function for fetching all resources with optimized pagination.
+func getAllResourcesGeneric[T any](
+	optPagination *OptimizedPagination,
+	cacheKey, entityType string,
+	listFunc func(startIndex int) ([]T, interface{}, error),
+) ([]T, error) {
+	// Check cache if enabled
+	if optPagination.cache {
+		if cached, found := optPagination.cacheStore.Get(cacheKey); found {
+			if resources, ok := cached.([]T); ok {
+				return resources, nil
+			}
+		}
+	}
+
+	// Fetch all resources with optimized pagination
+	var allResources []T
+
+	startIndex := 1
+
+	for range optPagination.maxPages {
+		resources, pagination, err := listFunc(startIndex)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list %s: %w", entityType, err)
+		}
+
+		allResources = append(allResources, resources...)
+
+		// Check if we have more pages
+		// Use reflection to access TotalResults since pagination is interface{}
+		if paginationValue := reflect.ValueOf(pagination); paginationValue.IsValid() {
+			if totalField := paginationValue.Elem().FieldByName("TotalResults"); totalField.IsValid() {
+				totalResults := int(totalField.Int())
+				if totalResults <= startIndex+len(resources)-1 {
+					break
+				}
+			}
+		}
+
+		startIndex += len(resources)
+	}
+
+	// Cache the result if enabled
+	if optPagination.cache {
+		optPagination.cacheStore.Set(cacheKey, allResources)
+	}
+
+	return allResources, nil
+}
+
+// BulkUserImport handles efficient bulk user import from JSON.
 func BulkUserImport(client *UAAClientWrapper, usersJSON []byte, parallel bool) ([]BatchResult, error) {
 	var users []uaa.User
-	if err := json.Unmarshal(usersJSON, &users); err != nil {
+
+	err := json.Unmarshal(usersJSON, &users)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse users JSON: %w", err)
 	}
 
@@ -525,7 +699,7 @@ func BulkUserImport(client *UAAClientWrapper, usersJSON []byte, parallel bool) (
 	operations := make([]BatchOperation, len(users))
 	for i, user := range users {
 		operations[i] = BatchOperation{
-			Type:     "create",
+			Type:     Create,
 			Resource: "user",
 			Data:     user,
 		}
@@ -534,24 +708,36 @@ func BulkUserImport(client *UAAClientWrapper, usersJSON []byte, parallel bool) (
 	if parallel {
 		// Use batch processor for parallel execution
 		processor := NewBatchProcessor(client)
+
 		return processor.ProcessBatch(operations), nil
 	} else {
 		// Sequential processing
 		results := make([]BatchResult, len(operations))
-		for i, op := range operations {
-			user := op.Data.(uaa.User)
+		for index, operation := range operations {
+			user, ok := operation.Data.(uaa.User)
+			if !ok {
+				results[index] = BatchResult{
+					Operation: operation,
+					Result:    nil,
+					Error:     constants.ErrInvalidDataTypeExpectedUAAUser,
+				}
+
+				continue
+			}
+
 			result, err := client.Client().CreateUser(user)
-			results[i] = BatchResult{
-				Operation: op,
+			results[index] = BatchResult{
+				Operation: operation,
 				Result:    result,
 				Error:     err,
 			}
 		}
+
 		return results, nil
 	}
 }
 
-// PerformanceMetrics tracks operation performance
+// PerformanceMetrics tracks operation performance.
 type PerformanceMetrics struct {
 	mutex           sync.RWMutex
 	operations      map[string][]time.Duration
@@ -560,12 +746,7 @@ type PerformanceMetrics struct {
 	totalOperations int64
 }
 
-// Global performance metrics
-var performanceMetrics = &PerformanceMetrics{
-	operations: make(map[string][]time.Duration),
-}
-
-// TrackOperation records the duration of an operation
+// TrackOperation records the duration of an operation.
 func (pm *PerformanceMetrics) TrackOperation(operation string, duration time.Duration) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
@@ -574,29 +755,32 @@ func (pm *PerformanceMetrics) TrackOperation(operation string, duration time.Dur
 	pm.totalOperations++
 }
 
-// TrackCacheHit records a cache hit
+// TrackCacheHit records a cache hit.
 func (pm *PerformanceMetrics) TrackCacheHit() {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
+
 	pm.cacheHits++
 }
 
-// TrackCacheMiss records a cache miss
+// TrackCacheMiss records a cache miss.
 func (pm *PerformanceMetrics) TrackCacheMiss() {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
+
 	pm.cacheMisses++
 }
 
-// GetMetrics returns current performance metrics
+// GetMetrics returns current performance metrics.
 func (pm *PerformanceMetrics) GetMetrics() map[string]interface{} {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
 
 	var cacheHitRate float64
+
 	totalCacheOps := pm.cacheHits + pm.cacheMisses
 	if totalCacheOps > 0 {
-		cacheHitRate = float64(pm.cacheHits) / float64(totalCacheOps) * 100
+		cacheHitRate = float64(pm.cacheHits) / float64(totalCacheOps) * constants.PercentageMultiplierFloat
 	}
 
 	metrics := map[string]interface{}{
@@ -608,29 +792,33 @@ func (pm *PerformanceMetrics) GetMetrics() map[string]interface{} {
 	}
 
 	// Calculate operation statistics
-	for op, durations := range pm.operations {
+	for operation, durations := range pm.operations {
 		if len(durations) > 0 {
 			var total time.Duration
-			min := durations[0]
-			max := durations[0]
 
-			for _, d := range durations {
-				total += d
-				if d < min {
-					min = d
+			minDuration := durations[0]
+			maxDuration := durations[0]
+
+			for _, duration := range durations {
+				total += duration
+				if duration < minDuration {
+					minDuration = duration
 				}
-				if d > max {
-					max = d
+
+				if duration > maxDuration {
+					maxDuration = duration
 				}
 			}
 
 			avg := total / time.Duration(len(durations))
 
-			metrics["operations"].(map[string]interface{})[op] = map[string]interface{}{
-				"count":   len(durations),
-				"average": avg.String(),
-				"min":     min.String(),
-				"max":     max.String(),
+			if operations, ok := metrics["operations"].(map[string]interface{}); ok {
+				operations[operation] = map[string]interface{}{
+					"count":   len(durations),
+					"average": avg.String(),
+					"min":     minDuration.String(),
+					"max":     maxDuration.String(),
+				}
 			}
 		}
 	}
@@ -638,12 +826,17 @@ func (pm *PerformanceMetrics) GetMetrics() map[string]interface{} {
 	return metrics
 }
 
-// WithPerformanceTracking wraps a function with performance tracking
+// WithPerformanceTracking wraps a function with performance tracking.
 func WithPerformanceTracking(operation string, fn func() error) error {
+	return GetDefaultPerformanceService().WithPerformanceTracking(operation, fn)
+}
+
+func (s *UAAPerformanceService) WithPerformanceTracking(operation string, fn func() error) error {
 	start := time.Now()
 	err := fn()
 	duration := time.Since(start)
 
-	performanceMetrics.TrackOperation(operation, duration)
+	s.metrics.TrackOperation(operation, duration)
+
 	return err
 }

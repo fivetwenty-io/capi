@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,15 +8,18 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRevisionsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/revisions/revision-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/revisions/revision-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		description := "Test revision"
 		revision := capi.Revision{
@@ -44,11 +47,11 @@ func TestRevisionsClient_Get(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(revision)
+		_ = json.NewEncoder(writer).Encode(revision)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	revision, err := client.Revisions().Get(context.Background(), "revision-guid")
@@ -61,12 +64,15 @@ func TestRevisionsClient_Get(t *testing.T) {
 }
 
 func TestRevisionsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/revisions/revision-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/revisions/revision-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req capi.RevisionUpdateRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.NotNil(t, req.Metadata)
 		assert.Equal(t, "value1", req.Metadata.Labels["key1"])
 
@@ -76,11 +82,11 @@ func TestRevisionsClient_Update(t *testing.T) {
 			Metadata: req.Metadata,
 		}
 
-		_ = json.NewEncoder(w).Encode(revision)
+		_ = json.NewEncoder(writer).Encode(revision)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	revision, err := client.Revisions().Update(context.Background(), "revision-guid", &capi.RevisionUpdateRequest{
@@ -97,9 +103,11 @@ func TestRevisionsClient_Update(t *testing.T) {
 }
 
 func TestRevisionsClient_GetEnvironmentVariables(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/revisions/revision-guid/environment_variables", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/revisions/revision-guid/environment_variables", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		envVars := map[string]interface{}{
 			"DATABASE_URL": "postgres://localhost/myapp",
@@ -111,11 +119,11 @@ func TestRevisionsClient_GetEnvironmentVariables(t *testing.T) {
 			"var": envVars,
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	envVars, err := client.Revisions().GetEnvironmentVariables(context.Background(), "revision-guid")

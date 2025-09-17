@@ -8,16 +8,19 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
-// createUsersCreateGroupCommand creates the create group command
+// createUsersCreateGroupCommand creates the create group command.
 func createUsersCreateGroupCommand() *cobra.Command {
-	var description string
-	var members []string
+	var (
+		description string
+		members     []string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "create-group <name>",
@@ -37,62 +40,7 @@ optionally specify initial members when creating the group.`,
   capi uaa create-group admins --description "Administrators" --members user1,user2`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-			groupName := args[0]
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Build group object
-			group := uaa.Group{
-				DisplayName: groupName,
-				Description: description,
-			}
-
-			// Add initial members if specified
-			if len(members) > 0 {
-				groupMembers := make([]uaa.GroupMember, 0, len(members))
-				for _, member := range members {
-					// Assume members are user IDs for now
-					groupMembers = append(groupMembers, uaa.GroupMember{
-						Value:  member,
-						Type:   "USER",
-						Origin: "uaa", // Default origin
-					})
-				}
-				group.Members = groupMembers
-			}
-
-			// Create group
-			createdGroup, err := uaaClient.Client().CreateGroup(group)
-			if err != nil {
-				return fmt.Errorf("failed to create group: %w", err)
-			}
-
-			// Display created group
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(createdGroup)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(createdGroup)
-			default:
-				return displayGroupTable(createdGroup)
-			}
+			return executeGroupCreation(args[0], description, members)
 		},
 	}
 
@@ -102,7 +50,91 @@ optionally specify initial members when creating the group.`,
 	return cmd
 }
 
-// createUsersGetGroupCommand creates the get group command
+// executeGroupCreation handles the actual group creation logic.
+func executeGroupCreation(groupName, description string, members []string) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	// Create UAA client
+	uaaClient, err := NewUAAClient(config)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	if !uaaClient.IsAuthenticated() {
+		return constants.ErrNotAuthenticated
+	}
+
+	// Build group object
+	group := buildGroupObject(groupName, description, members)
+
+	// Create group
+	createdGroup, err := uaaClient.Client().CreateGroup(group)
+	if err != nil {
+		return fmt.Errorf("failed to create group: %w", err)
+	}
+
+	// Display created group
+	return displayCreatedGroup(createdGroup)
+}
+
+// buildGroupObject constructs a UAA group object with the given parameters.
+func buildGroupObject(groupName, description string, members []string) uaa.Group {
+	group := uaa.Group{
+		DisplayName: groupName,
+		Description: description,
+	}
+
+	// Add initial members if specified
+	if len(members) > 0 {
+		groupMembers := make([]uaa.GroupMember, 0, len(members))
+		for _, member := range members {
+			// Assume members are user IDs for now
+			groupMembers = append(groupMembers, uaa.GroupMember{
+				Value:  member,
+				Type:   "USER",
+				Origin: "uaa", // Default origin
+			})
+		}
+
+		group.Members = groupMembers
+	}
+
+	return group
+}
+
+// displayCreatedGroup outputs the created group in the requested format.
+func displayCreatedGroup(createdGroup *uaa.Group) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(createdGroup)
+		if err != nil {
+			return fmt.Errorf("encoding created group to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(createdGroup)
+		if err != nil {
+			return fmt.Errorf("encoding created group to YAML: %w", err)
+		}
+
+		return nil
+	default:
+		return displayGroupTable(createdGroup)
+	}
+}
+
+// createUsersGetGroupCommand creates the get group command.
 func createUsersGetGroupCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get-group <name>",
@@ -117,7 +149,7 @@ group attributes including members and metadata.`,
 			groupName := args[0]
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -127,7 +159,7 @@ group attributes including members and metadata.`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Get group by name
@@ -139,13 +171,25 @@ group attributes including members and metadata.`,
 			// Display group
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(group)
-			case "yaml":
+
+				err := encoder.Encode(group)
+				if err != nil {
+					return fmt.Errorf("encoding group to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(group)
+
+				err := encoder.Encode(group)
+				if err != nil {
+					return fmt.Errorf("encoding group to YAML: %w", err)
+				}
+
+				return nil
 			default:
 				return displayGroupTable(group)
 			}
@@ -153,12 +197,14 @@ group attributes including members and metadata.`,
 	}
 }
 
-// createUsersListGroupsCommand creates the list groups command
+// createUsersListGroupsCommand creates the list groups command.
 func createUsersListGroupsCommand() *cobra.Command {
-	var filter, sortBy, attributes string
-	var sortOrder string
-	var count, startIndex int
-	var all bool
+	var (
+		filter, sortBy, attributes string
+		sortOrder                  string
+		count, startIndex          int
+		all                        bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list-groups",
@@ -171,55 +217,7 @@ SCIM filters allow complex queries on group attributes. Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Convert sort order string to enum
-			var uaaSortOrder uaa.SortOrder
-			switch strings.ToLower(sortOrder) {
-			case "descending", "desc":
-				uaaSortOrder = "descending"
-			default:
-				uaaSortOrder = uaa.SortAscending
-			}
-
-			var groups []uaa.Group
-			if all {
-				// Get all groups across all pages
-				groups, err = uaaClient.Client().ListAllGroups(filter, sortBy, attributes, uaaSortOrder)
-			} else {
-				// Get groups with pagination
-				groups, _, err = uaaClient.Client().ListGroups(filter, sortBy, attributes, uaaSortOrder, startIndex, count)
-			}
-
-			if err != nil {
-				return fmt.Errorf("failed to list groups: %w", err)
-			}
-
-			// Display groups
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(groups)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(groups)
-			default:
-				return displayGroupsTable(groups)
-			}
+			return executeListGroups(config, filter, sortBy, sortOrder, attributes, startIndex, count, all)
 		},
 	}
 
@@ -227,42 +225,52 @@ SCIM filters allow complex queries on group attributes. Examples:
 	cmd.Flags().StringVar(&sortBy, "sort-by", "", "Attribute to sort by")
 	cmd.Flags().StringVar(&sortOrder, "sort-order", "ascending", "Sort order (ascending, descending)")
 	cmd.Flags().StringVar(&attributes, "attributes", "", "Comma-separated list of attributes to return")
-	cmd.Flags().IntVar(&count, "count", 50, "Number of results per page")
+	cmd.Flags().IntVar(&count, "count", constants.StandardPageSize, "Number of results per page")
 	cmd.Flags().IntVar(&startIndex, "start-index", 1, "Starting index for pagination")
 	cmd.Flags().BoolVar(&all, "all", false, "Fetch all groups across all pages")
 
 	return cmd
 }
 
-// createUsersAddMemberCommand creates the add member command
-func createUsersAddMemberCommand() *cobra.Command {
+// createUsersAddMemberCommand creates the add member command.
+// groupMemberOperation defines the operations that can be performed on group membership.
+type groupMemberOperation func(groupID, memberID, memberType, origin string) error
+
+// groupMemberCommandConfig defines the parameters for creating group member management commands.
+type groupMemberCommandConfig struct {
+	use           string
+	short         string
+	long          string
+	operation     groupMemberOperation
+	successFormat string
+}
+
+// createGroupMemberCommand creates a standardized command for group member management.
+func createGroupMemberCommand(config groupMemberCommandConfig) *cobra.Command {
 	var origin, memberType string
 
 	cmd := &cobra.Command{
-		Use:   "add-member <group> <member>",
-		Short: "Add user to group",
-		Long: `Add a user to a group.
-
-The group can be specified by name or ID, and the member can be a username or user ID.
-By default, members are treated as users from the 'uaa' origin.`,
-		Args: cobra.ExactArgs(2),
+		Use:   config.use,
+		Short: config.short,
+		Long:  config.long,
+		Args:  cobra.ExactArgs(constants.TwoArgumentsMax),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
+			uaaConfig := loadConfig()
 			groupIdentifier := args[0]
 			memberIdentifier := args[1]
 
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+			if GetEffectiveUAAEndpoint(uaaConfig) == "" {
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
+			uaaClient, err := NewUAAClient(uaaConfig)
 			if err != nil {
 				return fmt.Errorf("failed to create UAA client: %w", err)
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Resolve group to get ID
@@ -289,238 +297,100 @@ By default, members are treated as users from the 'uaa' origin.`,
 				memberID = user.ID
 			}
 
-			// Add member to group
+			// Perform the operation
+			err = config.operation(groupID, memberID, memberType, origin)
+			if err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintf(os.Stdout, config.successFormat, memberIdentifier, groupIdentifier)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&origin, "origin", "uaa", "Member origin (identity provider)")
+	cmd.Flags().StringVar(&memberType, "type", "USER", "Member type (USER or GROUP)")
+
+	return cmd
+}
+
+func createUsersAddMemberCommand() *cobra.Command {
+	return createGroupMemberCommand(groupMemberCommandConfig{
+		use:   "add-member <group> <member>",
+		short: "Add user to group",
+		long: `Add a user to a group.
+
+The group can be specified by name or ID, and the member can be a username or user ID.
+By default, members are treated as users from the 'uaa' origin.`,
+		operation: func(groupID, memberID, memberType, origin string) error {
+			config := loadConfig()
+			uaaClient, err := NewUAAClient(config)
+			if err != nil {
+				return fmt.Errorf("failed to create UAA client: %w", err)
+			}
 			err = uaaClient.Client().AddGroupMember(groupID, memberID, memberType, origin)
 			if err != nil {
 				return fmt.Errorf("failed to add member to group: %w", err)
 			}
 
-			fmt.Printf("Successfully added member '%s' to group '%s'\n", memberIdentifier, groupIdentifier)
 			return nil
 		},
-	}
-
-	cmd.Flags().StringVar(&origin, "origin", "uaa", "Member origin (identity provider)")
-	cmd.Flags().StringVar(&memberType, "type", "USER", "Member type (USER or GROUP)")
-
-	return cmd
+		successFormat: "Successfully added member '%s' to group '%s'\n",
+	})
 }
 
-// createUsersRemoveMemberCommand creates the remove member command
+// createUsersRemoveMemberCommand creates the remove member command.
 func createUsersRemoveMemberCommand() *cobra.Command {
-	var origin, memberType string
-
-	cmd := &cobra.Command{
-		Use:   "remove-member <group> <member>",
-		Short: "Remove user from group",
-		Long: `Remove a user from a group.
+	return createGroupMemberCommand(groupMemberCommandConfig{
+		use:   "remove-member <group> <member>",
+		short: "Remove user from group",
+		long: `Remove a user from a group.
 
 The group can be specified by name or ID, and the member can be a username or user ID.`,
-		Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		operation: func(groupID, memberID, memberType, origin string) error {
 			config := loadConfig()
-			groupIdentifier := args[0]
-			memberIdentifier := args[1]
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
 			uaaClient, err := NewUAAClient(config)
 			if err != nil {
 				return fmt.Errorf("failed to create UAA client: %w", err)
 			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Resolve group to get ID
-			var groupID string
-			if isUUID(groupIdentifier) {
-				groupID = groupIdentifier
-			} else {
-				group, err := uaaClient.Client().GetGroupByName(groupIdentifier, "")
-				if err != nil {
-					return fmt.Errorf("failed to find group '%s': %w", groupIdentifier, err)
-				}
-				groupID = group.ID
-			}
-
-			// Resolve member to get ID
-			var memberID string
-			if isUUID(memberIdentifier) {
-				memberID = memberIdentifier
-			} else {
-				user, err := uaaClient.Client().GetUserByUsername(memberIdentifier, "", "")
-				if err != nil {
-					return fmt.Errorf("failed to find user '%s': %w", memberIdentifier, err)
-				}
-				memberID = user.ID
-			}
-
-			// Remove member from group
 			err = uaaClient.Client().RemoveGroupMember(groupID, memberID, memberType, origin)
 			if err != nil {
 				return fmt.Errorf("failed to remove member from group: %w", err)
 			}
 
-			fmt.Printf("Successfully removed member '%s' from group '%s'\n", memberIdentifier, groupIdentifier)
 			return nil
 		},
-	}
-
-	cmd.Flags().StringVar(&origin, "origin", "uaa", "Member origin (identity provider)")
-	cmd.Flags().StringVar(&memberType, "type", "USER", "Member type (USER or GROUP)")
-
-	return cmd
+		successFormat: "Successfully removed member '%s' from group '%s'\n",
+	})
 }
 
-// createUsersMapGroupCommand creates the map group command
+// createUsersMapGroupCommand creates the map group command.
 func createUsersMapGroupCommand() *cobra.Command {
-	var group, externalGroup, origin string
-
-	cmd := &cobra.Command{
-		Use:   "map-group",
-		Short: "Map external group to UAA group",
-		Long: `Map an external group from an identity provider to a UAA group/scope.
-
-This allows users from external identity providers to automatically
-inherit UAA group memberships based on their external group memberships.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Validate required flags
-			if group == "" {
-				return fmt.Errorf("--group flag is required")
-			}
-			if externalGroup == "" {
-				return fmt.Errorf("--external-group flag is required")
-			}
-			if origin == "" {
-				return fmt.Errorf("--origin flag is required")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Resolve group to get ID
-			var groupID string
-			if isUUID(group) {
-				groupID = group
-			} else {
-				groupObj, err := uaaClient.Client().GetGroupByName(group, "")
-				if err != nil {
-					return fmt.Errorf("failed to find group '%s': %w", group, err)
-				}
-				groupID = groupObj.ID
-			}
-
-			// Map group
-			err = uaaClient.Client().MapGroup(groupID, externalGroup, origin)
-			if err != nil {
-				return fmt.Errorf("failed to map group: %w", err)
-			}
-
-			fmt.Printf("Successfully mapped external group '%s' from origin '%s' to UAA group '%s'\n",
-				externalGroup, origin, group)
-			return nil
-		},
+	config := GroupMappingConfig{
+		Operation:      "map-group",
+		SuccessMessage: "Successfully mapped external group '%s' from origin '%s' to UAA group '%s'\n",
 	}
 
-	cmd.Flags().StringVar(&group, "group", "", "UAA group name or ID (required)")
-	cmd.Flags().StringVar(&externalGroup, "external-group", "", "External group name (required)")
-	cmd.Flags().StringVar(&origin, "origin", "", "Identity provider origin (required)")
-
-	return cmd
+	return CreateUAAGroupMappingCommand(config)()
 }
 
-// createUsersUnmapGroupCommand creates the unmap group command
+// createUsersUnmapGroupCommand creates the unmap group command.
 func createUsersUnmapGroupCommand() *cobra.Command {
-	var group, externalGroup, origin string
-
-	cmd := &cobra.Command{
-		Use:   "unmap-group",
-		Short: "Unmap external group from UAA group",
-		Long: `Remove a mapping between an external group and a UAA group/scope.
-
-This removes the automatic group membership inheritance for users
-from the specified external identity provider.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Validate required flags
-			if group == "" {
-				return fmt.Errorf("--group flag is required")
-			}
-			if externalGroup == "" {
-				return fmt.Errorf("--external-group flag is required")
-			}
-			if origin == "" {
-				return fmt.Errorf("--origin flag is required")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Resolve group to get ID
-			var groupID string
-			if isUUID(group) {
-				groupID = group
-			} else {
-				groupObj, err := uaaClient.Client().GetGroupByName(group, "")
-				if err != nil {
-					return fmt.Errorf("failed to find group '%s': %w", group, err)
-				}
-				groupID = groupObj.ID
-			}
-
-			// Unmap group
-			err = uaaClient.Client().UnmapGroup(groupID, externalGroup, origin)
-			if err != nil {
-				return fmt.Errorf("failed to unmap group: %w", err)
-			}
-
-			fmt.Printf("Successfully unmapped external group '%s' from origin '%s' from UAA group '%s'\n",
-				externalGroup, origin, group)
-			return nil
-		},
+	config := GroupMappingConfig{
+		Operation:      "unmap-group",
+		SuccessMessage: "Successfully unmapped external group '%s' from origin '%s' from UAA group '%s'\n",
 	}
 
-	cmd.Flags().StringVar(&group, "group", "", "UAA group name or ID (required)")
-	cmd.Flags().StringVar(&externalGroup, "external-group", "", "External group name (required)")
-	cmd.Flags().StringVar(&origin, "origin", "", "Identity provider origin (required)")
-
-	return cmd
+	return CreateUAAGroupMappingCommand(config)()
 }
 
-// createUsersListGroupMappingsCommand creates the list group mappings command
+// createUsersListGroupMappingsCommand creates the list group mappings command.
 func createUsersListGroupMappingsCommand() *cobra.Command {
-	var origin string
-	var count, startIndex int
+	var (
+		origin            string
+		count, startIndex int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list-group-mappings",
@@ -533,7 +403,7 @@ to UAA groups/scopes for automatic membership inheritance.`,
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -543,7 +413,7 @@ to UAA groups/scopes for automatic membership inheritance.`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			var mappings []uaa.GroupMapping
@@ -562,13 +432,25 @@ to UAA groups/scopes for automatic membership inheritance.`,
 			// Display mappings
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(mappings)
-			case "yaml":
+
+				err := encoder.Encode(mappings)
+				if err != nil {
+					return fmt.Errorf("encoding mappings to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(mappings)
+
+				err := encoder.Encode(mappings)
+				if err != nil {
+					return fmt.Errorf("encoding mappings to YAML: %w", err)
+				}
+
+				return nil
 			default:
 				return displayGroupMappingsTable(mappings)
 			}
@@ -576,7 +458,7 @@ to UAA groups/scopes for automatic membership inheritance.`,
 	}
 
 	cmd.Flags().StringVar(&origin, "origin", "", "Filter by identity provider origin")
-	cmd.Flags().IntVar(&count, "count", 50, "Number of results per page (ignored when no origin specified)")
+	cmd.Flags().IntVar(&count, "count", constants.DefaultPageSize, "Number of results per page (ignored when no origin specified)")
 	cmd.Flags().IntVar(&startIndex, "start-index", 1, "Starting index for pagination (ignored when no origin specified)")
 
 	return cmd
@@ -591,12 +473,15 @@ func displayGroupTable(group *uaa.Group) error {
 	if group.ID != "" {
 		_ = table.Append("ID", group.ID)
 	}
+
 	if group.DisplayName != "" {
 		_ = table.Append("Display Name", group.DisplayName)
 	}
+
 	if group.Description != "" {
 		_ = table.Append("Description", group.Description)
 	}
+
 	if group.ZoneID != "" {
 		_ = table.Append("Zone ID", group.ZoneID)
 	}
@@ -606,9 +491,11 @@ func displayGroupTable(group *uaa.Group) error {
 		if group.Meta.Created != "" {
 			_ = table.Append("Created", group.Meta.Created)
 		}
+
 		if group.Meta.LastModified != "" {
 			_ = table.Append("Last Modified", group.Meta.LastModified)
 		}
+
 		if group.Meta.Version > 0 {
 			_ = table.Append("Version", strconv.Itoa(group.Meta.Version))
 		}
@@ -620,6 +507,7 @@ func displayGroupTable(group *uaa.Group) error {
 	}
 
 	_ = table.Render()
+
 	return nil
 }
 
@@ -629,11 +517,14 @@ func displayGroupsTable(groups []uaa.Group) error {
 
 	for _, group := range groups {
 		displayName := group.DisplayName
+
 		description := group.Description
-		if len(description) > 50 {
+		if len(description) > constants.ShortDescriptionDisplayLength {
 			description = description[:50] + "..."
 		}
-		memberCount := fmt.Sprintf("%d", len(group.Members))
+
+		memberCount := strconv.Itoa(len(group.Members))
+
 		created := ""
 		if group.Meta != nil && group.Meta.Created != "" {
 			created = group.Meta.Created
@@ -643,7 +534,73 @@ func displayGroupsTable(groups []uaa.Group) error {
 	}
 
 	_ = table.Render()
+
 	return nil
+}
+
+func executeListGroups(config *Config, filter, sortBy, sortOrder, attributes string, startIndex, count int, all bool) error {
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	// Create UAA client
+	uaaClient, err := NewUAAClient(config)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	if !uaaClient.IsAuthenticated() {
+		return constants.ErrNotAuthenticated
+	}
+
+	// Convert sort order string to enum
+	var uaaSortOrder uaa.SortOrder
+
+	switch strings.ToLower(sortOrder) {
+	case "descending", Desc:
+		uaaSortOrder = "descending"
+	default:
+		uaaSortOrder = uaa.SortAscending
+	}
+
+	var groups []uaa.Group
+	if all {
+		// Get all groups across all pages
+		groups, err = uaaClient.Client().ListAllGroups(filter, sortBy, attributes, uaaSortOrder)
+	} else {
+		// Get groups with pagination
+		groups, _, err = uaaClient.Client().ListGroups(filter, sortBy, attributes, uaaSortOrder, startIndex, count)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to list groups: %w", err)
+	}
+
+	// Display groups
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(groups)
+		if err != nil {
+			return fmt.Errorf("encoding groups to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(groups)
+		if err != nil {
+			return fmt.Errorf("encoding groups to YAML: %w", err)
+		}
+
+		return nil
+	default:
+		return displayGroupsTable(groups)
+	}
 }
 
 func displayGroupMappingsTable(mappings []uaa.GroupMapping) error {
@@ -654,6 +611,7 @@ func displayGroupMappingsTable(mappings []uaa.GroupMapping) error {
 		uaaGroup := mapping.DisplayName
 		externalGroup := mapping.ExternalGroup
 		origin := mapping.Origin
+
 		created := ""
 		if mapping.Meta != nil && mapping.Meta.Created != "" {
 			created = mapping.Meta.Created
@@ -663,25 +621,28 @@ func displayGroupMappingsTable(mappings []uaa.GroupMapping) error {
 	}
 
 	_ = table.Render()
+
 	return nil
 }
 
-// isUUID checks if a string looks like a UUID
-func isUUID(s string) bool {
+// isUUID checks if a string looks like a UUID.
+func isUUID(str string) bool {
 	// Simple UUID format check: 8-4-4-4-12 hex digits
-	if len(s) != 36 {
+	if len(str) != constants.UUIDLength {
 		return false
 	}
-	for i, c := range s {
+
+	for i, char := range str {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
-			if c != '-' {
+			if char != '-' {
 				return false
 			}
 		} else {
-			if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') && (char < 'A' || char > 'F') {
 				return false
 			}
 		}
 	}
+
 	return true
 }

@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -16,12 +17,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// createUsersCreateClientCommand creates the create client command
+// createUsersCreateClientCommand creates the create client command.
 func createUsersCreateClientCommand() *cobra.Command {
-	var secret, displayName string
-	var grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string
-	var accessTokenValidity, refreshTokenValidity int64
-	var autoApprove, allowPublic bool
+	var (
+		secret, displayName                                                                string
+		grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string
+		accessTokenValidity, refreshTokenValidity                                          int64
+		autoApprove, allowPublic                                                           bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "create-client <client-id>",
@@ -32,100 +35,144 @@ OAuth clients are applications that can authenticate with UAA and obtain
 access tokens on behalf of users or using their own credentials.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-			clientID := args[0]
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Prompt for secret if not provided
-			if secret == "" {
-				fmt.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(int(syscall.Stdin))
-				if err != nil {
-					return fmt.Errorf("failed to read client secret: %w", err)
-				}
-				secret = string(secretBytes)
-				fmt.Println() // Add newline after password input
-			}
-
-			// Build client object
-			client := uaa.Client{
-				ClientID:             clientID,
-				ClientSecret:         secret,
-				DisplayName:          displayName,
-				AuthorizedGrantTypes: grantTypes,
-				RedirectURI:          redirectURIs,
-				Scope:                scope,
-				Authorities:          authorities,
-				AccessTokenValidity:  accessTokenValidity,
-				RefreshTokenValidity: refreshTokenValidity,
-				AllowedProviders:     allowedProviders,
-				RequiredUserGroups:   requiredUserGroups,
-				AllowPublic:          allowPublic,
-			}
-
-			// Handle autoapprove
-			if autoApprove {
-				client.AutoApproveRaw = true
-			}
-
-			// Create client
-			createdClient, err := uaaClient.Client().CreateClient(client)
-			if err != nil {
-				return fmt.Errorf("failed to create client: %w", err)
-			}
-
-			// Display created client (mask secret)
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				// Mask secret for display
-				displayClient := *createdClient
-				displayClient.ClientSecret = "***"
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(displayClient)
-			case "yaml":
-				// Mask secret for display
-				displayClient := *createdClient
-				displayClient.ClientSecret = "***"
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(displayClient)
-			default:
-				return displayClientTable(createdClient, false)
-			}
+			return runCreateClientCommand(args[0], &secret, displayName, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups, accessTokenValidity, refreshTokenValidity, autoApprove, allowPublic)
 		},
 	}
 
-	cmd.Flags().StringVar(&secret, "secret", "", "Client secret")
-	cmd.Flags().StringVar(&displayName, "name", "", "Client display name")
-	cmd.Flags().StringSliceVar(&grantTypes, "authorized-grant-types", []string{"authorization_code"}, "Authorized grant types")
-	cmd.Flags().StringSliceVar(&redirectURIs, "redirect-uri", nil, "Redirect URIs")
-	cmd.Flags().StringSliceVar(&scope, "scope", nil, "OAuth scopes")
-	cmd.Flags().StringSliceVar(&authorities, "authorities", nil, "Client authorities")
-	cmd.Flags().StringSliceVar(&allowedProviders, "allowed-providers", nil, "Allowed identity providers")
-	cmd.Flags().StringSliceVar(&requiredUserGroups, "required-user-groups", nil, "Required user groups")
-	cmd.Flags().Int64Var(&accessTokenValidity, "access-token-validity", 43200, "Access token validity in seconds")
-	cmd.Flags().Int64Var(&refreshTokenValidity, "refresh-token-validity", 2592000, "Refresh token validity in seconds")
-	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "Auto-approve authorization requests")
-	cmd.Flags().BoolVar(&allowPublic, "allow-public", false, "Allow public client (no secret required)")
+	setupCreateClientFlags(cmd, &secret, &displayName, &grantTypes, &redirectURIs, &scope, &authorities, &allowedProviders, &requiredUserGroups, &accessTokenValidity, &refreshTokenValidity, &autoApprove, &allowPublic)
 
 	return cmd
 }
 
-// createUsersGetClientCommand creates the get client command
+func setupCreateClientFlags(cmd *cobra.Command, secret, displayName *string, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups *[]string, accessTokenValidity, refreshTokenValidity *int64, autoApprove, allowPublic *bool) {
+	cmd.Flags().StringVar(secret, "secret", "", "Client secret")
+	cmd.Flags().StringVar(displayName, "name", "", "Client display name")
+	cmd.Flags().StringSliceVar(grantTypes, "authorized-grant-types", []string{"authorization_code"}, "Authorized grant types")
+	cmd.Flags().StringSliceVar(redirectURIs, "redirect-uri", nil, "Redirect URIs")
+	cmd.Flags().StringSliceVar(scope, "scope", nil, "OAuth scopes")
+	cmd.Flags().StringSliceVar(authorities, "authorities", nil, "Client authorities")
+	cmd.Flags().StringSliceVar(allowedProviders, "allowed-providers", nil, "Allowed identity providers")
+	cmd.Flags().StringSliceVar(requiredUserGroups, "required-user-groups", nil, "Required user groups")
+	cmd.Flags().Int64Var(accessTokenValidity, "access-token-validity", constants.DefaultAccessTokenValidity, "Access token validity in seconds")
+	cmd.Flags().Int64Var(refreshTokenValidity, "refresh-token-validity", constants.DefaultRefreshTokenValidity, "Refresh token validity in seconds")
+	cmd.Flags().BoolVar(autoApprove, "auto-approve", false, "Auto-approve authorization requests")
+	cmd.Flags().BoolVar(allowPublic, "allow-public", false, "Allow public client (no secret required)")
+}
+
+func runCreateClientCommand(clientID string, secret *string, displayName string, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string, accessTokenValidity, refreshTokenValidity int64, autoApprove, allowPublic bool) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	uaaClient, err := NewUAAClient(config)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	if !uaaClient.IsAuthenticated() {
+		return constants.ErrNotAuthenticated
+	}
+
+	err = promptForClientSecretIfNeeded(secret)
+	if err != nil {
+		return err
+	}
+
+	client := buildClientFromCreateFlags(clientID, *secret, displayName, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups, accessTokenValidity, refreshTokenValidity, autoApprove, allowPublic)
+
+	createdClient, err := uaaClient.Client().CreateClient(client)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+
+	return displayCreatedClient(createdClient)
+}
+
+func promptForClientSecretIfNeeded(secret *string) error {
+	if *secret == "" {
+		_, err := os.Stdout.WriteString("Client Secret: ")
+		if err != nil {
+			return fmt.Errorf("failed to write prompt: %w", err)
+		}
+
+		secretBytes, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read client secret: %w", err)
+		}
+
+		*secret = string(secretBytes)
+
+		_, _ = os.Stdout.WriteString("\n") // Add newline after password input
+	}
+
+	return nil
+}
+
+func buildClientFromCreateFlags(clientID, secret, displayName string, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string, accessTokenValidity, refreshTokenValidity int64, autoApprove, allowPublic bool) uaa.Client {
+	client := uaa.Client{
+		ClientID:             clientID,
+		ClientSecret:         secret,
+		DisplayName:          displayName,
+		AuthorizedGrantTypes: grantTypes,
+		RedirectURI:          redirectURIs,
+		Scope:                scope,
+		Authorities:          authorities,
+		AccessTokenValidity:  accessTokenValidity,
+		RefreshTokenValidity: refreshTokenValidity,
+		AllowedProviders:     allowedProviders,
+		RequiredUserGroups:   requiredUserGroups,
+		AllowPublic:          allowPublic,
+	}
+
+	if autoApprove {
+		client.AutoApproveRaw = true
+	}
+
+	return client
+}
+
+func displayCreatedClient(createdClient *uaa.Client) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		return displayCreatedClientJSON(createdClient)
+	case OutputFormatYAML:
+		return displayCreatedClientYAML(createdClient)
+	default:
+		return displayClientTable(createdClient, false)
+	}
+}
+
+func displayCreatedClientJSON(createdClient *uaa.Client) error {
+	displayClient := *createdClient
+	displayClient.ClientSecret = Masked
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+
+	err := encoder.Encode(displayClient)
+	if err != nil {
+		return fmt.Errorf("failed to encode client: %w", err)
+	}
+
+	return nil
+}
+
+func displayCreatedClientYAML(createdClient *uaa.Client) error {
+	displayClient := *createdClient
+	displayClient.ClientSecret = Masked
+	encoder := yaml.NewEncoder(os.Stdout)
+
+	err := encoder.Encode(displayClient)
+	if err != nil {
+		return fmt.Errorf("failed to encode client: %w", err)
+	}
+
+	return nil
+}
+
+// createUsersGetClientCommand creates the get client command.
 func createUsersGetClientCommand() *cobra.Command {
 	var showSecret bool
 
@@ -142,7 +189,7 @@ to display the actual secret value.`,
 			clientID := args[0]
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -152,7 +199,7 @@ to display the actual secret value.`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Get client
@@ -164,24 +211,26 @@ to display the actual secret value.`,
 			// Display client
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				if !showSecret {
 					// Mask secret for display
 					displayClient := *client
-					displayClient.ClientSecret = "***"
+					displayClient.ClientSecret = Masked
 					client = &displayClient
 				}
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(client)
-			case "yaml":
+			case OutputFormatYAML:
 				if !showSecret {
 					// Mask secret for display
 					displayClient := *client
-					displayClient.ClientSecret = "***"
+					displayClient.ClientSecret = Masked
 					client = &displayClient
 				}
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(client)
 			default:
 				return displayClientTable(client, showSecret)
@@ -194,12 +243,14 @@ to display the actual secret value.`,
 	return cmd
 }
 
-// createUsersListClientsCommand creates the list clients command
+// createUsersListClientsCommand creates the list clients command.
 func createUsersListClientsCommand() *cobra.Command {
-	var filter, sortBy string
-	var sortOrder string
-	var count, startIndex int
-	var all bool
+	var (
+		filter, sortBy    string
+		sortOrder         string
+		count, startIndex int
+		all               bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list-clients",
@@ -211,7 +262,7 @@ Client secrets are never displayed in list operations for security.`,
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -221,14 +272,14 @@ Client secrets are never displayed in list operations for security.`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Convert sort order string to enum
 			var uaaSortOrder uaa.SortOrder
 			switch strings.ToLower(sortOrder) {
-			case "descending", "desc":
-				uaaSortOrder = "descending"
+			case Descending, "desc":
+				uaaSortOrder = uaa.SortDescending
 			default:
 				uaaSortOrder = uaa.SortAscending
 			}
@@ -248,18 +299,20 @@ Client secrets are never displayed in list operations for security.`,
 
 			// Mask secrets for display
 			for i := range clients {
-				clients[i].ClientSecret = "***"
+				clients[i].ClientSecret = Masked
 			}
 
 			// Display clients
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(clients)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(clients)
 			default:
 				return displayClientsTable(clients)
@@ -270,19 +323,22 @@ Client secrets are never displayed in list operations for security.`,
 	cmd.Flags().StringVar(&filter, "filter", "", "SCIM filter expression")
 	cmd.Flags().StringVar(&sortBy, "sort-by", "", "Attribute to sort by")
 	cmd.Flags().StringVar(&sortOrder, "sort-order", "ascending", "Sort order (ascending, descending)")
-	cmd.Flags().IntVar(&count, "count", 50, "Number of results per page")
+	cmd.Flags().IntVar(&count, "count", constants.StandardPageSize, "Number of results per page")
 	cmd.Flags().IntVar(&startIndex, "start-index", 1, "Starting index for pagination")
 	cmd.Flags().BoolVar(&all, "all", false, "Fetch all clients across all pages")
 
 	return cmd
 }
 
-// createUsersUpdateClientCommand creates the update client command
+// createUsersUpdateClientCommand creates the update client command.
 func createUsersUpdateClientCommand() *cobra.Command {
-	var displayName string
-	var grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string
-	var accessTokenValidity, refreshTokenValidity int64
-	var autoApprove, allowPublic *bool
+	var (
+		displayName                                                                        string
+		grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string
+		accessTokenValidity, refreshTokenValidity                                          int64
+		autoApprove, allowPublic                                                           *bool
+		autoApproveStr, allowPublicStr                                                     string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "update-client <client-id>",
@@ -293,130 +349,174 @@ Only the specified attributes will be updated. Unspecified attributes
 will remain unchanged.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-			clientID := args[0]
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Get existing client
-			existingClient, err := uaaClient.Client().GetClient(clientID)
-			if err != nil {
-				return fmt.Errorf("failed to get existing client: %w", err)
-			}
-
-			// Update specified fields
-			if displayName != "" {
-				existingClient.DisplayName = displayName
-			}
-			if len(grantTypes) > 0 {
-				existingClient.AuthorizedGrantTypes = grantTypes
-			}
-			if len(redirectURIs) > 0 {
-				existingClient.RedirectURI = redirectURIs
-			}
-			if len(scope) > 0 {
-				existingClient.Scope = scope
-			}
-			if len(authorities) > 0 {
-				existingClient.Authorities = authorities
-			}
-			if len(allowedProviders) > 0 {
-				existingClient.AllowedProviders = allowedProviders
-			}
-			if len(requiredUserGroups) > 0 {
-				existingClient.RequiredUserGroups = requiredUserGroups
-			}
-			if accessTokenValidity > 0 {
-				existingClient.AccessTokenValidity = accessTokenValidity
-			}
-			if refreshTokenValidity > 0 {
-				existingClient.RefreshTokenValidity = refreshTokenValidity
-			}
-			if autoApprove != nil {
-				existingClient.AutoApproveRaw = *autoApprove
-			}
-			if allowPublic != nil {
-				existingClient.AllowPublic = *allowPublic
-			}
-
-			// Update client
-			updatedClient, err := uaaClient.Client().UpdateClient(*existingClient)
-			if err != nil {
-				return fmt.Errorf("failed to update client: %w", err)
-			}
-
-			// Display updated client
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				// Mask secret for display
-				displayClient := *updatedClient
-				displayClient.ClientSecret = "***"
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(displayClient)
-			case "yaml":
-				// Mask secret for display
-				displayClient := *updatedClient
-				displayClient.ClientSecret = "***"
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(displayClient)
-			default:
-				return displayClientTable(updatedClient, false)
-			}
+			return runUpdateClientCommand(args[0], displayName, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups, accessTokenValidity, refreshTokenValidity, autoApprove, allowPublic)
 		},
 	}
 
-	cmd.Flags().StringVar(&displayName, "name", "", "Client display name")
-	cmd.Flags().StringSliceVar(&grantTypes, "authorized-grant-types", nil, "Authorized grant types")
-	cmd.Flags().StringSliceVar(&redirectURIs, "redirect-uri", nil, "Redirect URIs")
-	cmd.Flags().StringSliceVar(&scope, "scope", nil, "OAuth scopes")
-	cmd.Flags().StringSliceVar(&authorities, "authorities", nil, "Client authorities")
-	cmd.Flags().StringSliceVar(&allowedProviders, "allowed-providers", nil, "Allowed identity providers")
-	cmd.Flags().StringSliceVar(&requiredUserGroups, "required-user-groups", nil, "Required user groups")
-	cmd.Flags().Int64Var(&accessTokenValidity, "access-token-validity", 0, "Access token validity in seconds")
-	cmd.Flags().Int64Var(&refreshTokenValidity, "refresh-token-validity", 0, "Refresh token validity in seconds")
-
-	// Use string flags for booleans to distinguish between false and unset
-	var autoApproveStr, allowPublicStr string
-	cmd.Flags().StringVar(&autoApproveStr, "auto-approve", "", "Auto-approve authorization requests (true/false)")
-	cmd.Flags().StringVar(&allowPublicStr, "allow-public", "", "Allow public client (true/false)")
+	setupUpdateClientFlags(cmd, &displayName, &grantTypes, &redirectURIs, &scope, &authorities, &allowedProviders, &requiredUserGroups, &accessTokenValidity, &refreshTokenValidity, &autoApproveStr, &allowPublicStr)
 
 	// Pre-run to parse boolean flags
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		if autoApproveStr != "" {
-			val, err := strconv.ParseBool(autoApproveStr)
-			if err != nil {
-				return fmt.Errorf("invalid value for --auto-approve: %s", autoApproveStr)
-			}
-			autoApprove = &val
-		}
-		if allowPublicStr != "" {
-			val, err := strconv.ParseBool(allowPublicStr)
-			if err != nil {
-				return fmt.Errorf("invalid value for --allow-public: %s", allowPublicStr)
-			}
-			allowPublic = &val
-		}
-		return nil
+		return parseUpdateClientBooleanFlags(autoApproveStr, allowPublicStr, &autoApprove, &allowPublic)
 	}
 
 	return cmd
 }
 
-// createUsersSetClientSecretCommand creates the set client secret command
+func setupUpdateClientFlags(cmd *cobra.Command, displayName *string, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups *[]string, accessTokenValidity, refreshTokenValidity *int64, autoApproveStr, allowPublicStr *string) {
+	cmd.Flags().StringVar(displayName, "name", "", "Client display name")
+	cmd.Flags().StringSliceVar(grantTypes, "authorized-grant-types", nil, "Authorized grant types")
+	cmd.Flags().StringSliceVar(redirectURIs, "redirect-uri", nil, "Redirect URIs")
+	cmd.Flags().StringSliceVar(scope, "scope", nil, "OAuth scopes")
+	cmd.Flags().StringSliceVar(authorities, "authorities", nil, "Client authorities")
+	cmd.Flags().StringSliceVar(allowedProviders, "allowed-providers", nil, "Allowed identity providers")
+	cmd.Flags().StringSliceVar(requiredUserGroups, "required-user-groups", nil, "Required user groups")
+	cmd.Flags().Int64Var(accessTokenValidity, "access-token-validity", 0, "Access token validity in seconds")
+	cmd.Flags().Int64Var(refreshTokenValidity, "refresh-token-validity", 0, "Refresh token validity in seconds")
+
+	// Use string flags for booleans to distinguish between false and unset
+	cmd.Flags().StringVar(autoApproveStr, "auto-approve", "", "Auto-approve authorization requests (true/false)")
+	cmd.Flags().StringVar(allowPublicStr, "allow-public", "", "Allow public client (true/false)")
+}
+
+func parseUpdateClientBooleanFlags(autoApproveStr, allowPublicStr string, autoApprove, allowPublic **bool) error {
+	autoApproveParser := NewBooleanFlagParser(autoApproveStr, "auto-approve", constants.ErrInvalidAutoApprove)
+
+	var err error
+
+	*autoApprove, err = autoApproveParser.Parse()
+	if err != nil {
+		return err
+	}
+
+	allowPublicParser := NewBooleanFlagParser(allowPublicStr, "allow-public", constants.ErrInvalidAllowPublic)
+	*allowPublic, err = allowPublicParser.Parse()
+
+	return err
+}
+
+func runUpdateClientCommand(clientID, displayName string, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string, accessTokenValidity, refreshTokenValidity int64, autoApprove, allowPublic *bool) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	// Create UAA client
+	uaaClient, err := NewUAAClient(config)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	if !uaaClient.IsAuthenticated() {
+		return constants.ErrNotAuthenticated
+	}
+
+	// Get existing client
+	existingClient, err := uaaClient.Client().GetClient(clientID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing client: %w", err)
+	}
+
+	// Update specified fields
+	updateClientFields(existingClient, displayName, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups, accessTokenValidity, refreshTokenValidity, autoApprove, allowPublic)
+
+	// Update client
+	updatedClient, err := uaaClient.Client().UpdateClient(*existingClient)
+	if err != nil {
+		return fmt.Errorf("failed to update client: %w", err)
+	}
+
+	// Display updated client
+	return displayUpdatedClient(updatedClient)
+}
+
+func updateClientFields(client *uaa.Client, displayName string, grantTypes, redirectURIs, scope, authorities, allowedProviders, requiredUserGroups []string, accessTokenValidity, refreshTokenValidity int64, autoApprove, allowPublic *bool) {
+	if displayName != "" {
+		client.DisplayName = displayName
+	}
+
+	if len(grantTypes) > 0 {
+		client.AuthorizedGrantTypes = grantTypes
+	}
+
+	if len(redirectURIs) > 0 {
+		client.RedirectURI = redirectURIs
+	}
+
+	if len(scope) > 0 {
+		client.Scope = scope
+	}
+
+	if len(authorities) > 0 {
+		client.Authorities = authorities
+	}
+
+	if len(allowedProviders) > 0 {
+		client.AllowedProviders = allowedProviders
+	}
+
+	if len(requiredUserGroups) > 0 {
+		client.RequiredUserGroups = requiredUserGroups
+	}
+
+	if accessTokenValidity > 0 {
+		client.AccessTokenValidity = accessTokenValidity
+	}
+
+	if refreshTokenValidity > 0 {
+		client.RefreshTokenValidity = refreshTokenValidity
+	}
+
+	if autoApprove != nil {
+		client.AutoApproveRaw = *autoApprove
+	}
+
+	if allowPublic != nil {
+		client.AllowPublic = *allowPublic
+	}
+}
+
+func displayUpdatedClient(updatedClient *uaa.Client) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		return displayUpdatedClientJSON(updatedClient)
+	case OutputFormatYAML:
+		return displayUpdatedClientYAML(updatedClient)
+	default:
+		return displayClientTable(updatedClient, false)
+	}
+}
+
+func displayUpdatedClientJSON(updatedClient *uaa.Client) error {
+	displayClient := *updatedClient
+	displayClient.ClientSecret = Masked
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+
+	err := encoder.Encode(displayClient)
+	if err != nil {
+		return fmt.Errorf("failed to encode client: %w", err)
+	}
+
+	return nil
+}
+
+func displayUpdatedClientYAML(updatedClient *uaa.Client) error {
+	displayClient := *updatedClient
+	displayClient.ClientSecret = Masked
+	encoder := yaml.NewEncoder(os.Stdout)
+
+	err := encoder.Encode(displayClient)
+	if err != nil {
+		return fmt.Errorf("failed to encode client: %w", err)
+	}
+
+	return nil
+}
+
+// createUsersSetClientSecretCommand creates the set client secret command.
 func createUsersSetClientSecretCommand() *cobra.Command {
 	var secret string
 
@@ -433,7 +533,7 @@ to enter it securely.`,
 			clientID := args[0]
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -443,18 +543,21 @@ to enter it securely.`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Prompt for secret if not provided
 			if secret == "" {
-				fmt.Print("New Client Secret: ")
-				secretBytes, err := term.ReadPassword(int(syscall.Stdin))
+				_, err := os.Stdout.WriteString("New Client Secret: ")
+				if err != nil {
+					return fmt.Errorf("failed to write prompt: %w", err)
+				}
+				secretBytes, err := term.ReadPassword(syscall.Stdin)
 				if err != nil {
 					return fmt.Errorf("failed to read client secret: %w", err)
 				}
 				secret = string(secretBytes)
-				fmt.Println() // Add newline after password input
+				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
 			}
 
 			// Update client secret
@@ -463,7 +566,8 @@ to enter it securely.`,
 				return fmt.Errorf("failed to update client secret: %w", err)
 			}
 
-			fmt.Printf("Successfully updated secret for client '%s'\n", clientID)
+			_, _ = fmt.Fprintf(os.Stdout, "Successfully updated secret for client '%s'\n", clientID)
+
 			return nil
 		},
 	}
@@ -473,7 +577,7 @@ to enter it securely.`,
 	return cmd
 }
 
-// createUsersDeleteClientCommand creates the delete client command
+// createUsersDeleteClientCommand creates the delete client command.
 func createUsersDeleteClientCommand() *cobra.Command {
 	var force bool
 
@@ -487,7 +591,7 @@ func createUsersDeleteClientCommand() *cobra.Command {
 			clientID := args[0]
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -497,7 +601,7 @@ func createUsersDeleteClientCommand() *cobra.Command {
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Get client details for confirmation
@@ -508,15 +612,19 @@ func createUsersDeleteClientCommand() *cobra.Command {
 
 			// Confirm deletion unless --force is used
 			if !force {
-				fmt.Printf("Are you sure you want to delete client '%s'", clientID)
+				_, _ = fmt.Fprintf(os.Stdout, "Are you sure you want to delete client '%s'", clientID)
 				if client.DisplayName != "" {
-					fmt.Printf(" (%s)", client.DisplayName)
+					_, _ = fmt.Fprintf(os.Stdout, " (%s)", client.DisplayName)
 				}
-				fmt.Print("? [y/N]: ")
+				_, err := os.Stdout.WriteString("? [y/N]: ")
+				if err != nil {
+					return fmt.Errorf("failed to write prompt: %w", err)
+				}
 				var response string
 				_, _ = fmt.Scanln(&response)
 				if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
-					fmt.Println("Client deletion cancelled")
+					_, _ = os.Stdout.WriteString("Client deletion cancelled\n")
+
 					return nil
 				}
 			}
@@ -527,7 +635,8 @@ func createUsersDeleteClientCommand() *cobra.Command {
 				return fmt.Errorf("failed to delete client: %w", err)
 			}
 
-			fmt.Printf("Client '%s' has been deleted\n", clientID)
+			_, _ = fmt.Fprintf(os.Stdout, "Client '%s' has been deleted\n", clientID)
+
 			return nil
 		},
 	}
@@ -546,6 +655,7 @@ func displayClientTable(client *uaa.Client, showSecret bool) error {
 	if client.ClientID != "" {
 		_ = table.Append("Client ID", client.ClientID)
 	}
+
 	if client.DisplayName != "" {
 		_ = table.Append("Display Name", client.DisplayName)
 	}
@@ -554,18 +664,21 @@ func displayClientTable(client *uaa.Client, showSecret bool) error {
 	if showSecret && client.ClientSecret != "" {
 		_ = table.Append("Client Secret", client.ClientSecret)
 	} else if client.ClientSecret != "" {
-		_ = table.Append("Client Secret", "***")
+		_ = table.Append("Client Secret", Masked)
 	}
 
 	if len(client.AuthorizedGrantTypes) > 0 {
 		_ = table.Append("Grant Types", strings.Join(client.AuthorizedGrantTypes, ", "))
 	}
+
 	if len(client.RedirectURI) > 0 {
 		_ = table.Append("Redirect URIs", strings.Join(client.RedirectURI, ", "))
 	}
+
 	if len(client.Scope) > 0 {
 		_ = table.Append("Scope", strings.Join(client.Scope, ", "))
 	}
+
 	if len(client.Authorities) > 0 {
 		_ = table.Append("Authorities", strings.Join(client.Authorities, ", "))
 	}
@@ -573,21 +686,24 @@ func displayClientTable(client *uaa.Client, showSecret bool) error {
 	if client.AccessTokenValidity > 0 {
 		_ = table.Append("Access Token Validity", fmt.Sprintf("%d seconds", client.AccessTokenValidity))
 	}
+
 	if client.RefreshTokenValidity > 0 {
 		_ = table.Append("Refresh Token Validity", fmt.Sprintf("%d seconds", client.RefreshTokenValidity))
 	}
 
 	_ = table.Append("Auto Approve", fmt.Sprintf("%v", client.AutoApprove()))
-	_ = table.Append("Allow Public", fmt.Sprintf("%t", client.AllowPublic))
+	_ = table.Append("Allow Public", strconv.FormatBool(client.AllowPublic))
 
 	if len(client.AllowedProviders) > 0 {
 		_ = table.Append("Allowed Providers", strings.Join(client.AllowedProviders, ", "))
 	}
+
 	if len(client.RequiredUserGroups) > 0 {
 		_ = table.Append("Required User Groups", strings.Join(client.RequiredUserGroups, ", "))
 	}
 
 	_ = table.Render()
+
 	return nil
 }
 
@@ -598,19 +714,23 @@ func displayClientsTable(clients []uaa.Client) error {
 	for _, client := range clients {
 		clientID := client.ClientID
 		displayName := client.DisplayName
+
 		grantTypes := strings.Join(client.AuthorizedGrantTypes, ",")
-		if len(grantTypes) > 30 {
+		if len(grantTypes) > constants.GrantTypesDisplayLength {
 			grantTypes = grantTypes[:30] + "..."
 		}
+
 		scope := strings.Join(client.Scope, ",")
-		if len(scope) > 30 {
+		if len(scope) > constants.GrantTypesDisplayLength {
 			scope = scope[:30] + "..."
 		}
+
 		autoApprove := fmt.Sprintf("%v", client.AutoApprove())
 
 		_ = table.Append(clientID, displayName, grantTypes, scope, autoApprove)
 	}
 
 	_ = table.Render()
+
 	return nil
 }

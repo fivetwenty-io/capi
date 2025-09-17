@@ -10,19 +10,19 @@ import (
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
-// RolesClient implements capi.RolesClient
+// RolesClient implements capi.RolesClient.
 type RolesClient struct {
 	httpClient *http.Client
 }
 
-// NewRolesClient creates a new roles client
+// NewRolesClient creates a new roles client.
 func NewRolesClient(httpClient *http.Client) *RolesClient {
 	return &RolesClient{
 		httpClient: httpClient,
 	}
 }
 
-// Create implements capi.RolesClient.Create
+// Create implements capi.RolesClient.Create.
 func (c *RolesClient) Create(ctx context.Context, request *capi.RoleCreateRequest) (*capi.Role, error) {
 	path := "/v3/roles"
 
@@ -32,16 +32,18 @@ func (c *RolesClient) Create(ctx context.Context, request *capi.RoleCreateReques
 	}
 
 	var role capi.Role
-	if err := json.Unmarshal(resp.Body, &role); err != nil {
+
+	err = json.Unmarshal(resp.Body, &role)
+	if err != nil {
 		return nil, fmt.Errorf("parsing role response: %w", err)
 	}
 
 	return &role, nil
 }
 
-// Get implements capi.RolesClient.Get
+// Get implements capi.RolesClient.Get.
 func (c *RolesClient) Get(ctx context.Context, guid string) (*capi.Role, error) {
-	path := fmt.Sprintf("/v3/roles/%s", guid)
+	path := "/v3/roles/" + guid
 
 	resp, err := c.httpClient.Get(ctx, path, nil)
 	if err != nil {
@@ -49,14 +51,16 @@ func (c *RolesClient) Get(ctx context.Context, guid string) (*capi.Role, error) 
 	}
 
 	var role capi.Role
-	if err := json.Unmarshal(resp.Body, &role); err != nil {
+
+	err = json.Unmarshal(resp.Body, &role)
+	if err != nil {
 		return nil, fmt.Errorf("parsing role: %w", err)
 	}
 
 	return &role, nil
 }
 
-// List implements capi.RolesClient.List
+// List implements capi.RolesClient.List.
 func (c *RolesClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Role], error) {
 	path := "/v3/roles"
 
@@ -71,16 +75,18 @@ func (c *RolesClient) List(ctx context.Context, params *capi.QueryParams) (*capi
 	}
 
 	var list capi.ListResponse[capi.Role]
-	if err := json.Unmarshal(resp.Body, &list); err != nil {
+
+	err = json.Unmarshal(resp.Body, &list)
+	if err != nil {
 		return nil, fmt.Errorf("parsing roles list: %w", err)
 	}
 
 	return &list, nil
 }
 
-// Delete implements capi.RolesClient.Delete
+// Delete implements capi.RolesClient.Delete.
 func (c *RolesClient) Delete(ctx context.Context, guid string) error {
-	path := fmt.Sprintf("/v3/roles/%s", guid)
+	path := "/v3/roles/" + guid
 
 	_, err := c.httpClient.Delete(ctx, path)
 	if err != nil {

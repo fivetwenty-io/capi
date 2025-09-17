@@ -1,8 +1,9 @@
-package client
+package client_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,10 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestDropletsClient_Create(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		request      *capi.DropletCreateRequest
@@ -108,42 +113,13 @@ func TestDropletsClient_Create(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
-
-				var requestBody capi.DropletCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
-
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			droplet, err := client.Droplets().Create(context.Background(), tt.request)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, droplet)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, droplet)
-				assert.NotEmpty(t, droplet.GUID)
-				assert.NotEmpty(t, droplet.State)
-			}
-		})
-	}
+	runCreateTestsForDroplets(t, tests)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestDropletsClient_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -181,11 +157,11 @@ func TestDropletsClient_Get(t *testing.T) {
 					{
 						Name:          "ruby_buildpack",
 						DetectOutput:  "ruby 2.7.2",
-						Version:       stringPtr("1.8.0"),
-						BuildpackName: stringPtr("ruby"),
+						Version:       StringPtr("1.8.0"),
+						BuildpackName: StringPtr("ruby"),
 					},
 				},
-				Stack: stringPtr("cflinuxfs4"),
+				Stack: StringPtr("cflinuxfs4"),
 			},
 			wantErr: false,
 		},
@@ -208,46 +184,23 @@ func TestDropletsClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			droplet, err := client.Droplets().Get(context.Background(), tt.guid)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, droplet)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, droplet)
-				assert.Equal(t, tt.guid, droplet.GUID)
-				assert.Equal(t, "STAGED", droplet.State)
-			}
-		})
-	}
+	runGetTestsForDroplets(t, tests)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestDropletsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/droplets", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/droplets", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if appGuids := query.Get("app_guids"); appGuids != "" {
 			assert.Equal(t, "app-1,app-2", appGuids)
 		}
+
 		if states := query.Get("states"); states != "" {
 			assert.Equal(t, "STAGED,FAILED", states)
 		}
@@ -285,18 +238,18 @@ func TestDropletsClient_List(t *testing.T) {
 						Type: "docker",
 						Data: map[string]interface{}{},
 					},
-					Image: stringPtr("nginx:latest"),
+					Image: StringPtr("nginx:latest"),
 				},
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -321,104 +274,46 @@ func TestDropletsClient_List(t *testing.T) {
 }
 
 func TestDropletsClient_ListForApp(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/apps/app-guid/droplets", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-
-		response := capi.ListResponse[capi.Droplet]{
-			Pagination: capi.Pagination{
-				TotalResults: 1,
-				TotalPages:   1,
-			},
-			Resources: []capi.Droplet{
-				{
-					Resource: capi.Resource{
-						GUID: "droplet-for-app",
-					},
-					State: "STAGED",
-				},
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	result, err := client.Droplets().ListForApp(context.Background(), "app-guid", nil)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, 1, result.Pagination.TotalResults)
-	assert.Equal(t, "droplet-for-app", result.Resources[0].GUID)
+	t.Parallel()
+	RunSimpleListTest(t, "ListForApp", "/v3/apps/app-guid/droplets", 1,
+		func(i int) capi.Droplet {
+			return capi.Droplet{
+				Resource: capi.Resource{GUID: "droplet-for-app"},
+				State:    "STAGED",
+			}
+		},
+		func(c *Client) func(context.Context, string, *capi.QueryParams) (*capi.ListResponse[capi.Droplet], error) {
+			return c.Droplets().ListForApp
+		},
+		"app-guid",
+		func(resources []capi.Droplet) {
+			assert.Equal(t, "droplet-for-app", resources[0].GUID)
+		},
+	)
 }
 
 func TestDropletsClient_ListForPackage(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/packages/package-guid/droplets", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-
-		response := capi.ListResponse[capi.Droplet]{
-			Pagination: capi.Pagination{
-				TotalResults: 1,
-				TotalPages:   1,
-			},
-			Resources: []capi.Droplet{
-				{
-					Resource: capi.Resource{
-						GUID: "droplet-for-package",
-					},
-					State: "STAGED",
-				},
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	result, err := client.Droplets().ListForPackage(context.Background(), "package-guid", nil)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, 1, result.Pagination.TotalResults)
-	assert.Equal(t, "droplet-for-package", result.Resources[0].GUID)
+	t.Parallel()
+	RunSimpleListTest(t, "ListForPackage", "/v3/packages/package-guid/droplets", 1,
+		func(i int) capi.Droplet {
+			return capi.Droplet{
+				Resource: capi.Resource{GUID: "droplet-for-package"},
+				State:    "STAGED",
+			}
+		},
+		func(c *Client) func(context.Context, string, *capi.QueryParams) (*capi.ListResponse[capi.Droplet], error) {
+			return c.Droplets().ListForPackage
+		},
+		"package-guid",
+		func(resources []capi.Droplet) {
+			assert.Equal(t, "droplet-for-package", resources[0].GUID)
+		},
+	)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different endpoints with different request/response types
 func TestDropletsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/droplets/test-droplet-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
-
-		var requestBody capi.DropletUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
-
-		response := capi.Droplet{
-			Resource: capi.Resource{
-				GUID:      "test-droplet-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			State:    "STAGED",
-			Metadata: requestBody.Metadata,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
+	t.Parallel()
 
 	request := &capi.DropletUpdateRequest{
 		Metadata: &capi.Metadata{
@@ -431,91 +326,83 @@ func TestDropletsClient_Update(t *testing.T) {
 		},
 	}
 
-	droplet, err := client.Droplets().Update(context.Background(), "test-droplet-guid", request)
-	require.NoError(t, err)
-	require.NotNil(t, droplet)
-	assert.Equal(t, "test-droplet-guid", droplet.GUID)
-	assert.Equal(t, "production", droplet.Metadata.Labels["env"])
-	assert.Equal(t, "1.0.0", droplet.Metadata.Annotations["version"])
+	response := &capi.Droplet{
+		Resource: capi.Resource{
+			GUID:      "test-droplet-guid",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		State: "STAGED",
+		Metadata: &capi.Metadata{
+			Labels: map[string]string{
+				"env": "production",
+			},
+			Annotations: map[string]string{
+				"version": "1.0.0",
+			},
+		},
+	}
+
+	RunStandardUpdateTest(t, "droplet", "test-droplet-guid", "/v3/droplets/test-droplet-guid", request, response,
+		func(c *Client) func(context.Context, string, *capi.DropletUpdateRequest) (*capi.Droplet, error) {
+			return c.Droplets().Update
+		})
 }
 
 func TestDropletsClient_Delete(t *testing.T) {
-	tests := []struct {
-		name         string
-		guid         string
-		statusCode   int
-		expectedPath string
-		wantErr      bool
-		errMessage   string
-	}{
+	t.Parallel()
+
+	tests := []TestDeleteOperation{
 		{
-			name:         "successful delete",
-			guid:         "test-droplet-guid",
-			expectedPath: "/v3/droplets/test-droplet-guid",
-			statusCode:   http.StatusAccepted,
-			wantErr:      false,
+			Name:         "successful delete",
+			GUID:         "test-droplet-guid",
+			ExpectedPath: "/v3/droplets/test-droplet-guid",
+			StatusCode:   http.StatusAccepted,
+			WantErr:      false,
 		},
 		{
-			name:         "droplet not found",
-			guid:         "non-existent-guid",
-			expectedPath: "/v3/droplets/non-existent-guid",
-			statusCode:   http.StatusNotFound,
-			wantErr:      true,
-			errMessage:   "CF-ResourceNotFound",
+			Name:         "droplet not found",
+			GUID:         "non-existent-guid",
+			ExpectedPath: "/v3/droplets/non-existent-guid",
+			StatusCode:   http.StatusNotFound,
+			WantErr:      true,
+			ErrMessage:   "CF-ResourceNotFound",
+			Response: map[string]interface{}{
+				"errors": []map[string]interface{}{
+					{
+						"code":   10010,
+						"title":  "CF-ResourceNotFound",
+						"detail": "Droplet not found",
+					},
+				},
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "DELETE", r.Method)
+	RunDeleteTests(t, tests, func(serverURL string, ctx context.Context, guid string) error {
+		client, err := New(ctx, &capi.Config{APIEndpoint: serverURL})
+		require.NoError(t, err)
 
-				if tt.statusCode == http.StatusNotFound {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(tt.statusCode)
-					_ = json.NewEncoder(w).Encode(map[string]interface{}{
-						"errors": []map[string]interface{}{
-							{
-								"code":   10010,
-								"title":  "CF-ResourceNotFound",
-								"detail": "Droplet not found",
-							},
-						},
-					})
-				} else {
-					w.WriteHeader(tt.statusCode)
-				}
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			err = client.Droplets().Delete(context.Background(), tt.guid)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+		return client.Droplets().Delete(ctx, guid)
+	})
 }
 
 func TestDropletsClient_Copy(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		expectedPath := "/v3/droplets"
-		if r.URL.RawQuery != "" {
-			expectedPath = expectedPath + "?" + r.URL.RawQuery
+		if request.URL.RawQuery != "" {
+			expectedPath = expectedPath + "?" + request.URL.RawQuery
 		}
+
 		assert.Equal(t, "/v3/droplets?source_guid=source-droplet-guid", expectedPath)
-		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "POST", request.Method)
 
 		var requestBody capi.DropletCopyRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Equal(t, "target-app-guid", requestBody.Relationships.App.Data.GUID)
 
 		response := capi.Droplet{
@@ -534,13 +421,13 @@ func TestDropletsClient_Copy(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.DropletCopyRequest{
@@ -561,44 +448,96 @@ func TestDropletsClient_Copy(t *testing.T) {
 	assert.Equal(t, "target-app-guid", droplet.Relationships.App.Data.GUID)
 }
 
+// runCreateTestsForDroplets runs droplet create tests.
+func runCreateTestsForDroplets(t *testing.T, tests []struct {
+	name         string
+	request      *capi.DropletCreateRequest
+	response     interface{}
+	statusCode   int
+	expectedPath string
+	wantErr      bool
+	errMessage   string
+}) {
+	t.Helper()
+
+	for _, testCase := range tests {
+		RunCreateTestWithValidation(t, testCase.name, testCase.expectedPath, testCase.statusCode, testCase.response, testCase.wantErr, testCase.errMessage, func(c *Client) error {
+			droplet, err := c.Droplets().Create(context.Background(), testCase.request)
+			if err == nil {
+				assert.NotEmpty(t, droplet.GUID)
+				assert.NotEmpty(t, droplet.State)
+			}
+
+			if err != nil {
+				return fmt.Errorf("failed to create droplet: %w", err)
+			}
+
+			return nil
+		})
+	}
+}
+
+// runGetTestsForDroplets runs droplet get tests.
+func runGetTestsForDroplets(t *testing.T, tests []struct {
+	name         string
+	guid         string
+	response     interface{}
+	statusCode   int
+	expectedPath string
+	wantErr      bool
+	errMessage   string
+}) {
+	t.Helper()
+
+	for _, testCase := range tests {
+		RunGetTestWithValidation(t, testCase.name, testCase.guid, testCase.expectedPath, testCase.statusCode, testCase.response, testCase.wantErr, testCase.errMessage, func(client *Client, guid string) error {
+			droplet, err := client.Droplets().Get(context.Background(), guid)
+			if err == nil {
+				assert.Equal(t, guid, droplet.GUID)
+				assert.Equal(t, "STAGED", droplet.State)
+			}
+
+			if err != nil {
+				return fmt.Errorf("failed to get droplet: %w", err)
+			}
+
+			return nil
+		})
+	}
+}
+
 func TestDropletsClient_Download(t *testing.T) {
+	t.Parallel()
+
 	expectedContent := []byte("test droplet content")
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/droplets/test-droplet-guid/download", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-
-		w.Header().Set("Content-Type", "application/zip")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(expectedContent)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	content, err := client.Droplets().Download(context.Background(), "test-droplet-guid")
-	require.NoError(t, err)
-	assert.Equal(t, expectedContent, content)
+	RunDownloadTest(t, "droplet", "test-droplet-guid", "/v3/droplets/test-droplet-guid/download", expectedContent,
+		func(c *Client) func(context.Context, string) ([]byte, error) {
+			return c.Droplets().Download
+		})
 }
 
 func TestDropletsClient_Upload(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/droplets/test-droplet-guid/upload", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-		assert.Contains(t, r.Header.Get("Content-Type"), "multipart/form-data")
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/droplets/test-droplet-guid/upload", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+		assert.Contains(t, request.Header.Get("Content-Type"), "multipart/form-data")
 
 		// Read the uploaded file
-		file, _, err := r.FormFile("bits")
-		require.NoError(t, err)
+		file, _, err := request.FormFile("bits")
+		assert.NoError(t, err)
+
 		defer func() {
-			if err := file.Close(); err != nil {
+			err := file.Close()
+			if err != nil {
 				t.Logf("Warning: failed to close file: %v", err)
 			}
 		}()
 
 		uploadedContent, err := io.ReadAll(file)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, []byte("test droplet content"), uploadedContent)
 
 		response := capi.Droplet{
@@ -610,17 +549,17 @@ func TestDropletsClient_Upload(t *testing.T) {
 			State: "PROCESSING_UPLOAD",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	dropletContent := []byte("test droplet content")
-	droplet, err := client.Droplets().Upload(context.Background(), "test-droplet-guid", dropletContent)
+	droplet, err := c.Droplets().Upload(context.Background(), "test-droplet-guid", dropletContent)
 	require.NoError(t, err)
 	require.NotNil(t, droplet)
 	assert.Equal(t, "test-droplet-guid", droplet.GUID)

@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
@@ -16,9 +17,11 @@ import (
 )
 
 func TestJobsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/jobs/job-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/jobs/job-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -41,13 +44,13 @@ func TestJobsClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	jobs := NewJobsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	jobs := NewJobsClient(httpClient)
 
 	job, err := jobs.Get(context.Background(), "job-guid")
 	require.NoError(t, err)
@@ -60,9 +63,11 @@ func TestJobsClient_Get(t *testing.T) {
 }
 
 func TestJobsClient_Get_Processing(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/jobs/job-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/jobs/job-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -79,13 +84,13 @@ func TestJobsClient_Get_Processing(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	jobs := NewJobsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	jobs := NewJobsClient(httpClient)
 
 	job, err := jobs.Get(context.Background(), "job-guid")
 	require.NoError(t, err)
@@ -93,14 +98,16 @@ func TestJobsClient_Get_Processing(t *testing.T) {
 	assert.Equal(t, "job-guid", job.GUID)
 	assert.Equal(t, "service_instance.create", job.Operation)
 	assert.Equal(t, "PROCESSING", job.State)
-	assert.Len(t, job.Errors, 0)
-	assert.Len(t, job.Warnings, 0)
+	assert.Empty(t, job.Errors)
+	assert.Empty(t, job.Warnings)
 }
 
 func TestJobsClient_Get_Failed(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/jobs/job-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/jobs/job-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -124,13 +131,13 @@ func TestJobsClient_Get_Failed(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	jobs := NewJobsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	jobs := NewJobsClient(httpClient)
 
 	job, err := jobs.Get(context.Background(), "job-guid")
 	require.NoError(t, err)
@@ -144,13 +151,18 @@ func TestJobsClient_Get_Failed(t *testing.T) {
 	assert.Equal(t, 10001, job.Errors[0].Code)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestJobsClient_PollUntilComplete_Success(t *testing.T) {
+	t.Parallel()
+
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/jobs/job-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/jobs/job-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		attempts++
+
 		var job capi.Job
 
 		// Simulate job transitioning from PROCESSING to COMPLETE
@@ -191,16 +203,15 @@ func TestJobsClient_PollUntilComplete_Success(t *testing.T) {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	jobs := NewJobsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	jobs := NewJobsClient(httpClient)
 
-	// Use a shorter poll interval for testing
-	jobs.pollInterval = 10 * time.Millisecond
+	// Test polling functionality
 
 	job, err := jobs.PollUntilComplete(context.Background(), "job-guid")
 	require.NoError(t, err)
@@ -211,13 +222,18 @@ func TestJobsClient_PollUntilComplete_Success(t *testing.T) {
 	assert.Equal(t, 3, attempts)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestJobsClient_PollUntilComplete_Failed(t *testing.T) {
+	t.Parallel()
+
 	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/jobs/job-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/jobs/job-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		attempts++
+
 		var job capi.Job
 
 		// Simulate job transitioning from PROCESSING to FAILED
@@ -260,16 +276,15 @@ func TestJobsClient_PollUntilComplete_Failed(t *testing.T) {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	jobs := NewJobsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	jobs := NewJobsClient(httpClient)
 
-	// Use a shorter poll interval for testing
-	jobs.pollInterval = 10 * time.Millisecond
+	// Test polling functionality
 
 	job, err := jobs.PollUntilComplete(context.Background(), "job-guid")
 	require.Error(t, err)
@@ -282,9 +297,11 @@ func TestJobsClient_PollUntilComplete_Failed(t *testing.T) {
 }
 
 func TestJobsClient_PollUntilComplete_Timeout(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/jobs/job-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/jobs/job-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Always return PROCESSING
 		job := capi.Job{
@@ -302,17 +319,15 @@ func TestJobsClient_PollUntilComplete_Timeout(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	jobs := NewJobsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	jobs := NewJobsClient(httpClient)
 
-	// Use a shorter poll interval and timeout for testing
-	jobs.pollInterval = 10 * time.Millisecond
-	jobs.pollTimeout = 50 * time.Millisecond
+	// Test polling with timeout
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -322,6 +337,7 @@ func TestJobsClient_PollUntilComplete_Timeout(t *testing.T) {
 	assert.True(t, err.Error() == "timeout waiting for job to complete: context deadline exceeded" ||
 		strings.Contains(err.Error(), "context deadline exceeded"),
 		"Expected timeout error, got: %v", err)
+
 	if job != nil {
 		assert.Equal(t, "PROCESSING", job.State)
 	}

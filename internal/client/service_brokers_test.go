@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceBrokersClient_Create(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		request      *capi.ServiceBrokerCreateRequest
@@ -120,33 +124,38 @@ func TestServiceBrokersClient_Create(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.ServiceBrokerCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				if tt.statusCode == http.StatusAccepted {
-					w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+
+				if testCase.statusCode == http.StatusAccepted {
+					writer.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 				}
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			job, err := client.ServiceBrokers().Create(context.Background(), tt.request)
+			job, err := client.ServiceBrokers().Create(context.Background(), testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, job)
 			} else {
 				require.NoError(t, err)
@@ -158,7 +167,10 @@ func TestServiceBrokersClient_Create(t *testing.T) {
 	}
 }
 
+//nolint:dupl,funlen // Acceptable duplication - each test validates different endpoints with different assertions
 func TestServiceBrokersClient_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -219,46 +231,52 @@ func TestServiceBrokersClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "GET", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			broker, err := client.ServiceBrokers().Get(context.Background(), tt.guid)
+			broker, err := client.ServiceBrokers().Get(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, broker)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, broker)
-				assert.Equal(t, tt.guid, broker.GUID)
+				assert.Equal(t, testCase.guid, broker.GUID)
 				assert.Equal(t, "my-service-broker", broker.Name)
 			}
 		})
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceBrokersClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_brokers", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_brokers", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if names := query.Get("names"); names != "" {
 			assert.Equal(t, "broker1,broker2", names)
 		}
+
 		if spaceGuids := query.Get("space_guids"); spaceGuids != "" {
 			assert.Equal(t, "space-1,space-2", spaceGuids)
 		}
@@ -301,13 +319,13 @@ func TestServiceBrokersClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -331,7 +349,10 @@ func TestServiceBrokersClient_List(t *testing.T) {
 	require.NotNil(t, result)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceBrokersClient_Update(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -350,7 +371,7 @@ func TestServiceBrokersClient_Update(t *testing.T) {
 			statusCode:   http.StatusAccepted,
 			withJob:      true,
 			request: &capi.ServiceBrokerUpdateRequest{
-				URL: stringPtr("https://new.service-broker.com"),
+				URL: StringPtr("https://newriter.service-broker.com"),
 				Authentication: &capi.ServiceBrokerAuthentication{
 					Type: "basic",
 					Credentials: capi.ServiceBrokerAuthenticationCredentials{
@@ -403,7 +424,7 @@ func TestServiceBrokersClient_Update(t *testing.T) {
 			expectedPath: "/v3/service_brokers/test-broker-guid",
 			statusCode:   http.StatusUnprocessableEntity,
 			request: &capi.ServiceBrokerUpdateRequest{
-				URL: stringPtr("https://new.service-broker.com"),
+				URL: StringPtr("https://newriter.service-broker.com"),
 			},
 			response: map[string]interface{}{
 				"errors": []map[string]interface{}{
@@ -419,38 +440,44 @@ func TestServiceBrokersClient_Update(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "PATCH", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "PATCH", request.Method)
 
 				var requestBody capi.ServiceBrokerUpdateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				if tt.withJob && tt.statusCode == http.StatusAccepted {
-					w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+
+				if testCase.withJob && testCase.statusCode == http.StatusAccepted {
+					writer.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 				}
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			result, err := client.ServiceBrokers().Update(context.Background(), tt.guid, tt.request)
+			result, err := client.ServiceBrokers().Update(context.Background(), testCase.guid, testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				if tt.withJob {
+
+				if testCase.withJob {
 					job := result
 					assert.Equal(t, "job-guid", job.GUID)
 					assert.Equal(t, "service_broker.update", job.Operation)
@@ -461,9 +488,11 @@ func TestServiceBrokersClient_Update(t *testing.T) {
 }
 
 func TestServiceBrokersClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_brokers/test-broker-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_brokers/test-broker-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -473,14 +502,14 @@ func TestServiceBrokersClient_Delete(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	job, err := client.ServiceBrokers().Delete(context.Background(), "test-broker-guid")

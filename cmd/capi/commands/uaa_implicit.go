@@ -1,12 +1,11 @@
 package commands
 
 import (
-	"fmt"
-
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/spf13/cobra"
 )
 
-// createUsersGetImplicitTokenCommand creates the implicit token command
+// createUsersGetImplicitTokenCommand creates the implicit token command.
 func createUsersGetImplicitTokenCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get-implicit-token",
@@ -25,7 +24,7 @@ https://uaa.example.com/oauth/authorize?response_type=token&client_id=CLIENT_ID&
 
 This command is provided for completeness but requires manual token extraction.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("implicit grant flow requires manual implementation.\n\nTo use implicit grant:\n1. Navigate to the UAA authorization URL\n2. Extract the token from the redirect URL\n3. Use 'capi config set uaa_token <token>' to store it")
+			return constants.ErrImplicitFlowManual
 		},
 	}
 }

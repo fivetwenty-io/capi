@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -14,7 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewSpaceQuotasCommand creates the space quotas command group
+// NewSpaceQuotasCommand creates the space quotas command group.
 func NewSpaceQuotasCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "space-quotas",
@@ -46,103 +48,149 @@ func newSpaceQuotasListCommand() *cobra.Command {
 		Short: "List space quotas",
 		Long:  "List all space quotas",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-			params := capi.NewQueryParams()
-			params.PerPage = perPage
-
-			// Filter by organization if specified
-			if orgName != "" {
-				// Find organization by name
-				orgParams := capi.NewQueryParams()
-				orgParams.WithFilter("names", orgName)
-				orgs, err := client.Organizations().List(ctx, orgParams)
-				if err != nil {
-					return fmt.Errorf("failed to find organization: %w", err)
-				}
-				if len(orgs.Resources) == 0 {
-					return fmt.Errorf("organization '%s' not found", orgName)
-				}
-				params.WithFilter("organization_guids", orgs.Resources[0].GUID)
-			}
-
-			quotas, err := client.SpaceQuotas().List(ctx, params)
-			if err != nil {
-				return fmt.Errorf("failed to list space quotas: %w", err)
-			}
-
-			// Fetch all pages if requested
-			allQuotas := quotas.Resources
-			if allPages && quotas.Pagination.TotalPages > 1 {
-				for page := 2; page <= quotas.Pagination.TotalPages; page++ {
-					params.Page = page
-					moreQuotas, err := client.SpaceQuotas().List(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to fetch page %d: %w", page, err)
-					}
-					allQuotas = append(allQuotas, moreQuotas.Resources...)
-				}
-			}
-
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(allQuotas)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(allQuotas)
-			default:
-				if len(allQuotas) == 0 {
-					fmt.Println("No space quotas found")
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("Name", "GUID", "Total Memory", "Services", "Routes", "Created")
-
-				for _, quota := range allQuotas {
-					memoryStr := "unlimited"
-					if quota.Apps != nil && quota.Apps.TotalMemoryInMB != nil {
-						memoryStr = fmt.Sprintf("%d MB", *quota.Apps.TotalMemoryInMB)
-					}
-
-					servicesStr := "unlimited"
-					if quota.Services != nil && quota.Services.TotalServiceInstances != nil {
-						servicesStr = fmt.Sprintf("%d", *quota.Services.TotalServiceInstances)
-					}
-
-					routesStr := "unlimited"
-					if quota.Routes != nil && quota.Routes.TotalRoutes != nil {
-						routesStr = fmt.Sprintf("%d", *quota.Routes.TotalRoutes)
-					}
-
-					_ = table.Append(quota.Name, quota.GUID, memoryStr, servicesStr, routesStr,
-						quota.CreatedAt.Format("2006-01-02"))
-				}
-
-				_ = table.Render()
-
-				if !allPages && quotas.Pagination.TotalPages > 1 {
-					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", quotas.Pagination.TotalPages)
-				}
-			}
-
-			return nil
+			return runSpaceQuotasList(cmd, allPages, perPage, orgName)
 		},
 	}
 
 	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
-	cmd.Flags().IntVar(&perPage, "per-page", 50, "results per page")
+	cmd.Flags().IntVar(&perPage, "per-page", constants.StandardPageSize, "results per page")
 	cmd.Flags().StringVarP(&orgName, "org", "o", "", "filter by organization name")
 
 	return cmd
+}
+
+func runSpaceQuotasList(cmd *cobra.Command, allPages bool, perPage int, orgName string) error {
+	client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	params := capi.NewQueryParams()
+	params.PerPage = perPage
+
+	// Filter by organization if specified
+	if orgName != "" {
+		orgGUID, err := resolveOrganizationGUID(ctx, client, orgName)
+		if err != nil {
+			return err
+		}
+
+		params.WithFilter("organization_guids", orgGUID)
+	}
+
+	quotas, err := client.SpaceQuotas().List(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to list space quotas: %w", err)
+	}
+
+	// Handle pagination
+	allQuotas, err := handleSpaceQuotasPagination(ctx, client, params, quotas, allPages)
+	if err != nil {
+		return err
+	}
+
+	// Output results
+	return renderSpaceQuotasOutput(allQuotas, quotas.Pagination, allPages)
+}
+
+func resolveOrganizationGUID(ctx context.Context, client capi.Client, orgName string) (string, error) {
+	orgParams := capi.NewQueryParams()
+	orgParams.WithFilter("names", orgName)
+
+	orgs, err := client.Organizations().List(ctx, orgParams)
+	if err != nil {
+		return "", fmt.Errorf("failed to find organization: %w", err)
+	}
+
+	if len(orgs.Resources) == 0 {
+		return "", fmt.Errorf("organization '%s': %w", orgName, ErrOrganizationNotFound)
+	}
+
+	return orgs.Resources[0].GUID, nil
+}
+
+//nolint:dupl // Acceptable duplication - each pagination handler works with different resource types and endpoints
+func handleSpaceQuotasPagination(ctx context.Context, client capi.Client, params *capi.QueryParams, quotas *capi.ListResponse[capi.SpaceQuotaV3], allPages bool) ([]capi.SpaceQuotaV3, error) {
+	if !allPages || quotas.Pagination.TotalPages <= 1 {
+		return quotas.Resources, nil
+	}
+
+	handler := &PaginationHandler[capi.SpaceQuotaV3]{
+		FetchPage: func(ctx context.Context, params *capi.QueryParams, page int) ([]capi.SpaceQuotaV3, *capi.Pagination, error) {
+			params.Page = page
+			moreQuotas, err := client.SpaceQuotas().List(ctx, params)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to list space quotas: %w", err)
+			}
+
+			return moreQuotas.Resources, &moreQuotas.Pagination, nil
+		},
+	}
+
+	return handler.FetchAllPages(ctx, params, allPages, quotas.Resources, &quotas.Pagination)
+}
+
+func renderSpaceQuotasOutput(allQuotas []capi.SpaceQuotaV3, pagination capi.Pagination, allPages bool) error {
+	renderer := &StandardOutputRenderer[capi.SpaceQuotaV3]{
+		RenderTable: renderSpaceQuotasTable,
+	}
+
+	output := viper.GetString("output")
+
+	return renderer.Render(allQuotas, &pagination, allPages, output)
+}
+
+func renderSpaceQuotasTable(quotas []capi.SpaceQuotaV3, pagination *capi.Pagination, allPages bool) error {
+	if len(quotas) == 0 {
+		_, _ = os.Stdout.WriteString("No space quotas found\n")
+
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Name", "GUID", "Total Memory", "Services", "Routes", "Created")
+
+	for _, quota := range quotas {
+		memoryStr := formatMemoryLimit(quota.Apps)
+		servicesStr := formatServicesLimit(quota.Services)
+		routesStr := formatRoutesLimit(quota.Routes)
+
+		_ = table.Append(quota.Name, quota.GUID, memoryStr, servicesStr, routesStr,
+			quota.CreatedAt.Format("2006-01-02"))
+	}
+
+	_ = table.Render()
+
+	if !allPages && pagination.TotalPages > 1 {
+		_, _ = fmt.Fprintf(os.Stdout, "\nShowing page 1 of %d. Use --all to fetch all pages.\n", pagination.TotalPages)
+	}
+
+	return nil
+}
+
+func formatMemoryLimit(apps *capi.SpaceQuotaApps) string {
+	if apps != nil && apps.TotalMemoryInMB != nil {
+		return fmt.Sprintf("%d MB", *apps.TotalMemoryInMB)
+	}
+
+	return Unlimited
+}
+
+func formatServicesLimit(services *capi.SpaceQuotaServices) string {
+	if services != nil && services.TotalServiceInstances != nil {
+		return strconv.Itoa(*services.TotalServiceInstances)
+	}
+
+	return Unlimited
+}
+
+func formatRoutesLimit(routes *capi.SpaceQuotaRoutes) string {
+	if routes != nil && routes.TotalRoutes != nil {
+		return strconv.Itoa(*routes.TotalRoutes)
+	}
+
+	return Unlimited
 }
 
 func newSpaceQuotasGetCommand() *cobra.Command {
@@ -173,7 +221,7 @@ func newSpaceQuotasGetCommand() *cobra.Command {
 					return fmt.Errorf("failed to find space quota: %w", err)
 				}
 				if len(quotas.Resources) == 0 {
-					return fmt.Errorf("space quota '%s' not found", nameOrGUID)
+					return fmt.Errorf("space quota '%s': %w", nameOrGUID, ErrSpaceQuotaNotFound)
 				}
 				quota = &quotas.Resources[0]
 			}
@@ -181,134 +229,305 @@ func newSpaceQuotasGetCommand() *cobra.Command {
 			// Output results
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(quota)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(quota)
 			default:
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("Property", "Value")
-				_ = table.Append("Name", quota.Name)
-				_ = table.Append("GUID", quota.GUID)
-				_ = table.Append("Created", quota.CreatedAt.Format("2006-01-02 15:04:05"))
-				_ = table.Append("Updated", quota.UpdatedAt.Format("2006-01-02 15:04:05"))
-				if err := table.Render(); err != nil {
-					return fmt.Errorf("failed to render table: %w", err)
-				}
-
-				if quota.Apps != nil {
-					fmt.Println("\nApp Limits:")
-					appTable := tablewriter.NewWriter(os.Stdout)
-					appTable.Header("Limit", "Value")
-
-					if quota.Apps.TotalMemoryInMB != nil {
-						_ = appTable.Append("Total Memory", fmt.Sprintf("%d MB", *quota.Apps.TotalMemoryInMB))
-					} else {
-						_ = appTable.Append("Total Memory", "unlimited")
-					}
-					if quota.Apps.TotalInstanceMemoryInMB != nil {
-						_ = appTable.Append("Instance Memory", fmt.Sprintf("%d MB", *quota.Apps.TotalInstanceMemoryInMB))
-					} else {
-						_ = appTable.Append("Instance Memory", "unlimited")
-					}
-					if quota.Apps.TotalInstances != nil {
-						_ = appTable.Append("Total Instances", fmt.Sprintf("%d", *quota.Apps.TotalInstances))
-					} else {
-						_ = appTable.Append("Total Instances", "unlimited")
-					}
-					if quota.Apps.TotalAppTasks != nil {
-						_ = appTable.Append("Total App Tasks", fmt.Sprintf("%d", *quota.Apps.TotalAppTasks))
-					} else {
-						_ = appTable.Append("Total App Tasks", "unlimited")
-					}
-					if quota.Apps.LogRateLimitInBytesPerSecond != nil {
-						_ = appTable.Append("Log Rate Limit", fmt.Sprintf("%d bytes/sec", *quota.Apps.LogRateLimitInBytesPerSecond))
-					} else {
-						_ = appTable.Append("Log Rate Limit", "unlimited")
-					}
-					if err := appTable.Render(); err != nil {
-						return fmt.Errorf("failed to render app table: %w", err)
-					}
-				}
-
-				if quota.Services != nil {
-					fmt.Println("\nService Limits:")
-					serviceTable := tablewriter.NewWriter(os.Stdout)
-					serviceTable.Header("Limit", "Value")
-
-					if quota.Services.PaidServicesAllowed != nil {
-						_ = serviceTable.Append("Paid Services", fmt.Sprintf("%t", *quota.Services.PaidServicesAllowed))
-					}
-					if quota.Services.TotalServiceInstances != nil {
-						_ = serviceTable.Append("Total Service Instances", fmt.Sprintf("%d", *quota.Services.TotalServiceInstances))
-					} else {
-						_ = serviceTable.Append("Total Service Instances", "unlimited")
-					}
-					if quota.Services.TotalServiceKeys != nil {
-						_ = serviceTable.Append("Total Service Keys", fmt.Sprintf("%d", *quota.Services.TotalServiceKeys))
-					} else {
-						_ = serviceTable.Append("Total Service Keys", "unlimited")
-					}
-					if err := serviceTable.Render(); err != nil {
-						return fmt.Errorf("failed to render service table: %w", err)
-					}
-				}
-
-				if quota.Routes != nil {
-					fmt.Println("\nRoute Limits:")
-					routeTable := tablewriter.NewWriter(os.Stdout)
-					routeTable.Header("Limit", "Value")
-
-					if quota.Routes.TotalRoutes != nil {
-						_ = routeTable.Append("Total Routes", fmt.Sprintf("%d", *quota.Routes.TotalRoutes))
-					} else {
-						_ = routeTable.Append("Total Routes", "unlimited")
-					}
-					if quota.Routes.TotalReservedPorts != nil {
-						_ = routeTable.Append("Total Reserved Ports", fmt.Sprintf("%d", *quota.Routes.TotalReservedPorts))
-					} else {
-						_ = routeTable.Append("Total Reserved Ports", "unlimited")
-					}
-					if err := routeTable.Render(); err != nil {
-						return fmt.Errorf("failed to render route table: %w", err)
-					}
-				}
+				return displaySpaceQuotaTable(quota)
 			}
-
-			return nil
 		},
 	}
 }
 
+// displaySpaceQuotaTable displays space quota information in table format.
+func displaySpaceQuotaTable(quota *capi.SpaceQuotaV3) error {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+	_ = table.Append("Name", quota.Name)
+	_ = table.Append("GUID", quota.GUID)
+	_ = table.Append("Created", quota.CreatedAt.Format("2006-01-02 15:04:05"))
+
+	_ = table.Append("Updated", quota.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+	err := table.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render table: %w", err)
+	}
+
+	err = displayAppLimitsTable(quota.Apps)
+	if err != nil {
+		return err
+	}
+
+	err = displayServiceLimitsTable(quota.Services)
+	if err != nil {
+		return err
+	}
+
+	err = displayRouteLimitsTable(quota.Routes)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// displayAppLimitsTable displays app limits if present.
+func displayAppLimitsTable(apps *capi.SpaceQuotaApps) error {
+	if apps == nil {
+		return nil
+	}
+
+	_, _ = os.Stdout.WriteString("\nApp Limits:\n")
+
+	appTable := tablewriter.NewWriter(os.Stdout)
+	appTable.Header("Limit", "Value")
+
+	addAppLimitRow(appTable, "Total Memory", apps.TotalMemoryInMB, func(v int) string { return fmt.Sprintf("%d MB", v) })
+	addAppLimitRow(appTable, "Instance Memory", apps.TotalInstanceMemoryInMB, func(v int) string { return fmt.Sprintf("%d MB", v) })
+	addAppLimitRow(appTable, "Total Instances", apps.TotalInstances, strconv.Itoa)
+	addAppLimitRow(appTable, "Total App Tasks", apps.TotalAppTasks, strconv.Itoa)
+
+	if apps.LogRateLimitInBytesPerSecond != nil {
+		_ = appTable.Append("Log Rate Limit", fmt.Sprintf("%d bytes/sec", *apps.LogRateLimitInBytesPerSecond))
+	} else {
+		_ = appTable.Append("Log Rate Limit", Unlimited)
+	}
+
+	err := appTable.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render app limits table: %w", err)
+	}
+
+	return nil
+}
+
+// displayServiceLimitsTable displays service limits if present.
+func displayServiceLimitsTable(services *capi.SpaceQuotaServices) error {
+	if services == nil {
+		return nil
+	}
+
+	_, _ = os.Stdout.WriteString("\nService Limits:\n")
+
+	serviceTable := tablewriter.NewWriter(os.Stdout)
+	serviceTable.Header("Limit", "Value")
+
+	if services.PaidServicesAllowed != nil {
+		_ = serviceTable.Append("Paid Services", strconv.FormatBool(*services.PaidServicesAllowed))
+	}
+
+	addServiceLimitRow(serviceTable, "Total Service Instances", services.TotalServiceInstances)
+	addServiceLimitRow(serviceTable, "Total Service Keys", services.TotalServiceKeys)
+
+	err := serviceTable.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render service limits table: %w", err)
+	}
+
+	return nil
+}
+
+// displayRouteLimitsTable displays route limits if present.
+func displayRouteLimitsTable(routes *capi.SpaceQuotaRoutes) error {
+	if routes == nil {
+		return nil
+	}
+
+	_, _ = os.Stdout.WriteString("\nRoute Limits:\n")
+
+	routeTable := tablewriter.NewWriter(os.Stdout)
+	routeTable.Header("Limit", "Value")
+
+	addRouteLimitRow(routeTable, "Total Routes", routes.TotalRoutes)
+	addRouteLimitRow(routeTable, "Total Reserved Ports", routes.TotalReservedPorts)
+
+	err := routeTable.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render route limits table: %w", err)
+	}
+
+	return nil
+}
+
+// addAppLimitRow adds a row with proper nil checking and formatting.
+func addAppLimitRow(table *tablewriter.Table, label string, value *int, formatter func(int) string) {
+	if value != nil {
+		_ = table.Append(label, formatter(*value))
+	} else {
+		_ = table.Append(label, Unlimited)
+	}
+}
+
+// addServiceLimitRow adds a service limit row with proper nil checking.
+func addServiceLimitRow(table *tablewriter.Table, label string, value *int) {
+	if value != nil {
+		_ = table.Append(label, strconv.Itoa(*value))
+	} else {
+		_ = table.Append(label, Unlimited)
+	}
+}
+
+// addRouteLimitRow adds a route limit row with proper nil checking.
+func addRouteLimitRow(table *tablewriter.Table, label string, value *int) {
+	if value != nil {
+		_ = table.Append(label, strconv.Itoa(*value))
+	} else {
+		_ = table.Append(label, Unlimited)
+	}
+}
+
+// spaceQuotaCreateConfig holds configuration for creating space quotas.
+type spaceQuotaCreateConfig struct {
+	name                         string
+	orgName                      string
+	totalMemoryInMB              int
+	totalInstanceMemoryInMB      int
+	totalInstances               int
+	totalAppTasks                int
+	paidServicesAllowed          bool
+	totalServiceInstances        int
+	totalServiceKeys             int
+	totalRoutes                  int
+	totalReservedPorts           int
+	logRateLimitInBytesPerSecond int
+}
+
+// findOrgGUIDForSpaceQuota finds the organization GUID by name.
+func findOrgGUIDForSpaceQuota(ctx context.Context, client capi.Client, orgName string) (string, error) {
+	orgParams := capi.NewQueryParams()
+	orgParams.WithFilter("names", orgName)
+
+	orgs, err := client.Organizations().List(ctx, orgParams)
+	if err != nil {
+		return "", fmt.Errorf("failed to find organization: %w", err)
+	}
+
+	if len(orgs.Resources) == 0 {
+		return "", fmt.Errorf("organization '%s': %w", orgName, ErrOrganizationNotFound)
+	}
+
+	return orgs.Resources[0].GUID, nil
+}
+
+// buildSpaceQuotaCreateRequest creates the create request based on changed flags.
+func buildSpaceQuotaCreateRequest(cmd *cobra.Command, config *spaceQuotaCreateConfig, orgGUID string) *capi.SpaceQuotaV3CreateRequest {
+	createReq := &capi.SpaceQuotaV3CreateRequest{
+		Name: config.name,
+		Relationships: capi.SpaceQuotaRelationships{
+			Organization: capi.Relationship{
+				Data: &capi.RelationshipData{GUID: orgGUID},
+			},
+			Spaces: capi.ToManyRelationship{
+				Data: []capi.RelationshipData{},
+			},
+		},
+	}
+
+	// Build app limits if any app flags are set
+	createReq.Apps = buildSpaceQuotaAppLimits(cmd, config)
+
+	// Build service limits if any service flags are set
+	createReq.Services = buildSpaceQuotaServiceLimits(cmd, config)
+
+	// Build route limits if any route flags are set
+	createReq.Routes = buildSpaceQuotaRouteLimits(cmd, config)
+
+	return createReq
+}
+
+// buildSpaceQuotaAppLimits creates app limits section for space quota.
+func buildSpaceQuotaAppLimits(cmd *cobra.Command, config *spaceQuotaCreateConfig) *capi.SpaceQuotaApps {
+	return buildSpaceQuotaAppLimitsGeneric(cmd, config)
+}
+
+// AppLimitsConfig interface for extracting app limits from config structs
+
+// Implement AppLimitsConfig for spaceQuotaCreateConfig.
+func (c *spaceQuotaCreateConfig) GetTotalMemoryInMB() int         { return c.totalMemoryInMB }
+func (c *spaceQuotaCreateConfig) GetTotalInstanceMemoryInMB() int { return c.totalInstanceMemoryInMB }
+func (c *spaceQuotaCreateConfig) GetTotalInstances() int          { return c.totalInstances }
+func (c *spaceQuotaCreateConfig) GetTotalAppTasks() int           { return c.totalAppTasks }
+func (c *spaceQuotaCreateConfig) GetLogRateLimitInBytesPerSecond() int {
+	return c.logRateLimitInBytesPerSecond
+}
+
+// Implement AppLimitsConfig for spaceQuotaUpdateConfig.
+func (c *spaceQuotaUpdateConfig) GetTotalMemoryInMB() int         { return c.totalMemoryInMB }
+func (c *spaceQuotaUpdateConfig) GetTotalInstanceMemoryInMB() int { return c.totalInstanceMemoryInMB }
+func (c *spaceQuotaUpdateConfig) GetTotalInstances() int          { return c.totalInstances }
+func (c *spaceQuotaUpdateConfig) GetTotalAppTasks() int           { return c.totalAppTasks }
+func (c *spaceQuotaUpdateConfig) GetLogRateLimitInBytesPerSecond() int {
+	return c.logRateLimitInBytesPerSecond
+}
+
+// buildSpaceQuotaAppLimitsGeneric builds app limits for space quotas using any config that implements AppLimitsConfig.
+func buildSpaceQuotaAppLimitsGeneric(cmd *cobra.Command, config AppLimitsConfig) *capi.SpaceQuotaApps {
+	return BuildSpaceQuotaApps(cmd, config)
+}
+
+// buildSpaceQuotaServiceLimits creates service limits section for space quota.
+func buildSpaceQuotaServiceLimits(cmd *cobra.Command, config *spaceQuotaCreateConfig) *capi.SpaceQuotaServices {
+	if !cmd.Flags().Changed("paid-services") && !cmd.Flags().Changed("service-instances") &&
+		!cmd.Flags().Changed("service-keys") {
+		return nil
+	}
+
+	services := &capi.SpaceQuotaServices{}
+
+	if cmd.Flags().Changed("paid-services") {
+		services.PaidServicesAllowed = &config.paidServicesAllowed
+	}
+
+	if cmd.Flags().Changed("service-instances") {
+		services.TotalServiceInstances = &config.totalServiceInstances
+	}
+
+	if cmd.Flags().Changed("service-keys") {
+		services.TotalServiceKeys = &config.totalServiceKeys
+	}
+
+	return services
+}
+
+// buildSpaceQuotaRouteLimits creates route limits section for space quota.
+func buildSpaceQuotaRouteLimits(cmd *cobra.Command, config *spaceQuotaCreateConfig) *capi.SpaceQuotaRoutes {
+	if !cmd.Flags().Changed("routes") && !cmd.Flags().Changed("reserved-ports") {
+		return nil
+	}
+
+	routes := &capi.SpaceQuotaRoutes{}
+
+	if cmd.Flags().Changed("routes") {
+		routes.TotalRoutes = &config.totalRoutes
+	}
+
+	if cmd.Flags().Changed("reserved-ports") {
+		routes.TotalReservedPorts = &config.totalReservedPorts
+	}
+
+	return routes
+}
+
 func newSpaceQuotasCreateCommand() *cobra.Command {
-	var (
-		name                         string
-		orgName                      string
-		totalMemoryInMB              int
-		totalInstanceMemoryInMB      int
-		totalInstances               int
-		totalAppTasks                int
-		paidServicesAllowed          bool
-		totalServiceInstances        int
-		totalServiceKeys             int
-		totalRoutes                  int
-		totalReservedPorts           int
-		logRateLimitInBytesPerSecond int
-	)
+	config := &spaceQuotaCreateConfig{}
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a new space quota",
 		Long:  "Create a new Cloud Foundry space quota",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if name == "" {
-				return fmt.Errorf("quota name is required")
+			if config.name == "" {
+				return ErrQuotaNameRequired
 			}
-			if orgName == "" {
-				return fmt.Errorf("organization name is required")
+			if config.orgName == "" {
+				return ErrOrganizationNameRequired
 			}
 
 			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
@@ -318,120 +537,153 @@ func newSpaceQuotasCreateCommand() *cobra.Command {
 
 			ctx := context.Background()
 
-			// Find organization
-			orgParams := capi.NewQueryParams()
-			orgParams.WithFilter("names", orgName)
-			orgs, err := client.Organizations().List(ctx, orgParams)
+			// Find organization GUID
+			orgGUID, err := findOrgGUIDForSpaceQuota(ctx, client, config.orgName)
 			if err != nil {
-				return fmt.Errorf("failed to find organization: %w", err)
-			}
-			if len(orgs.Resources) == 0 {
-				return fmt.Errorf("organization '%s' not found", orgName)
-			}
-			orgGUID := orgs.Resources[0].GUID
-
-			createReq := &capi.SpaceQuotaV3CreateRequest{
-				Name: name,
-				Relationships: capi.SpaceQuotaRelationships{
-					Organization: capi.Relationship{
-						Data: &capi.RelationshipData{GUID: orgGUID},
-					},
-					Spaces: capi.ToManyRelationship{
-						Data: []capi.RelationshipData{},
-					},
-				},
+				return err
 			}
 
-			// Build app limits if any app flags are set
-			if cmd.Flags().Changed("total-memory") || cmd.Flags().Changed("instance-memory") ||
-				cmd.Flags().Changed("instances") || cmd.Flags().Changed("app-tasks") ||
-				cmd.Flags().Changed("log-rate-limit") {
-				createReq.Apps = &capi.SpaceQuotaApps{}
-				if cmd.Flags().Changed("total-memory") {
-					createReq.Apps.TotalMemoryInMB = &totalMemoryInMB
-				}
-				if cmd.Flags().Changed("instance-memory") {
-					createReq.Apps.TotalInstanceMemoryInMB = &totalInstanceMemoryInMB
-				}
-				if cmd.Flags().Changed("instances") {
-					createReq.Apps.TotalInstances = &totalInstances
-				}
-				if cmd.Flags().Changed("app-tasks") {
-					createReq.Apps.TotalAppTasks = &totalAppTasks
-				}
-				if cmd.Flags().Changed("log-rate-limit") {
-					createReq.Apps.LogRateLimitInBytesPerSecond = &logRateLimitInBytesPerSecond
-				}
-			}
+			// Build create request based on changed flags
+			createReq := buildSpaceQuotaCreateRequest(cmd, config, orgGUID)
 
-			// Build service limits if any service flags are set
-			if cmd.Flags().Changed("paid-services") || cmd.Flags().Changed("service-instances") ||
-				cmd.Flags().Changed("service-keys") {
-				createReq.Services = &capi.SpaceQuotaServices{}
-				if cmd.Flags().Changed("paid-services") {
-					createReq.Services.PaidServicesAllowed = &paidServicesAllowed
-				}
-				if cmd.Flags().Changed("service-instances") {
-					createReq.Services.TotalServiceInstances = &totalServiceInstances
-				}
-				if cmd.Flags().Changed("service-keys") {
-					createReq.Services.TotalServiceKeys = &totalServiceKeys
-				}
-			}
-
-			// Build route limits if any route flags are set
-			if cmd.Flags().Changed("routes") || cmd.Flags().Changed("reserved-ports") {
-				createReq.Routes = &capi.SpaceQuotaRoutes{}
-				if cmd.Flags().Changed("routes") {
-					createReq.Routes.TotalRoutes = &totalRoutes
-				}
-				if cmd.Flags().Changed("reserved-ports") {
-					createReq.Routes.TotalReservedPorts = &totalReservedPorts
-				}
-			}
-
+			// Create space quota
 			quota, err := client.SpaceQuotas().Create(ctx, createReq)
 			if err != nil {
 				return fmt.Errorf("failed to create space quota: %w", err)
 			}
 
-			fmt.Printf("Successfully created space quota '%s' with GUID %s\n", quota.Name, quota.GUID)
+			_, _ = fmt.Fprintf(os.Stdout, "Successfully created space quota '%s' with GUID %s\n", quota.Name, quota.GUID)
+
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&name, "name", "n", "", "quota name (required)")
-	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name (required)")
-	cmd.Flags().IntVar(&totalMemoryInMB, "total-memory", 0, "total memory limit in MB")
-	cmd.Flags().IntVar(&totalInstanceMemoryInMB, "instance-memory", 0, "instance memory limit in MB")
-	cmd.Flags().IntVar(&totalInstances, "instances", 0, "total instances limit")
-	cmd.Flags().IntVar(&totalAppTasks, "app-tasks", 0, "total app tasks limit")
-	cmd.Flags().IntVar(&logRateLimitInBytesPerSecond, "log-rate-limit", 0, "log rate limit in bytes per second")
-	cmd.Flags().BoolVar(&paidServicesAllowed, "paid-services", true, "allow paid services")
-	cmd.Flags().IntVar(&totalServiceInstances, "service-instances", 0, "total service instances limit")
-	cmd.Flags().IntVar(&totalServiceKeys, "service-keys", 0, "total service keys limit")
-	cmd.Flags().IntVar(&totalRoutes, "routes", 0, "total routes limit")
-	cmd.Flags().IntVar(&totalReservedPorts, "reserved-ports", 0, "total reserved ports limit")
+	cmd.Flags().StringVarP(&config.name, "name", "n", "", "quota name (required)")
+	cmd.Flags().StringVarP(&config.orgName, "org", "o", "", "organization name (required)")
+	cmd.Flags().IntVar(&config.totalMemoryInMB, "total-memory", 0, "total memory limit in MB")
+	cmd.Flags().IntVar(&config.totalInstanceMemoryInMB, "instance-memory", 0, "instance memory limit in MB")
+	cmd.Flags().IntVar(&config.totalInstances, "instances", 0, "total instances limit")
+	cmd.Flags().IntVar(&config.totalAppTasks, "app-tasks", 0, "total app tasks limit")
+	cmd.Flags().IntVar(&config.logRateLimitInBytesPerSecond, "log-rate-limit", 0, "log rate limit in bytes per second")
+	cmd.Flags().BoolVar(&config.paidServicesAllowed, "paid-services", true, "allow paid services")
+	cmd.Flags().IntVar(&config.totalServiceInstances, "service-instances", 0, "total service instances limit")
+	cmd.Flags().IntVar(&config.totalServiceKeys, "service-keys", 0, "total service keys limit")
+	cmd.Flags().IntVar(&config.totalRoutes, "routes", 0, "total routes limit")
+	cmd.Flags().IntVar(&config.totalReservedPorts, "reserved-ports", 0, "total reserved ports limit")
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("org")
 
 	return cmd
 }
 
+// spaceQuotaUpdateConfig holds configuration for updating space quotas.
+type spaceQuotaUpdateConfig struct {
+	newName                      string
+	totalMemoryInMB              int
+	totalInstanceMemoryInMB      int
+	totalInstances               int
+	totalAppTasks                int
+	paidServicesAllowed          bool
+	totalServiceInstances        int
+	totalServiceKeys             int
+	totalRoutes                  int
+	totalReservedPorts           int
+	logRateLimitInBytesPerSecond int
+}
+
+// findSpaceQuotaGUID resolves the space quota GUID from name or GUID.
+func findSpaceQuotaGUID(ctx context.Context, quotaClient capi.SpaceQuotasClient, nameOrGUID string) (string, error) {
+	quota, err := quotaClient.Get(ctx, nameOrGUID)
+	if err == nil {
+		return quota.GUID, nil
+	}
+
+	// Try by name
+	params := capi.NewQueryParams()
+	params.WithFilter("names", nameOrGUID)
+
+	quotas, err := quotaClient.List(ctx, params)
+	if err != nil {
+		return "", fmt.Errorf("failed to find space quota: %w", err)
+	}
+
+	if len(quotas.Resources) == 0 {
+		return "", fmt.Errorf("space quota '%s': %w", nameOrGUID, ErrSpaceQuotaNotFound)
+	}
+
+	return quotas.Resources[0].GUID, nil
+}
+
+// buildSpaceQuotaUpdateRequest creates the update request based on changed flags.
+func buildSpaceQuotaUpdateRequest(cmd *cobra.Command, config *spaceQuotaUpdateConfig) *capi.SpaceQuotaV3UpdateRequest {
+	updateReq := &capi.SpaceQuotaV3UpdateRequest{}
+
+	if config.newName != "" {
+		updateReq.Name = &config.newName
+	}
+
+	// Build app limits if any app flags are set
+	updateReq.Apps = buildSpaceQuotaUpdateAppLimits(cmd, config)
+
+	// Build service limits if any service flags are set
+	updateReq.Services = buildSpaceQuotaUpdateServiceLimits(cmd, config)
+
+	// Build route limits if any route flags are set
+	updateReq.Routes = buildSpaceQuotaUpdateRouteLimits(cmd, config)
+
+	return updateReq
+}
+
+// buildSpaceQuotaUpdateAppLimits creates app limits section for space quota update.
+func buildSpaceQuotaUpdateAppLimits(cmd *cobra.Command, config *spaceQuotaUpdateConfig) *capi.SpaceQuotaApps {
+	return buildSpaceQuotaAppLimitsGeneric(cmd, config)
+}
+
+// buildSpaceQuotaUpdateServiceLimits creates service limits section for space quota update.
+func buildSpaceQuotaUpdateServiceLimits(cmd *cobra.Command, config *spaceQuotaUpdateConfig) *capi.SpaceQuotaServices {
+	if !cmd.Flags().Changed("paid-services") && !cmd.Flags().Changed("service-instances") &&
+		!cmd.Flags().Changed("service-keys") {
+		return nil
+	}
+
+	services := &capi.SpaceQuotaServices{}
+
+	if cmd.Flags().Changed("paid-services") {
+		services.PaidServicesAllowed = &config.paidServicesAllowed
+	}
+
+	if cmd.Flags().Changed("service-instances") {
+		services.TotalServiceInstances = &config.totalServiceInstances
+	}
+
+	if cmd.Flags().Changed("service-keys") {
+		services.TotalServiceKeys = &config.totalServiceKeys
+	}
+
+	return services
+}
+
+// buildSpaceQuotaUpdateRouteLimits creates route limits section for space quota update.
+func buildSpaceQuotaUpdateRouteLimits(cmd *cobra.Command, config *spaceQuotaUpdateConfig) *capi.SpaceQuotaRoutes {
+	if !cmd.Flags().Changed("routes") && !cmd.Flags().Changed("reserved-ports") {
+		return nil
+	}
+
+	routes := &capi.SpaceQuotaRoutes{}
+
+	if cmd.Flags().Changed("routes") {
+		routes.TotalRoutes = &config.totalRoutes
+	}
+
+	if cmd.Flags().Changed("reserved-ports") {
+		routes.TotalReservedPorts = &config.totalReservedPorts
+	}
+
+	return routes
+}
+
 func newSpaceQuotasUpdateCommand() *cobra.Command {
-	var (
-		newName                      string
-		totalMemoryInMB              int
-		totalInstanceMemoryInMB      int
-		totalInstances               int
-		totalAppTasks                int
-		paidServicesAllowed          bool
-		totalServiceInstances        int
-		totalServiceKeys             int
-		totalRoutes                  int
-		totalReservedPorts           int
-		logRateLimitInBytesPerSecond int
-	)
+	config := &spaceQuotaUpdateConfig{}
 
 	cmd := &cobra.Command{
 		Use:   "update QUOTA_NAME_OR_GUID",
@@ -449,79 +701,14 @@ func newSpaceQuotasUpdateCommand() *cobra.Command {
 			ctx := context.Background()
 			quotaClient := client.SpaceQuotas()
 
-			// Find quota
-			var quotaGUID string
-			quota, err := quotaClient.Get(ctx, nameOrGUID)
+			// Find quota GUID
+			quotaGUID, err := findSpaceQuotaGUID(ctx, quotaClient, nameOrGUID)
 			if err != nil {
-				// Try by name
-				params := capi.NewQueryParams()
-				params.WithFilter("names", nameOrGUID)
-				quotas, err := quotaClient.List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to find space quota: %w", err)
-				}
-				if len(quotas.Resources) == 0 {
-					return fmt.Errorf("space quota '%s' not found", nameOrGUID)
-				}
-				quotaGUID = quotas.Resources[0].GUID
-			} else {
-				quotaGUID = quota.GUID
+				return err
 			}
 
-			// Build update request
-			updateReq := &capi.SpaceQuotaV3UpdateRequest{}
-
-			if newName != "" {
-				updateReq.Name = &newName
-			}
-
-			// Build app limits if any app flags are set
-			if cmd.Flags().Changed("total-memory") || cmd.Flags().Changed("instance-memory") ||
-				cmd.Flags().Changed("instances") || cmd.Flags().Changed("app-tasks") ||
-				cmd.Flags().Changed("log-rate-limit") {
-				updateReq.Apps = &capi.SpaceQuotaApps{}
-				if cmd.Flags().Changed("total-memory") {
-					updateReq.Apps.TotalMemoryInMB = &totalMemoryInMB
-				}
-				if cmd.Flags().Changed("instance-memory") {
-					updateReq.Apps.TotalInstanceMemoryInMB = &totalInstanceMemoryInMB
-				}
-				if cmd.Flags().Changed("instances") {
-					updateReq.Apps.TotalInstances = &totalInstances
-				}
-				if cmd.Flags().Changed("app-tasks") {
-					updateReq.Apps.TotalAppTasks = &totalAppTasks
-				}
-				if cmd.Flags().Changed("log-rate-limit") {
-					updateReq.Apps.LogRateLimitInBytesPerSecond = &logRateLimitInBytesPerSecond
-				}
-			}
-
-			// Build service limits if any service flags are set
-			if cmd.Flags().Changed("paid-services") || cmd.Flags().Changed("service-instances") ||
-				cmd.Flags().Changed("service-keys") {
-				updateReq.Services = &capi.SpaceQuotaServices{}
-				if cmd.Flags().Changed("paid-services") {
-					updateReq.Services.PaidServicesAllowed = &paidServicesAllowed
-				}
-				if cmd.Flags().Changed("service-instances") {
-					updateReq.Services.TotalServiceInstances = &totalServiceInstances
-				}
-				if cmd.Flags().Changed("service-keys") {
-					updateReq.Services.TotalServiceKeys = &totalServiceKeys
-				}
-			}
-
-			// Build route limits if any route flags are set
-			if cmd.Flags().Changed("routes") || cmd.Flags().Changed("reserved-ports") {
-				updateReq.Routes = &capi.SpaceQuotaRoutes{}
-				if cmd.Flags().Changed("routes") {
-					updateReq.Routes.TotalRoutes = &totalRoutes
-				}
-				if cmd.Flags().Changed("reserved-ports") {
-					updateReq.Routes.TotalReservedPorts = &totalReservedPorts
-				}
-			}
+			// Build update request based on changed flags
+			updateReq := buildSpaceQuotaUpdateRequest(cmd, config)
 
 			// Update quota
 			updatedQuota, err := quotaClient.Update(ctx, quotaGUID, updateReq)
@@ -529,91 +716,123 @@ func newSpaceQuotasUpdateCommand() *cobra.Command {
 				return fmt.Errorf("failed to update space quota: %w", err)
 			}
 
-			fmt.Printf("Successfully updated space quota '%s'\n", updatedQuota.Name)
+			_, _ = fmt.Fprintf(os.Stdout, "Successfully updated space quota '%s'\n", updatedQuota.Name)
+
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&newName, "name", "", "new quota name")
-	cmd.Flags().IntVar(&totalMemoryInMB, "total-memory", 0, "total memory limit in MB")
-	cmd.Flags().IntVar(&totalInstanceMemoryInMB, "instance-memory", 0, "instance memory limit in MB")
-	cmd.Flags().IntVar(&totalInstances, "instances", 0, "total instances limit")
-	cmd.Flags().IntVar(&totalAppTasks, "app-tasks", 0, "total app tasks limit")
-	cmd.Flags().IntVar(&logRateLimitInBytesPerSecond, "log-rate-limit", 0, "log rate limit in bytes per second")
-	cmd.Flags().BoolVar(&paidServicesAllowed, "paid-services", true, "allow paid services")
-	cmd.Flags().IntVar(&totalServiceInstances, "service-instances", 0, "total service instances limit")
-	cmd.Flags().IntVar(&totalServiceKeys, "service-keys", 0, "total service keys limit")
-	cmd.Flags().IntVar(&totalRoutes, "routes", 0, "total routes limit")
-	cmd.Flags().IntVar(&totalReservedPorts, "reserved-ports", 0, "total reserved ports limit")
+	cmd.Flags().StringVar(&config.newName, "name", "", "new quota name")
+	cmd.Flags().IntVar(&config.totalMemoryInMB, "total-memory", 0, "total memory limit in MB")
+	cmd.Flags().IntVar(&config.totalInstanceMemoryInMB, "instance-memory", 0, "instance memory limit in MB")
+	cmd.Flags().IntVar(&config.totalInstances, "instances", 0, "total instances limit")
+	cmd.Flags().IntVar(&config.totalAppTasks, "app-tasks", 0, "total app tasks limit")
+	cmd.Flags().IntVar(&config.logRateLimitInBytesPerSecond, "log-rate-limit", 0, "log rate limit in bytes per second")
+	cmd.Flags().BoolVar(&config.paidServicesAllowed, "paid-services", true, "allow paid services")
+	cmd.Flags().IntVar(&config.totalServiceInstances, "service-instances", 0, "total service instances limit")
+	cmd.Flags().IntVar(&config.totalServiceKeys, "service-keys", 0, "total service keys limit")
+	cmd.Flags().IntVar(&config.totalRoutes, "routes", 0, "total routes limit")
+	cmd.Flags().IntVar(&config.totalReservedPorts, "reserved-ports", 0, "total reserved ports limit")
 
 	return cmd
 }
 
 func newSpaceQuotasDeleteCommand() *cobra.Command {
-	var force bool
-
-	cmd := &cobra.Command{
-		Use:   "delete QUOTA_NAME_OR_GUID",
-		Short: "Delete a space quota",
-		Long:  "Delete a Cloud Foundry space quota",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			nameOrGUID := args[0]
-
-			if !force {
-				fmt.Printf("Really delete space quota '%s'? (y/N): ", nameOrGUID)
-				var response string
-				_, _ = fmt.Scanln(&response)
-				if response != "y" && response != "Y" {
-					fmt.Println("Cancelled")
-					return nil
-				}
+	config := DeleteConfig{
+		Use:         "delete QUOTA_NAME_OR_GUID",
+		Short:       "Delete a space quota",
+		Long:        "Delete a Cloud Foundry space quota",
+		EntityType:  "space quota",
+		GetResource: CreateSpaceQuotaDeleteResourceFunc(),
+		DeleteFunc: func(ctx context.Context, client interface{}, guid string) (*string, error) {
+			capiClient, ok := client.(capi.Client)
+			if !ok {
+				return nil, constants.ErrInvalidClientType
 			}
-
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+			err := capiClient.SpaceQuotas().Delete(ctx, guid)
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("failed to delete space quota: %w", err)
 			}
 
-			ctx := context.Background()
-			quotaClient := client.SpaceQuotas()
-
-			// Find quota
-			var quotaGUID string
-			var quotaName string
-			quota, err := quotaClient.Get(ctx, nameOrGUID)
-			if err != nil {
-				// Try by name
-				params := capi.NewQueryParams()
-				params.WithFilter("names", nameOrGUID)
-				quotas, err := quotaClient.List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to find space quota: %w", err)
-				}
-				if len(quotas.Resources) == 0 {
-					return fmt.Errorf("space quota '%s' not found", nameOrGUID)
-				}
-				quotaGUID = quotas.Resources[0].GUID
-				quotaName = quotas.Resources[0].Name
-			} else {
-				quotaGUID = quota.GUID
-				quotaName = quota.Name
-			}
-
-			// Delete quota
-			err = quotaClient.Delete(ctx, quotaGUID)
-			if err != nil {
-				return fmt.Errorf("failed to delete space quota: %w", err)
-			}
-
-			fmt.Printf("Successfully deleted space quota '%s'\n", quotaName)
-			return nil
+			return nil, nil
 		},
 	}
 
-	cmd.Flags().BoolVarP(&force, "force", "f", false, "force deletion without confirmation")
+	return createDeleteCommand(config)
+}
 
-	return cmd
+// resolveSpaceQuota finds a space quota by GUID or name and returns its GUID and name.
+func resolveSpaceQuota(ctx context.Context, client capi.Client, quotaNameOrGUID string) (string, string, error) {
+	quotaClient := client.SpaceQuotas()
+
+	// Try to get by GUID first
+	quota, err := quotaClient.Get(ctx, quotaNameOrGUID)
+	if err == nil {
+		return quota.GUID, quota.Name, nil
+	}
+
+	// Try by name
+	params := capi.NewQueryParams()
+	params.WithFilter("names", quotaNameOrGUID)
+
+	quotas, err := quotaClient.List(ctx, params)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to find space quota: %w", err)
+	}
+
+	if len(quotas.Resources) == 0 {
+		return "", "", fmt.Errorf("space quota '%s': %w", quotaNameOrGUID, ErrSpaceQuotaNotFound)
+	}
+
+	return quotas.Resources[0].GUID, quotas.Resources[0].Name, nil
+}
+
+// resolveSpace finds a space by GUID or name and returns its GUID and name.
+func resolveSpace(ctx context.Context, client capi.Client, spaceNameOrGUID string) (string, string, error) {
+	spacesClient := client.Spaces()
+
+	// Try to get by GUID first
+	space, err := spacesClient.Get(ctx, spaceNameOrGUID)
+	if err == nil {
+		return space.GUID, space.Name, nil
+	}
+
+	// Try by name
+	params := capi.NewQueryParams()
+	params.WithFilter("names", spaceNameOrGUID)
+	// Add org filter if targeted
+	if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+		params.WithFilter("organization_guids", orgGUID)
+	}
+
+	spaces, err := spacesClient.List(ctx, params)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to find space '%s': %w", spaceNameOrGUID, err)
+	}
+
+	if len(spaces.Resources) == 0 {
+		return "", "", fmt.Errorf("space '%s': %w", spaceNameOrGUID, ErrSpaceNotFound)
+	}
+
+	return spaces.Resources[0].GUID, spaces.Resources[0].Name, nil
+}
+
+// resolveSpaces resolves multiple space names or GUIDs to their GUIDs and names.
+func resolveSpaces(ctx context.Context, client capi.Client, spaceNamesOrGUIDs []string) ([]string, []string, error) {
+	spaceGUIDs := make([]string, 0, len(spaceNamesOrGUIDs))
+	spaceNames := make([]string, 0, len(spaceNamesOrGUIDs))
+
+	for _, spaceNameOrGUID := range spaceNamesOrGUIDs {
+		guid, name, err := resolveSpace(ctx, client, spaceNameOrGUID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		spaceGUIDs = append(spaceGUIDs, guid)
+		spaceNames = append(spaceNames, name)
+	}
+
+	return spaceGUIDs, spaceNames, nil
 }
 
 func newSpaceQuotasApplyCommand() *cobra.Command {
@@ -621,7 +840,7 @@ func newSpaceQuotasApplyCommand() *cobra.Command {
 		Use:   "apply QUOTA_NAME_OR_GUID SPACE_NAME_OR_GUID...",
 		Short: "Apply quota to spaces",
 		Long:  "Apply a space quota to one or more spaces",
-		Args:  cobra.MinimumNArgs(2),
+		Args:  cobra.MinimumNArgs(constants.TwoArgumentsMax),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			quotaNameOrGUID := args[0]
 			spaceNamesOrGUIDs := args[1:]
@@ -632,66 +851,26 @@ func newSpaceQuotasApplyCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
-			quotaClient := client.SpaceQuotas()
-			spacesClient := client.Spaces()
 
 			// Find quota
-			var quotaGUID string
-			var quotaName string
-			quota, err := quotaClient.Get(ctx, quotaNameOrGUID)
+			quotaGUID, quotaName, err := resolveSpaceQuota(ctx, client, quotaNameOrGUID)
 			if err != nil {
-				// Try by name
-				params := capi.NewQueryParams()
-				params.WithFilter("names", quotaNameOrGUID)
-				quotas, err := quotaClient.List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to find space quota: %w", err)
-				}
-				if len(quotas.Resources) == 0 {
-					return fmt.Errorf("space quota '%s' not found", quotaNameOrGUID)
-				}
-				quotaGUID = quotas.Resources[0].GUID
-				quotaName = quotas.Resources[0].Name
-			} else {
-				quotaGUID = quota.GUID
-				quotaName = quota.Name
+				return err
 			}
 
 			// Resolve space GUIDs
-			var spaceGUIDs []string
-			var spaceNames []string
-			for _, spaceNameOrGUID := range spaceNamesOrGUIDs {
-				space, err := spacesClient.Get(ctx, spaceNameOrGUID)
-				if err != nil {
-					// Try by name
-					params := capi.NewQueryParams()
-					params.WithFilter("names", spaceNameOrGUID)
-					// Add org filter if targeted
-					if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
-						params.WithFilter("organization_guids", orgGUID)
-					}
-					spaces, err := spacesClient.List(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to find space '%s': %w", spaceNameOrGUID, err)
-					}
-					if len(spaces.Resources) == 0 {
-						return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
-					}
-					spaceGUIDs = append(spaceGUIDs, spaces.Resources[0].GUID)
-					spaceNames = append(spaceNames, spaces.Resources[0].Name)
-				} else {
-					spaceGUIDs = append(spaceGUIDs, space.GUID)
-					spaceNames = append(spaceNames, space.Name)
-				}
+			spaceGUIDs, spaceNames, err := resolveSpaces(ctx, client, spaceNamesOrGUIDs)
+			if err != nil {
+				return err
 			}
 
 			// Apply quota to spaces
-			_, err = quotaClient.ApplyToSpaces(ctx, quotaGUID, spaceGUIDs)
+			_, err = client.SpaceQuotas().ApplyToSpaces(ctx, quotaGUID, spaceGUIDs)
 			if err != nil {
 				return fmt.Errorf("failed to apply quota to spaces: %w", err)
 			}
 
-			fmt.Printf("Successfully applied quota '%s' to spaces: %s\n",
+			_, _ = fmt.Fprintf(os.Stdout, "Successfully applied quota '%s' to spaces: %s\n",
 				quotaName, strings.Join(spaceNames, ", "))
 
 			return nil
@@ -704,7 +883,7 @@ func newSpaceQuotasRemoveCommand() *cobra.Command {
 		Use:   "remove QUOTA_NAME_OR_GUID SPACE_NAME_OR_GUID",
 		Short: "Remove quota from space",
 		Long:  "Remove a space quota from a specific space",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(constants.TwoArgumentsMax),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			quotaNameOrGUID := args[0]
 			spaceNameOrGUID := args[1]
@@ -731,7 +910,7 @@ func newSpaceQuotasRemoveCommand() *cobra.Command {
 					return fmt.Errorf("failed to find space quota: %w", err)
 				}
 				if len(quotas.Resources) == 0 {
-					return fmt.Errorf("space quota '%s' not found", quotaNameOrGUID)
+					return fmt.Errorf("space quota '%s': %w", quotaNameOrGUID, ErrSpaceQuotaNotFound)
 				}
 				quotaGUID = quotas.Resources[0].GUID
 				quotaName = quotas.Resources[0].Name
@@ -757,7 +936,7 @@ func newSpaceQuotasRemoveCommand() *cobra.Command {
 					return fmt.Errorf("failed to find space: %w", err)
 				}
 				if len(spaces.Resources) == 0 {
-					return fmt.Errorf("space '%s' not found", spaceNameOrGUID)
+					return fmt.Errorf("space '%s': %w", spaceNameOrGUID, ErrSpaceNotFound)
 				}
 				spaceGUID = spaces.Resources[0].GUID
 				spaceName = spaces.Resources[0].Name
@@ -772,7 +951,8 @@ func newSpaceQuotasRemoveCommand() *cobra.Command {
 				return fmt.Errorf("failed to remove quota from space: %w", err)
 			}
 
-			fmt.Printf("Successfully removed quota '%s' from space '%s'\n", quotaName, spaceName)
+			_, _ = fmt.Fprintf(os.Stdout, "Successfully removed quota '%s' from space '%s'\n", quotaName, spaceName)
+
 			return nil
 		},
 	}

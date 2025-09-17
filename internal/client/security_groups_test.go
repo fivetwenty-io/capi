@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,37 +8,42 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestSecurityGroupsClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		var request capi.SecurityGroupCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Equal(t, "my-security-group", request.Name)
-		assert.NotNil(t, request.GloballyEnabled)
-		assert.True(t, request.GloballyEnabled.Running)
-		assert.False(t, request.GloballyEnabled.Staging)
-		assert.Len(t, request.Rules, 2)
+		var requestBody capi.SecurityGroupCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "my-security-group", requestBody.Name)
+		assert.NotNil(t, requestBody.GloballyEnabled)
+		assert.True(t, requestBody.GloballyEnabled.Running)
+		assert.False(t, requestBody.GloballyEnabled.Staging)
+		assert.Len(t, requestBody.Rules, 2)
 
 		now := time.Now()
-		sg := capi.SecurityGroup{
+		securityGroup := capi.SecurityGroup{
 			Resource: capi.Resource{
 				GUID:      "sg-guid",
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
-			Name:            request.Name,
-			GloballyEnabled: *request.GloballyEnabled,
-			Rules:           request.Rules,
+			Name:            requestBody.Name,
+			GloballyEnabled: *requestBody.GloballyEnabled,
+			Rules:           requestBody.Rules,
 			Relationships: capi.SecurityGroupRelationships{
 				RunningSpaces: capi.ToManyRelationship{
 					Data: []capi.RelationshipData{},
@@ -49,14 +54,14 @@ func TestSecurityGroupsClient_Create(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(sg)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(securityGroup)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	port80 := "80"
 	typeICMP := 8
@@ -85,23 +90,25 @@ func TestSecurityGroupsClient_Create(t *testing.T) {
 		},
 	}
 
-	sg, err := securityGroups.Create(context.Background(), request)
+	securityGroup, err := securityGroups.Create(context.Background(), request)
 	require.NoError(t, err)
-	assert.NotNil(t, sg)
-	assert.Equal(t, "sg-guid", sg.GUID)
-	assert.Equal(t, "my-security-group", sg.Name)
-	assert.True(t, sg.GloballyEnabled.Running)
-	assert.Len(t, sg.Rules, 2)
+	assert.NotNil(t, securityGroup)
+	assert.Equal(t, "sg-guid", securityGroup.GUID)
+	assert.Equal(t, "my-security-group", securityGroup.Name)
+	assert.True(t, securityGroup.GloballyEnabled.Running)
+	assert.Len(t, securityGroup.Rules, 2)
 }
 
 func TestSecurityGroupsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups/sg-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups/sg-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		ports := "443,80,8080"
-		sg := capi.SecurityGroup{
+		securityGroup := capi.SecurityGroup{
 			Resource: capi.Resource{
 				GUID:      "sg-guid",
 				CreatedAt: now,
@@ -131,31 +138,34 @@ func TestSecurityGroupsClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(sg)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(securityGroup)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
-	sg, err := securityGroups.Get(context.Background(), "sg-guid")
+	securityGroup, err := securityGroups.Get(context.Background(), "sg-guid")
 	require.NoError(t, err)
-	assert.NotNil(t, sg)
-	assert.Equal(t, "sg-guid", sg.GUID)
-	assert.Equal(t, "my-security-group", sg.Name)
-	assert.True(t, sg.GloballyEnabled.Running)
-	assert.False(t, sg.GloballyEnabled.Staging)
-	assert.Len(t, sg.Rules, 1)
-	assert.Equal(t, "tcp", sg.Rules[0].Protocol)
+	assert.NotNil(t, securityGroup)
+	assert.Equal(t, "sg-guid", securityGroup.GUID)
+	assert.Equal(t, "my-security-group", securityGroup.Name)
+	assert.True(t, securityGroup.GloballyEnabled.Running)
+	assert.False(t, securityGroup.GloballyEnabled.Staging)
+	assert.Len(t, securityGroup.Rules, 1)
+	assert.Equal(t, "tcp", securityGroup.Rules[0].Protocol)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestSecurityGroupsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "sg1,sg2", r.URL.Query().Get("names"))
-		assert.Equal(t, "true", r.URL.Query().Get("globally_enabled_running"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "sg1,sg2", request.URL.Query().Get("names"))
+		assert.Equal(t, "true", request.URL.Query().Get("globally_enabled_running"))
 
 		now := time.Now()
 		response := capi.ListResponse[capi.SecurityGroup]{
@@ -195,13 +205,13 @@ func TestSecurityGroupsClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	params := &capi.QueryParams{
 		Filters: map[string][]string{
@@ -219,40 +229,44 @@ func TestSecurityGroupsClient_List(t *testing.T) {
 	assert.Equal(t, "sg2", list.Resources[1].Name)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestSecurityGroupsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups/sg-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
 
-		var request capi.SecurityGroupUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups/sg-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
-		assert.NotNil(t, request.Name)
-		assert.Equal(t, "updated-sg", *request.Name)
-		assert.NotNil(t, request.GloballyEnabled)
-		assert.False(t, request.GloballyEnabled.Running)
-		assert.True(t, request.GloballyEnabled.Staging)
+		var requestBody capi.SecurityGroupUpdateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.NotNil(t, requestBody.Name)
+		assert.Equal(t, "my-security-group", requestBody.Name)
+		assert.NotNil(t, requestBody.GloballyEnabled)
+		assert.False(t, requestBody.GloballyEnabled.Running)
+		assert.True(t, requestBody.GloballyEnabled.Staging)
 
 		now := time.Now()
-		sg := capi.SecurityGroup{
+		securityGroup := capi.SecurityGroup{
 			Resource: capi.Resource{
 				GUID:      "sg-guid",
 				CreatedAt: now,
 				UpdatedAt: now,
 			},
-			Name:            *request.Name,
-			GloballyEnabled: *request.GloballyEnabled,
-			Rules:           request.Rules,
+			Name:            *requestBody.Name,
+			GloballyEnabled: *requestBody.GloballyEnabled,
+			Rules:           requestBody.Rules,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(sg)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(securityGroup)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	name := "updated-sg"
 	ports := "443"
@@ -271,19 +285,21 @@ func TestSecurityGroupsClient_Update(t *testing.T) {
 		},
 	}
 
-	sg, err := securityGroups.Update(context.Background(), "sg-guid", request)
+	securityGroup, err := securityGroups.Update(context.Background(), "sg-guid", request)
 	require.NoError(t, err)
-	assert.NotNil(t, sg)
-	assert.Equal(t, "sg-guid", sg.GUID)
-	assert.Equal(t, "updated-sg", sg.Name)
-	assert.False(t, sg.GloballyEnabled.Running)
-	assert.True(t, sg.GloballyEnabled.Staging)
+	assert.NotNil(t, securityGroup)
+	assert.Equal(t, "sg-guid", securityGroup.GUID)
+	assert.Equal(t, "updated-sg", securityGroup.Name)
+	assert.False(t, securityGroup.GloballyEnabled.Running)
+	assert.True(t, securityGroup.GloballyEnabled.Staging)
 }
 
 func TestSecurityGroupsClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups/sg-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups/sg-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -293,14 +309,14 @@ func TestSecurityGroupsClient_Delete(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	job, err := securityGroups.Delete(context.Background(), "sg-guid")
 	require.NoError(t, err)
@@ -310,27 +326,30 @@ func TestSecurityGroupsClient_Delete(t *testing.T) {
 }
 
 func TestSecurityGroupsClient_BindRunningSpaces(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/running_spaces", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		var request capi.SecurityGroupBindRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/running_spaces", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Len(t, request.Data, 2)
-		assert.Equal(t, "space-guid-1", request.Data[0].GUID)
-		assert.Equal(t, "space-guid-2", request.Data[1].GUID)
+		var requestBody capi.SecurityGroupBindRequest
 
-		response := capi.ToManyRelationship(request)
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		assert.Len(t, requestBody.Data, 2)
+		assert.Equal(t, "space-guid-1", requestBody.Data[0].GUID)
+		assert.Equal(t, "space-guid-2", requestBody.Data[1].GUID)
+
+		response := capi.ToManyRelationship(requestBody)
+
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	relationship, err := securityGroups.BindRunningSpaces(context.Background(), "sg-guid", []string{"space-guid-1", "space-guid-2"})
 	require.NoError(t, err)
@@ -339,42 +358,47 @@ func TestSecurityGroupsClient_BindRunningSpaces(t *testing.T) {
 }
 
 func TestSecurityGroupsClient_UnbindRunningSpace(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/running_spaces/space-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/running_spaces/space-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	err := securityGroups.UnbindRunningSpace(context.Background(), "sg-guid", "space-guid")
 	require.NoError(t, err)
 }
 
 func TestSecurityGroupsClient_BindStagingSpaces(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/staging_spaces", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		var request capi.SecurityGroupBindRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/staging_spaces", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
-		assert.Len(t, request.Data, 1)
-		assert.Equal(t, "space-guid-1", request.Data[0].GUID)
+		var requestBody capi.SecurityGroupBindRequest
 
-		response := capi.ToManyRelationship(request)
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		assert.Len(t, requestBody.Data, 1)
+		assert.Equal(t, "space-guid-1", requestBody.Data[0].GUID)
+
+		response := capi.ToManyRelationship(requestBody)
+
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	relationship, err := securityGroups.BindStagingSpaces(context.Background(), "sg-guid", []string{"space-guid-1"})
 	require.NoError(t, err)
@@ -384,16 +408,18 @@ func TestSecurityGroupsClient_BindStagingSpaces(t *testing.T) {
 }
 
 func TestSecurityGroupsClient_UnbindStagingSpace(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/staging_spaces/space-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/security_groups/sg-guid/relationships/staging_spaces/space-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	securityGroups := NewSecurityGroupsClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	securityGroups := NewSecurityGroupsClient(httpClient)
 
 	err := securityGroups.UnbindStagingSpace(context.Background(), "sg-guid", "space-guid")
 	require.NoError(t, err)

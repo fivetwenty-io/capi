@@ -1,13 +1,16 @@
-package commands
+package commands_test
 
 import (
 	"testing"
 
+	"github.com/fivetwenty-io/capi/v3/cmd/capi/commands"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewOrgQuotasCommand(t *testing.T) {
-	cmd := NewOrgQuotasCommand()
+	t.Parallel()
+
+	cmd := commands.NewOrgQuotasCommand()
 	assert.Equal(t, "org-quotas", cmd.Use)
 	assert.Equal(t, []string{"organization-quotas", "org-quota", "quotas"}, cmd.Aliases)
 	assert.Equal(t, "Manage organization quotas", cmd.Short)
@@ -17,7 +20,7 @@ func TestNewOrgQuotasCommand(t *testing.T) {
 	subcommands := cmd.Commands()
 	assert.Len(t, subcommands, 6)
 
-	var commandNames []string
+	commandNames := make([]string, 0, len(subcommands))
 	for _, subcmd := range subcommands {
 		commandNames = append(commandNames, subcmd.Name())
 	}
@@ -31,7 +34,10 @@ func TestNewOrgQuotasCommand(t *testing.T) {
 }
 
 func TestOrgQuotasListCommand(t *testing.T) {
-	cmd := newOrgQuotasListCommand()
+	t.Parallel()
+
+	root := commands.NewOrgQuotasCommand()
+	cmd := findSubcommand(root, "list")
 	assert.Equal(t, "list", cmd.Use)
 	assert.Equal(t, "List organization quotas", cmd.Short)
 	assert.Equal(t, "List all organization quotas", cmd.Long)
@@ -50,7 +56,10 @@ func TestOrgQuotasListCommand(t *testing.T) {
 }
 
 func TestOrgQuotasGetCommand(t *testing.T) {
-	cmd := newOrgQuotasGetCommand()
+	t.Parallel()
+
+	root := commands.NewOrgQuotasCommand()
+	cmd := findSubcommand(root, "get")
 	assert.Equal(t, "get QUOTA_NAME_OR_GUID", cmd.Use)
 	assert.Equal(t, "Get organization quota details", cmd.Short)
 	assert.Equal(t, "Display detailed information about a specific organization quota", cmd.Long)
@@ -59,7 +68,10 @@ func TestOrgQuotasGetCommand(t *testing.T) {
 }
 
 func TestOrgQuotasCreateCommand(t *testing.T) {
-	cmd := newOrgQuotasCreateCommand()
+	t.Parallel()
+
+	root := commands.NewOrgQuotasCommand()
+	cmd := findSubcommand(root, "create")
 	assert.Equal(t, "create", cmd.Use)
 	assert.Equal(t, "Create a new organization quota", cmd.Short)
 	assert.Equal(t, "Create a new Cloud Foundry organization quota", cmd.Long)
@@ -83,7 +95,10 @@ func TestOrgQuotasCreateCommand(t *testing.T) {
 }
 
 func TestOrgQuotasUpdateCommand(t *testing.T) {
-	cmd := newOrgQuotasUpdateCommand()
+	t.Parallel()
+
+	root := commands.NewOrgQuotasCommand()
+	cmd := findSubcommand(root, "update")
 	assert.Equal(t, "update QUOTA_NAME_OR_GUID", cmd.Use)
 	assert.Equal(t, "Update an organization quota", cmd.Short)
 	assert.Equal(t, "Update an existing Cloud Foundry organization quota", cmd.Long)
@@ -104,7 +119,10 @@ func TestOrgQuotasUpdateCommand(t *testing.T) {
 }
 
 func TestOrgQuotasDeleteCommand(t *testing.T) {
-	cmd := newOrgQuotasDeleteCommand()
+	t.Parallel()
+
+	root := commands.NewOrgQuotasCommand()
+	cmd := findSubcommand(root, "delete")
 	assert.Equal(t, "delete QUOTA_NAME_OR_GUID", cmd.Use)
 	assert.Equal(t, "Delete an organization quota", cmd.Short)
 	assert.Equal(t, "Delete a Cloud Foundry organization quota", cmd.Long)
@@ -119,7 +137,10 @@ func TestOrgQuotasDeleteCommand(t *testing.T) {
 }
 
 func TestOrgQuotasApplyCommand(t *testing.T) {
-	cmd := newOrgQuotasApplyCommand()
+	t.Parallel()
+
+	root := commands.NewOrgQuotasCommand()
+	cmd := findSubcommand(root, "apply")
 	assert.Equal(t, "apply QUOTA_NAME_OR_GUID ORG_NAME_OR_GUID...", cmd.Use)
 	assert.Equal(t, "Apply quota to organizations", cmd.Short)
 	assert.Equal(t, "Apply an organization quota to one or more organizations", cmd.Long)

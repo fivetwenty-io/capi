@@ -52,7 +52,7 @@
 //
 // # Errors
 //
-// API errors are represented by APIError and ErrorResponse. Helpers such as
+// API errors are represented by APIError and ResponseError. Helpers such as
 // IsNotFound, IsUnauthorized, and IsForbidden make it easy to branch on common
 // CF error cases.
 //

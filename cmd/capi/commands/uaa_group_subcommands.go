@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUAAGroupCommand creates the group sub-command group
+// NewUAAGroupCommand creates the group sub-command group.
 func NewUAAGroupCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "group",
@@ -52,47 +52,55 @@ This command group provides comprehensive group management capabilities includin
 func createGroupCreateCommand() *cobra.Command {
 	cmd := createUsersCreateGroupCommand()
 	cmd.Use = "create <name>"
+
 	return cmd
 }
 
 func createGroupGetCommand() *cobra.Command {
 	cmd := createUsersGetGroupCommand()
 	cmd.Use = "get <name>"
+
 	return cmd
 }
 
 func createGroupListCommand() *cobra.Command {
 	cmd := createUsersListGroupsCommand()
 	cmd.Use = "list"
+
 	return cmd
 }
 
 func createGroupAddMemberCommand() *cobra.Command {
 	cmd := createUsersAddMemberCommand()
 	cmd.Use = "add-member <group> <member>"
+
 	return cmd
 }
 
 func createGroupRemoveMemberCommand() *cobra.Command {
 	cmd := createUsersRemoveMemberCommand()
 	cmd.Use = "remove-member <group> <member>"
+
 	return cmd
 }
 
 func createGroupMapCommand() *cobra.Command {
 	cmd := createUsersMapGroupCommand()
 	cmd.Use = "map"
+
 	return cmd
 }
 
 func createGroupUnmapCommand() *cobra.Command {
 	cmd := createUsersUnmapGroupCommand()
 	cmd.Use = "unmap"
+
 	return cmd
 }
 
 func createGroupListMappingsCommand() *cobra.Command {
 	cmd := createUsersListGroupMappingsCommand()
 	cmd.Use = "list-mappings"
+
 	return cmd
 }

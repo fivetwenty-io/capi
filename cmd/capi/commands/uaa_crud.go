@@ -3,12 +3,14 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/cloudfoundry-community/go-uaa"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -16,10 +18,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// createUsersCreateUserCommand creates the create user command
+// createUsersCreateUserCommand creates the create user command.
 func createUsersCreateUserCommand() *cobra.Command {
-	var email, password, givenName, familyName, phoneNumber, origin string
-	var active, verified bool
+	var (
+		email, password, givenName, familyName, phoneNumber, origin string
+		active, verified                                            bool
+	)
 
 	cmd := &cobra.Command{
 		Use:     "create-user <username>",
@@ -46,114 +50,7 @@ prompted for required information.`,
   capi uaa create-user ldap.user --email user@company.com --origin ldap`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-			username := args[0]
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				err := NewEnhancedError("create user", fmt.Errorf("no UAA endpoint configured"))
-				_ = err.AddSuggestion("Run 'capi uaa target <url>' to set UAA endpoint")
-				return err
-			}
-
-			// Create UAA client with progress indicator
-			var uaaClient *UAAClientWrapper
-			err := WrapWithProgress("Connecting to UAA", func() error {
-				var err error
-				uaaClient, err = NewUAAClient(config)
-				return err
-			})
-			if err != nil {
-				return CreateCommonUAAError("create user", err, config.UAAEndpoint)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return CreateCommonUAAError("create user", fmt.Errorf("not authenticated"), config.UAAEndpoint)
-			}
-
-			// Prompt for required fields if not provided
-			if email == "" {
-				fmt.Print("Email: ")
-				_, _ = fmt.Scanln(&email)
-			}
-			if password == "" {
-				fmt.Print("Password: ")
-				passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
-				if err != nil {
-					return fmt.Errorf("failed to read password: %w", err)
-				}
-				password = string(passwordBytes)
-				fmt.Println() // Add newline after password input
-			}
-
-			// Build user object
-			user := uaa.User{
-				Username: username,
-				Password: password,
-				Origin:   origin,
-				Emails: []uaa.Email{
-					{
-						Value:   email,
-						Primary: &[]bool{true}[0], // Pointer to true
-					},
-				},
-				Active:   &active,
-				Verified: &verified,
-			}
-
-			// Add name if provided
-			if givenName != "" || familyName != "" {
-				user.Name = &uaa.UserName{
-					GivenName:  givenName,
-					FamilyName: familyName,
-				}
-			}
-
-			// Add phone number if provided
-			if phoneNumber != "" {
-				user.PhoneNumbers = []uaa.PhoneNumber{
-					{
-						Value: phoneNumber,
-					},
-				}
-			}
-
-			// Create user with progress indicator and performance tracking
-			var createdUser *uaa.User
-			err = WrapWithProgress(fmt.Sprintf("Creating user '%s'", username), func() error {
-				return WithPerformanceTracking("create-user", func() error {
-					var createErr error
-					createdUser, createErr = uaaClient.Client().CreateUser(user)
-					if createErr == nil {
-						// Invalidate cache for user lookups
-						InvalidateUserCache(username)
-					}
-					return createErr
-				})
-			})
-			if err != nil {
-				enhancedErr := NewEnhancedError("create user", err)
-				_ = enhancedErr.AddContext("UAA Endpoint", config.UAAEndpoint)
-				_ = enhancedErr.AddContext("Username", username)
-				_ = enhancedErr.AddContext("Email", email)
-				_ = enhancedErr.AddSuggestion("Verify that the username is unique")
-				_ = enhancedErr.AddSuggestion("Check that all required fields are provided")
-				_ = enhancedErr.AddSuggestion("Ensure your client has 'scim.write' authority")
-				return enhancedErr
-			}
-
-			// Display created user
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(createdUser)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(createdUser)
-			default:
-				return displayUserTable(createdUser)
-			}
+			return executeCreateUserCommand(args[0], email, password, givenName, familyName, phoneNumber, origin, active, verified)
 		},
 	}
 
@@ -169,7 +66,164 @@ prompted for required information.`,
 	return cmd
 }
 
-// createUsersGetUserCommand creates the get user command
+func executeCreateUserCommand(username, email, password, givenName, familyName, phoneNumber, origin string, active, verified bool) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		err := NewEnhancedError("create user", constants.ErrNoUAAConfigured)
+		_ = err.AddSuggestion("Run 'capi uaa target <url>' to set UAA endpoint")
+
+		return err
+	}
+
+	// Create UAA client with progress indicator
+	var uaaClient *UAAClientWrapper
+
+	err := WrapWithProgress("Connecting to UAA", func() error {
+		var err error
+
+		uaaClient, err = NewUAAClient(config)
+
+		return err
+	})
+	if err != nil {
+		return CreateCommonUAAError("create user", err, config.UAAEndpoint)
+	}
+
+	if !uaaClient.IsAuthenticated() {
+		return CreateCommonUAAError("create user", constants.ErrNotAuthenticated, config.UAAEndpoint)
+	}
+
+	// Prompt for required fields if not provided
+	email, password, err = promptForUserInput(email, password)
+	if err != nil {
+		return err
+	}
+
+	// Build user object
+	user := buildUserFromInput(username, email, password, givenName, familyName, phoneNumber, origin, active, verified)
+
+	// Create user with progress indicator and performance tracking
+	var createdUser *uaa.User
+
+	err = WrapWithProgress(fmt.Sprintf("Creating user '%s'", username), func() error {
+		return WithPerformanceTracking("create-user", func() error {
+			var createErr error
+
+			createdUser, createErr = uaaClient.Client().CreateUser(user)
+			if createErr == nil {
+				// Invalidate cache for user lookups
+				InvalidateUserCache(username)
+			}
+
+			if createErr != nil {
+				return fmt.Errorf("failed to create user: %w", createErr)
+			}
+
+			return nil
+		})
+	})
+	if err != nil {
+		enhancedErr := NewEnhancedError("create user", err)
+		_ = enhancedErr.AddContext("UAA Endpoint", config.UAAEndpoint)
+		_ = enhancedErr.AddContext("Username", username)
+		_ = enhancedErr.AddContext("Email", email)
+		_ = enhancedErr.AddSuggestion("Verify that the username is unique")
+		_ = enhancedErr.AddSuggestion("Check that all required fields are provided")
+		_ = enhancedErr.AddSuggestion("Ensure your client has 'scim.write' authority")
+
+		return enhancedErr
+	}
+
+	return outputCreatedUser(createdUser)
+}
+
+func promptForUserInput(email, password string) (string, string, error) {
+	if email == "" {
+		log.Print("Email: ")
+
+		_, _ = fmt.Scanln(&email)
+	}
+
+	if password == "" {
+		log.Print("Password: ")
+
+		passwordBytes, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to read password: %w", err)
+		}
+
+		password = string(passwordBytes)
+
+		_, _ = os.Stdout.WriteString("\n") // Add newline after password input
+	}
+
+	return email, password, nil
+}
+
+func buildUserFromInput(username, email, password, givenName, familyName, phoneNumber, origin string, active, verified bool) uaa.User {
+	user := uaa.User{
+		Username: username,
+		Password: password,
+		Origin:   origin,
+		Emails: []uaa.Email{
+			{
+				Value:   email,
+				Primary: &[]bool{true}[0], // Pointer to true
+			},
+		},
+		Active:   &active,
+		Verified: &verified,
+	}
+
+	// Add name if provided
+	if givenName != "" || familyName != "" {
+		user.Name = &uaa.UserName{
+			GivenName:  givenName,
+			FamilyName: familyName,
+		}
+	}
+
+	// Add phone number if provided
+	if phoneNumber != "" {
+		user.PhoneNumbers = []uaa.PhoneNumber{
+			{
+				Value: phoneNumber,
+			},
+		}
+	}
+
+	return user
+}
+
+func outputCreatedUser(createdUser *uaa.User) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(createdUser)
+		if err != nil {
+			return fmt.Errorf("encoding created user to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(createdUser)
+		if err != nil {
+			return fmt.Errorf("encoding created user to YAML: %w", err)
+		}
+
+		return nil
+	default:
+		return displayUserTable(createdUser)
+	}
+}
+
+// createUsersGetUserCommand creates the get user command.
 func createUsersGetUserCommand() *cobra.Command {
 	var attributes string
 
@@ -195,7 +249,7 @@ user attributes including groups, metadata, and authentication information.`,
 			username := args[0]
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -205,7 +259,7 @@ user attributes including groups, metadata, and authentication information.`,
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Get user by username with caching
@@ -213,6 +267,7 @@ user attributes including groups, metadata, and authentication information.`,
 			err = WithPerformanceTracking("get-user", func() error {
 				var getUserErr error
 				user, getUserErr = CachedUserLookup(uaaClient, username)
+
 				return getUserErr
 			})
 			if err != nil {
@@ -222,13 +277,25 @@ user attributes including groups, metadata, and authentication information.`,
 			// Display user
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(user)
-			case "yaml":
+
+				err := encoder.Encode(user)
+				if err != nil {
+					return fmt.Errorf("encoding user to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(user)
+
+				err := encoder.Encode(user)
+				if err != nil {
+					return fmt.Errorf("encoding user to YAML: %w", err)
+				}
+
+				return nil
 			default:
 				return displayUserTable(user)
 			}
@@ -240,12 +307,14 @@ user attributes including groups, metadata, and authentication information.`,
 	return cmd
 }
 
-// createUsersListUsersCommand creates the list users command
+// createUsersListUsersCommand creates the list users command.
 func createUsersListUsersCommand() *cobra.Command {
-	var filter, sortBy, attributes string
-	var sortOrder string
-	var count, startIndex int
-	var all bool
+	var (
+		filter, sortBy, attributes string
+		sortOrder                  string
+		count, startIndex          int
+		all                        bool
+	)
 
 	cmd := &cobra.Command{
 		Use:     "list-users",
@@ -274,62 +343,7 @@ SCIM filters allow complex queries on user attributes. Examples:
   # Get all users (auto-pagination)
   capi uaa list-users --all`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Convert sort order string to enum
-			var uaaSortOrder uaa.SortOrder
-			switch strings.ToLower(sortOrder) {
-			case "descending", "desc":
-				uaaSortOrder = "descending"
-			default:
-				uaaSortOrder = uaa.SortAscending
-			}
-
-			var users []uaa.User
-			err = WithPerformanceTracking("list-users", func() error {
-				var listErr error
-				if all {
-					// Use optimized pagination for better performance
-					pagination := NewOptimizedPagination(uaaClient)
-					users, listErr = pagination.GetAllUsers(filter, sortBy, attributes, uaaSortOrder)
-				} else {
-					// Get users with pagination
-					users, _, listErr = uaaClient.Client().ListUsers(filter, sortBy, attributes, uaaSortOrder, startIndex, count)
-				}
-				return listErr
-			})
-
-			if err != nil {
-				return fmt.Errorf("failed to list users: %w", err)
-			}
-
-			// Display users
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(users)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(users)
-			default:
-				return displayUsersTable(users)
-			}
+			return executeListUsersCommand(filter, sortBy, attributes, sortOrder, count, startIndex, all)
 		},
 	}
 
@@ -337,17 +351,108 @@ SCIM filters allow complex queries on user attributes. Examples:
 	cmd.Flags().StringVar(&sortBy, "sort-by", "", "Attribute to sort by")
 	cmd.Flags().StringVar(&sortOrder, "sort-order", "ascending", "Sort order (ascending, descending)")
 	cmd.Flags().StringVar(&attributes, "attributes", "", "Comma-separated list of attributes to return")
-	cmd.Flags().IntVar(&count, "count", 50, "Number of results per page")
+	cmd.Flags().IntVar(&count, "count", constants.StandardPageSize, "Number of results per page")
 	cmd.Flags().IntVar(&startIndex, "start-index", 1, "Starting index for pagination")
 	cmd.Flags().BoolVar(&all, "all", false, "Fetch all users across all pages")
 
 	return cmd
 }
 
-// createUsersUpdateUserCommand creates the update user command
+func executeListUsersCommand(filter, sortBy, attributes, sortOrder string, count, startIndex int, all bool) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	uaaClient, err := NewUAAClient(config)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	if !uaaClient.IsAuthenticated() {
+		return constants.ErrNotAuthenticated
+	}
+
+	uaaSortOrder := parseSortOrder(sortOrder)
+
+	users, err := fetchUsers(uaaClient, filter, sortBy, attributes, uaaSortOrder, count, startIndex, all)
+	if err != nil {
+		return err
+	}
+
+	return outputUsersList(users)
+}
+
+func parseSortOrder(sortOrder string) uaa.SortOrder {
+	switch strings.ToLower(sortOrder) {
+	case Descending, "desc":
+		return Descending
+	default:
+		return uaa.SortAscending
+	}
+}
+
+func fetchUsers(uaaClient *UAAClientWrapper, filter, sortBy, attributes string, uaaSortOrder uaa.SortOrder, count, startIndex int, all bool) ([]uaa.User, error) {
+	var users []uaa.User
+
+	err := WithPerformanceTracking("list-users", func() error {
+		var listErr error
+
+		if all {
+			pagination := NewOptimizedPagination(uaaClient)
+			users, listErr = pagination.GetAllUsers(filter, sortBy, attributes, uaaSortOrder)
+		} else {
+			users, _, listErr = uaaClient.Client().ListUsers(filter, sortBy, attributes, uaaSortOrder, startIndex, count)
+		}
+
+		if listErr != nil {
+			return fmt.Errorf("failed to list users: %w", listErr)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+
+	return users, nil
+}
+
+func outputUsersList(users []uaa.User) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(users)
+		if err != nil {
+			return fmt.Errorf("encoding users to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(users)
+		if err != nil {
+			return fmt.Errorf("encoding users to YAML: %w", err)
+		}
+
+		return nil
+	default:
+		return displayUsersTable(users)
+	}
+}
+
+// createUsersUpdateUserCommand creates the update user command.
 func createUsersUpdateUserCommand() *cobra.Command {
-	var email, givenName, familyName, phoneNumber string
-	var active, verified *bool
+	var (
+		email, givenName, familyName, phoneNumber string
+		activeStr, verifiedStr                    string
+		active, verified                          *bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "update-user <username>",
@@ -357,87 +462,31 @@ func createUsersUpdateUserCommand() *cobra.Command {
 Only the specified attributes will be updated. Unspecified attributes
 will remain unchanged.`,
 		Args: cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return parseUpdateUserBoolFlags(activeStr, verifiedStr, &active, &verified)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := loadConfig()
 			username := args[0]
 
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
+			uaaClient, err := getAuthenticatedUAAClient(config)
 			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
+				return err
 			}
 
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Get existing user
 			existingUser, err := uaaClient.Client().GetUserByUsername(username, "", "")
 			if err != nil {
 				return fmt.Errorf("failed to get existing user: %w", err)
 			}
 
-			// Update specified fields
-			if email != "" {
-				existingUser.Emails = []uaa.Email{
-					{
-						Value:   email,
-						Primary: &[]bool{true}[0],
-					},
-				}
-			}
+			applyUserUpdates(existingUser, email, givenName, familyName, phoneNumber, active, verified)
 
-			if givenName != "" || familyName != "" {
-				if existingUser.Name == nil {
-					existingUser.Name = &uaa.UserName{}
-				}
-				if givenName != "" {
-					existingUser.Name.GivenName = givenName
-				}
-				if familyName != "" {
-					existingUser.Name.FamilyName = familyName
-				}
-			}
-
-			if phoneNumber != "" {
-				existingUser.PhoneNumbers = []uaa.PhoneNumber{
-					{
-						Value: phoneNumber,
-					},
-				}
-			}
-
-			if active != nil {
-				existingUser.Active = active
-			}
-
-			if verified != nil {
-				existingUser.Verified = verified
-			}
-
-			// Update user
 			updatedUser, err := uaaClient.Client().UpdateUser(*existingUser)
 			if err != nil {
 				return fmt.Errorf("failed to update user: %w", err)
 			}
 
-			// Display updated user
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(updatedUser)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(updatedUser)
-			default:
-				return displayUserTable(updatedUser)
-			}
+			return outputUser(updatedUser)
 		},
 	}
 
@@ -445,131 +494,146 @@ will remain unchanged.`,
 	cmd.Flags().StringVar(&givenName, "given-name", "", "User's given name (first name)")
 	cmd.Flags().StringVar(&familyName, "family-name", "", "User's family name (last name)")
 	cmd.Flags().StringVar(&phoneNumber, "phone-number", "", "User's phone number")
-
-	// Use string flags for booleans to distinguish between false and unset
-	var activeStr, verifiedStr string
 	cmd.Flags().StringVar(&activeStr, "active", "", "User is active (true/false)")
 	cmd.Flags().StringVar(&verifiedStr, "verified", "", "User is verified (true/false)")
-
-	// Pre-run to parse boolean flags
-	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		if activeStr != "" {
-			val, err := strconv.ParseBool(activeStr)
-			if err != nil {
-				return fmt.Errorf("invalid value for --active: %s", activeStr)
-			}
-			active = &val
-		}
-		if verifiedStr != "" {
-			val, err := strconv.ParseBool(verifiedStr)
-			if err != nil {
-				return fmt.Errorf("invalid value for --verified: %s", verifiedStr)
-			}
-			verified = &val
-		}
-		return nil
-	}
 
 	return cmd
 }
 
-// createUsersActivateUserCommand creates the activate user command
+// parseUpdateUserBoolFlags parses the active and verified string flags into boolean pointers.
+func parseUpdateUserBoolFlags(activeStr, verifiedStr string, active, verified **bool) error {
+	if activeStr != "" {
+		val, err := strconv.ParseBool(activeStr)
+		if err != nil {
+			return fmt.Errorf("%w: %s", constants.ErrInvalidActive, activeStr)
+		}
+
+		*active = &val
+	}
+
+	if verifiedStr != "" {
+		val, err := strconv.ParseBool(verifiedStr)
+		if err != nil {
+			return fmt.Errorf("%w: %s", constants.ErrInvalidVerified, verifiedStr)
+		}
+
+		*verified = &val
+	}
+
+	return nil
+}
+
+// applyUserUpdates applies the specified updates to the existing user object.
+func applyUserUpdates(user *uaa.User, email, givenName, familyName, phoneNumber string, active, verified *bool) {
+	if email != "" {
+		user.Emails = []uaa.Email{
+			{
+				Value:   email,
+				Primary: &[]bool{true}[0],
+			},
+		}
+	}
+
+	if givenName != "" || familyName != "" {
+		if user.Name == nil {
+			user.Name = &uaa.UserName{}
+		}
+
+		if givenName != "" {
+			user.Name.GivenName = givenName
+		}
+
+		if familyName != "" {
+			user.Name.FamilyName = familyName
+		}
+	}
+
+	if phoneNumber != "" {
+		user.PhoneNumbers = []uaa.PhoneNumber{
+			{
+				Value: phoneNumber,
+			},
+		}
+	}
+
+	if active != nil {
+		user.Active = active
+	}
+
+	if verified != nil {
+		user.Verified = verified
+	}
+}
+
+// getAuthenticatedUAAClient creates and validates a UAA client.
+func getAuthenticatedUAAClient(config *Config) (*UAAClientWrapper, error) {
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return nil, constants.ErrNoUAAConfigured
+	}
+
+	uaaClient, err := NewUAAClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	if !uaaClient.IsAuthenticated() {
+		return nil, constants.ErrNotAuthenticated
+	}
+
+	return uaaClient, nil
+}
+
+// outputUser formats and displays user information based on the output format.
+func outputUser(user *uaa.User) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(user)
+		if err != nil {
+			return fmt.Errorf("encoding updated user to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(user)
+		if err != nil {
+			return fmt.Errorf("encoding updated user to YAML: %w", err)
+		}
+
+		return nil
+	default:
+		return displayUserTable(user)
+	}
+}
+
+// createUsersActivateUserCommand creates the activate user command.
 func createUsersActivateUserCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "activate-user <username>",
-		Short: "Activate a user account",
-		Long:  "Activate a user account by username",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-			username := args[0]
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Get user to get ID and version
-			user, err := uaaClient.Client().GetUserByUsername(username, "", "")
-			if err != nil {
-				return fmt.Errorf("failed to get user: %w", err)
-			}
-
-			// Activate user (requires user ID and version)
-			version := 0
-			if user.Meta != nil {
-				version = user.Meta.Version
-			}
-
-			err = uaaClient.Client().ActivateUser(user.ID, version)
-			if err != nil {
-				return fmt.Errorf("failed to activate user: %w", err)
-			}
-
-			fmt.Printf("User '%s' has been activated\n", username)
-			return nil
-		},
-	}
+	return createUserActivationCommand(
+		"activate-user <username>",
+		"Activate a user account",
+		"Activate a user account by username",
+		true,
+		"User '%s' has been activated\n",
+	)
 }
 
-// createUsersDeactivateUserCommand creates the deactivate user command
+// createUsersDeactivateUserCommand creates the deactivate user command.
 func createUsersDeactivateUserCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "deactivate-user <username>",
-		Short: "Deactivate a user account",
-		Long:  "Deactivate a user account by username",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-			username := args[0]
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
-			}
-
-			// Create UAA client
-			uaaClient, err := NewUAAClient(config)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
-			}
-
-			// Get user to get ID and version
-			user, err := uaaClient.Client().GetUserByUsername(username, "", "")
-			if err != nil {
-				return fmt.Errorf("failed to get user: %w", err)
-			}
-
-			// Deactivate user (requires user ID and version)
-			version := 0
-			if user.Meta != nil {
-				version = user.Meta.Version
-			}
-
-			err = uaaClient.Client().DeactivateUser(user.ID, version)
-			if err != nil {
-				return fmt.Errorf("failed to deactivate user: %w", err)
-			}
-
-			fmt.Printf("User '%s' has been deactivated\n", username)
-			return nil
-		},
-	}
+	return createUserActivationCommand(
+		"deactivate-user <username>",
+		"Deactivate a user account",
+		"Deactivate a user account by username",
+		false,
+		"User '%s' has been deactivated\n",
+	)
 }
 
-// createUsersDeleteUserCommand creates the delete user command
+// createUsersDeleteUserCommand creates the delete user command.
 func createUsersDeleteUserCommand() *cobra.Command {
 	var force bool
 
@@ -589,7 +653,7 @@ func createUsersDeleteUserCommand() *cobra.Command {
 			username := args[0]
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			// Create UAA client
@@ -599,7 +663,7 @@ func createUsersDeleteUserCommand() *cobra.Command {
 			}
 
 			if !uaaClient.IsAuthenticated() {
-				return fmt.Errorf("not authenticated. Use a token command to authenticate first")
+				return constants.ErrNotAuthenticated
 			}
 
 			// Get user to get ID and display info
@@ -610,7 +674,8 @@ func createUsersDeleteUserCommand() *cobra.Command {
 
 			// Confirm deletion unless --force is used
 			if !ConfirmAction(fmt.Sprintf("Are you sure you want to delete user '%s' (ID: %s)?", username, user.ID), force) {
-				fmt.Println("User deletion cancelled")
+				_, _ = os.Stdout.WriteString("User deletion cancelled\n")
+
 				return nil
 			}
 
@@ -620,7 +685,8 @@ func createUsersDeleteUserCommand() *cobra.Command {
 				return fmt.Errorf("failed to delete user: %w", err)
 			}
 
-			fmt.Printf("User '%s' has been deleted\n", username)
+			_, _ = fmt.Fprintf(os.Stdout, "User '%s' has been deleted\n", username)
+
 			return nil
 		},
 	}
@@ -639,9 +705,11 @@ func displayUserTable(user *uaa.User) error {
 	if user.ID != "" {
 		_ = table.Append("ID", user.ID)
 	}
+
 	if user.Username != "" {
 		_ = table.Append("Username", user.Username)
 	}
+
 	if user.Origin != "" {
 		_ = table.Append("Origin", user.Origin)
 	}
@@ -651,6 +719,7 @@ func displayUserTable(user *uaa.User) error {
 		if user.Name.GivenName != "" {
 			_ = table.Append("Given Name", user.Name.GivenName)
 		}
+
 		if user.Name.FamilyName != "" {
 			_ = table.Append("Family Name", user.Name.FamilyName)
 		}
@@ -668,10 +737,11 @@ func displayUserTable(user *uaa.User) error {
 
 	// Display status
 	if user.Active != nil {
-		_ = table.Append("Active", fmt.Sprintf("%t", *user.Active))
+		_ = table.Append("Active", strconv.FormatBool(*user.Active))
 	}
+
 	if user.Verified != nil {
-		_ = table.Append("Verified", fmt.Sprintf("%t", *user.Verified))
+		_ = table.Append("Verified", strconv.FormatBool(*user.Verified))
 	}
 
 	// Display metadata
@@ -679,11 +749,13 @@ func displayUserTable(user *uaa.User) error {
 		if user.Meta.Created != "" {
 			_ = table.Append("Created", user.Meta.Created)
 		}
+
 		if user.Meta.LastModified != "" {
 			_ = table.Append("Last Modified", user.Meta.LastModified)
 		}
+
 		if user.Meta.Version > 0 {
-			_ = table.Append("Version", fmt.Sprintf("%d", user.Meta.Version))
+			_ = table.Append("Version", strconv.Itoa(user.Meta.Version))
 		}
 	}
 
@@ -693,6 +765,7 @@ func displayUserTable(user *uaa.User) error {
 	}
 
 	_ = table.Render()
+
 	return nil
 }
 
@@ -702,23 +775,29 @@ func displayUsersTable(users []uaa.User) error {
 
 	for _, user := range users {
 		username := user.Username
+
 		email := ""
 		if len(user.Emails) > 0 {
 			email = user.Emails[0].Value
 		}
+
 		givenName := ""
 		if user.Name != nil {
 			givenName = user.Name.GivenName
 		}
+
 		active := "unknown"
 		if user.Active != nil {
-			active = fmt.Sprintf("%t", *user.Active)
+			active = strconv.FormatBool(*user.Active)
 		}
+
 		verified := "unknown"
 		if user.Verified != nil {
-			verified = fmt.Sprintf("%t", *user.Verified)
+			verified = strconv.FormatBool(*user.Verified)
 		}
+
 		origin := user.Origin
+
 		created := ""
 		if user.Meta != nil && user.Meta.Created != "" {
 			created = user.Meta.Created
@@ -728,5 +807,6 @@ func displayUsersTable(users []uaa.User) error {
 	}
 
 	_ = table.Render()
+
 	return nil
 }

@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceOfferingsClient_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -52,7 +56,7 @@ func TestServiceOfferingsClient_Get(t *testing.T) {
 				Tags:             []string{"relational", "caching"},
 				Requires:         []string{},
 				Shareable:        true,
-				DocumentationURL: stringPtr("https://some-documentation-link.io"),
+				DocumentationURL: StringPtr("https://some-documentation-link.io"),
 				BrokerCatalog: capi.ServiceOfferingCatalog{
 					ID: "db730a8c-11e5-11ea-838a-0f4fff3b1cfb",
 					Metadata: map[string]interface{}{
@@ -100,30 +104,32 @@ func TestServiceOfferingsClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "GET", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			offering, err := client.ServiceOfferings().Get(context.Background(), tt.guid)
+			offering, err := client.ServiceOfferings().Get(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, offering)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, offering)
-				assert.Equal(t, tt.guid, offering.GUID)
+				assert.Equal(t, testCase.guid, offering.GUID)
 				assert.Equal(t, "my_service_offering", offering.Name)
 				assert.True(t, offering.Available)
 			}
@@ -131,19 +137,24 @@ func TestServiceOfferingsClient_Get(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceOfferingsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_offerings", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_offerings", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if names := query.Get("names"); names != "" {
 			assert.Equal(t, "offering1,offering2", names)
 		}
+
 		if brokerGuids := query.Get("service_broker_guids"); brokerGuids != "" {
 			assert.Equal(t, "broker-1,broker-2", brokerGuids)
 		}
+
 		if available := query.Get("available"); available != "" {
 			assert.Equal(t, "true", available)
 		}
@@ -214,13 +225,13 @@ func TestServiceOfferingsClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -249,7 +260,10 @@ func TestServiceOfferingsClient_List(t *testing.T) {
 	require.NotNil(t, result)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceOfferingsClient_Update(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -337,42 +351,48 @@ func TestServiceOfferingsClient_Update(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "PATCH", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "PATCH", request.Method)
 
 				var requestBody capi.ServiceOfferingUpdateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			offering, err := client.ServiceOfferings().Update(context.Background(), tt.guid, tt.request)
+			offering, err := client.ServiceOfferings().Update(context.Background(), testCase.guid, testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, offering)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, offering)
-				assert.Equal(t, tt.guid, offering.GUID)
+				assert.Equal(t, testCase.guid, offering.GUID)
 				assert.Equal(t, "my_service_offering", offering.Name)
 			}
 		})
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceOfferingsClient_Delete(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -425,30 +445,34 @@ func TestServiceOfferingsClient_Delete(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "DELETE", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-				if tt.response != nil {
-					w.Header().Set("Content-Type", "application/json")
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "DELETE", request.Method)
+
+				if testCase.response != nil {
+					writer.Header().Set("Content-Type", "application/json")
 				}
-				w.WriteHeader(tt.statusCode)
-				if tt.response != nil {
-					_ = json.NewEncoder(w).Encode(tt.response)
+
+				writer.WriteHeader(testCase.statusCode)
+
+				if testCase.response != nil {
+					_ = json.NewEncoder(writer).Encode(testCase.response)
 				}
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			err = client.ServiceOfferings().Delete(context.Background(), tt.guid)
+			err = client.ServiceOfferings().Delete(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 			} else {
 				require.NoError(t, err)
 			}

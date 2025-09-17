@@ -1,3 +1,4 @@
+//nolint:testpackage // Need access to internal types
 package commands
 
 import (
@@ -7,6 +8,8 @@ import (
 )
 
 func TestCreateUsersContextCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersContextCommand()
 	assert.Equal(t, "context", cmd.Use)
 	assert.Equal(t, "Display current UAA context", cmd.Short)
@@ -15,6 +18,8 @@ func TestCreateUsersContextCommand(t *testing.T) {
 }
 
 func TestCreateUsersTargetCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersTargetCommand()
 	assert.Equal(t, "target <url>", cmd.Use)
 	assert.Equal(t, "Set UAA endpoint URL", cmd.Short)
@@ -23,6 +28,8 @@ func TestCreateUsersTargetCommand(t *testing.T) {
 }
 
 func TestCreateUsersInfoCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersInfoCommand()
 	assert.Equal(t, "info", cmd.Use)
 	assert.Equal(t, "Display UAA server information", cmd.Short)
@@ -31,6 +38,8 @@ func TestCreateUsersInfoCommand(t *testing.T) {
 }
 
 func TestCreateUsersVersionCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersVersionCommand()
 	assert.Equal(t, "version", cmd.Use)
 	assert.Equal(t, "Display UAA server version", cmd.Short)

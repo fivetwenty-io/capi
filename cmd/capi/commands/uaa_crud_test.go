@@ -1,3 +1,4 @@
+//nolint:testpackage // Need access to internal types
 package commands
 
 import (
@@ -7,6 +8,8 @@ import (
 )
 
 func TestCreateUsersCreateUserCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersCreateUserCommand()
 	assert.Equal(t, "create-user <username>", cmd.Use)
 	assert.Equal(t, "Create a new user", cmd.Short)
@@ -25,6 +28,8 @@ func TestCreateUsersCreateUserCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetUserCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetUserCommand()
 	assert.Equal(t, "get-user <username>", cmd.Use)
 	assert.Equal(t, "Get user details", cmd.Short)
@@ -36,23 +41,13 @@ func TestCreateUsersGetUserCommand(t *testing.T) {
 }
 
 func TestCreateUsersListUsersCommand(t *testing.T) {
-	cmd := createUsersListUsersCommand()
-	assert.Equal(t, "list-users", cmd.Use)
-	assert.Equal(t, "List users", cmd.Short)
-	assert.NotNil(t, cmd.RunE)
-	assert.Contains(t, cmd.Long, "Search and list users")
-
-	// Check flags
-	assert.NotNil(t, cmd.Flags().Lookup("filter"))
-	assert.NotNil(t, cmd.Flags().Lookup("sort-by"))
-	assert.NotNil(t, cmd.Flags().Lookup("sort-order"))
-	assert.NotNil(t, cmd.Flags().Lookup("attributes"))
-	assert.NotNil(t, cmd.Flags().Lookup("count"))
-	assert.NotNil(t, cmd.Flags().Lookup("start-index"))
-	assert.NotNil(t, cmd.Flags().Lookup("all"))
+	t.Parallel()
+	testGenericListCommand(t, createUsersListUsersCommand(), "list-users", "List users", "Search and list users")
 }
 
 func TestCreateUsersUpdateUserCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersUpdateUserCommand()
 	assert.Equal(t, "update-user <username>", cmd.Use)
 	assert.Equal(t, "Update user attributes", cmd.Short)
@@ -69,6 +64,8 @@ func TestCreateUsersUpdateUserCommand(t *testing.T) {
 }
 
 func TestCreateUsersActivateUserCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersActivateUserCommand()
 	assert.Equal(t, "activate-user <username>", cmd.Use)
 	assert.Equal(t, "Activate a user account", cmd.Short)
@@ -77,6 +74,8 @@ func TestCreateUsersActivateUserCommand(t *testing.T) {
 }
 
 func TestCreateUsersDeactivateUserCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersDeactivateUserCommand()
 	assert.Equal(t, "deactivate-user <username>", cmd.Use)
 	assert.Equal(t, "Deactivate a user account", cmd.Short)
@@ -85,6 +84,8 @@ func TestCreateUsersDeactivateUserCommand(t *testing.T) {
 }
 
 func TestCreateUsersDeleteUserCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersDeleteUserCommand()
 	assert.Equal(t, "delete-user <username>", cmd.Use)
 	assert.Equal(t, "Delete a user", cmd.Short)

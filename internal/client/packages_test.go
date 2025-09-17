@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -12,10 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestPackagesClient_Create(t *testing.T) {
+	t.Parallel()
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		request      *capi.PackageCreateRequest
@@ -98,9 +103,9 @@ func TestPackagesClient_Create(t *testing.T) {
 					},
 				},
 				Data: &capi.PackageCreateData{
-					Image:    stringPtr("nginx:latest"),
-					Username: stringPtr("dockeruser"),
-					Password: stringPtr("dockerpass"),
+					Image:    StringPtr("nginx:latest"),
+					Username: StringPtr("dockeruser"),
+					Password: StringPtr("dockerpass"),
 				},
 			},
 			response: capi.Package{
@@ -112,8 +117,8 @@ func TestPackagesClient_Create(t *testing.T) {
 				Type:  "docker",
 				State: "READY",
 				Data: &capi.PackageData{
-					Image:    stringPtr("nginx:latest"),
-					Username: stringPtr("dockeruser"),
+					Image:    StringPtr("nginx:latest"),
+					Username: StringPtr("dockeruser"),
 					Password: nil, // Password is not returned
 				},
 			},
@@ -141,30 +146,33 @@ func TestPackagesClient_Create(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.PackageCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
+
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			pkg, err := client.Packages().Create(context.Background(), tt.request)
+			pkg, err := client.Packages().Create(context.Background(), testCase.request)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, pkg)
 			} else {
 				require.NoError(t, err)
@@ -176,7 +184,11 @@ func TestPackagesClient_Create(t *testing.T) {
 	}
 }
 
+//nolint:dupl,funlen // Acceptable duplication - each test validates different endpoints with different assertions
 func TestPackagesClient_Get(t *testing.T) {
+	t.Parallel()
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -202,7 +214,7 @@ func TestPackagesClient_Get(t *testing.T) {
 				Data: &capi.PackageData{
 					Checksum: &capi.PackageChecksum{
 						Type:  "sha256",
-						Value: stringPtr("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+						Value: StringPtr("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
 					},
 				},
 			},
@@ -227,46 +239,53 @@ func TestPackagesClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "GET", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			pkg, err := client.Packages().Get(context.Background(), tt.guid)
+			pkg, err := client.Packages().Get(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, pkg)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, pkg)
-				assert.Equal(t, tt.guid, pkg.GUID)
+				assert.Equal(t, testCase.guid, pkg.GUID)
 				assert.Equal(t, "READY", pkg.State)
 			}
 		})
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestPackagesClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/packages", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/packages", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if appGuids := query.Get("app_guids"); appGuids != "" {
 			assert.Equal(t, "app-1,app-2", appGuids)
 		}
+
 		if states := query.Get("states"); states != "" {
 			assert.Equal(t, "READY,FAILED", states)
 		}
@@ -302,13 +321,13 @@ func TestPackagesClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -333,13 +352,17 @@ func TestPackagesClient_List(t *testing.T) {
 }
 
 func TestPackagesClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/packages/test-package-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/packages/test-package-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody capi.PackageUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		response := capi.Package{
 			Resource: capi.Resource{
@@ -352,13 +375,13 @@ func TestPackagesClient_Update(t *testing.T) {
 			Metadata: requestBody.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.PackageUpdateRequest{
@@ -381,87 +404,66 @@ func TestPackagesClient_Update(t *testing.T) {
 }
 
 func TestPackagesClient_Delete(t *testing.T) {
-	tests := []struct {
-		name         string
-		guid         string
-		statusCode   int
-		expectedPath string
-		wantErr      bool
-		errMessage   string
-	}{
+	t.Parallel()
+	t.Parallel()
+
+	tests := []TestDeleteOperation{
 		{
-			name:         "successful delete",
-			guid:         "test-package-guid",
-			expectedPath: "/v3/packages/test-package-guid",
-			statusCode:   http.StatusAccepted,
-			wantErr:      false,
+			Name:         "successful delete",
+			GUID:         "test-package-guid",
+			ExpectedPath: "/v3/packages/test-package-guid",
+			StatusCode:   http.StatusAccepted,
+			WantErr:      false,
 		},
 		{
-			name:         "package not found",
-			guid:         "non-existent-guid",
-			expectedPath: "/v3/packages/non-existent-guid",
-			statusCode:   http.StatusNotFound,
-			wantErr:      true,
-			errMessage:   "CF-ResourceNotFound",
+			Name:         "package not found",
+			GUID:         "non-existent-guid",
+			ExpectedPath: "/v3/packages/non-existent-guid",
+			StatusCode:   http.StatusNotFound,
+			WantErr:      true,
+			ErrMessage:   "CF-ResourceNotFound",
+			Response: map[string]interface{}{
+				"errors": []map[string]interface{}{
+					{
+						"code":   10010,
+						"title":  "CF-ResourceNotFound",
+						"detail": "Package not found",
+					},
+				},
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "DELETE", r.Method)
+	RunDeleteTests(t, tests, func(serverURL string, ctx context.Context, guid string) error {
+		client, err := New(ctx, &capi.Config{APIEndpoint: serverURL})
+		require.NoError(t, err)
 
-				if tt.statusCode == http.StatusNotFound {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(tt.statusCode)
-					_ = json.NewEncoder(w).Encode(map[string]interface{}{
-						"errors": []map[string]interface{}{
-							{
-								"code":   10010,
-								"title":  "CF-ResourceNotFound",
-								"detail": "Package not found",
-							},
-						},
-					})
-				} else {
-					w.WriteHeader(tt.statusCode)
-				}
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			err = client.Packages().Delete(context.Background(), tt.guid)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+		return client.Packages().Delete(ctx, guid)
+	})
 }
 
 func TestPackagesClient_Upload(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/packages/test-package-guid/upload", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-		assert.Contains(t, r.Header.Get("Content-Type"), "multipart/form-data")
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/packages/test-package-guid/upload", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+		assert.Contains(t, request.Header.Get("Content-Type"), "multipart/form-data")
 
 		// Read the uploaded file
-		file, _, err := r.FormFile("bits")
-		require.NoError(t, err)
+		file, _, err := request.FormFile("bits")
+		assert.NoError(t, err)
+
 		defer func() {
-			if err := file.Close(); err != nil {
+			err := file.Close()
+			if err != nil {
 				t.Logf("Warning: failed to close file: %v", err)
 			}
 		}()
 
 		uploadedContent, err := io.ReadAll(file)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, []byte("test zip content"), uploadedContent)
 
 		response := capi.Package{
@@ -474,13 +476,13 @@ func TestPackagesClient_Upload(t *testing.T) {
 			State: "PROCESSING_UPLOAD",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	zipContent := []byte("test zip content")
@@ -492,38 +494,33 @@ func TestPackagesClient_Upload(t *testing.T) {
 }
 
 func TestPackagesClient_Download(t *testing.T) {
+	t.Parallel()
+
 	expectedContent := []byte("test package content")
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/packages/test-package-guid/download", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-
-		w.Header().Set("Content-Type", "application/zip")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(expectedContent)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
-
-	content, err := client.Packages().Download(context.Background(), "test-package-guid")
-	require.NoError(t, err)
-	assert.Equal(t, expectedContent, content)
+	RunDownloadTest(t, "package", "test-package-guid", "/v3/packages/test-package-guid/download", expectedContent,
+		func(client *Client) func(context.Context, string) ([]byte, error) {
+			return client.Packages().Download
+		})
 }
 
 func TestPackagesClient_Copy(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		expectedPath := "/v3/packages"
-		if r.URL.RawQuery != "" {
-			expectedPath = expectedPath + "?" + r.URL.RawQuery
+		if request.URL.RawQuery != "" {
+			expectedPath = expectedPath + "?" + request.URL.RawQuery
 		}
+
 		assert.Equal(t, "/v3/packages?source_guid=source-package-guid", expectedPath)
-		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "POST", request.Method)
 
 		var requestBody capi.PackageCopyRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 		assert.Equal(t, "target-app-guid", requestBody.Relationships.App.Data.GUID)
 
 		response := capi.Package{
@@ -543,13 +540,13 @@ func TestPackagesClient_Copy(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.PackageCopyRequest{

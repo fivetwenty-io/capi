@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"os"
-	"time"
 
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/olekukonko/tablewriter"
@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewServiceUsageEventsCommand creates the service usage events command group
+// NewServiceUsageEventsCommand creates the service usage events command group.
 func NewServiceUsageEventsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "service-usage-events",
@@ -50,123 +50,12 @@ func newServiceUsageEventsListCommand() *cobra.Command {
 		Short: "List service usage events",
 		Long:  "List service usage events with optional filtering",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-			params := capi.NewQueryParams()
-			params.PerPage = perPage
-
-			// Add filters
-			if afterGUID != "" {
-				params.WithFilter("guids", afterGUID)
-			}
-
-			if serviceInstanceName != "" {
-				params.WithFilter("service_instance_names", serviceInstanceName)
-			}
-
-			if servicePlanName != "" {
-				params.WithFilter("service_plan_names", servicePlanName)
-			}
-
-			if serviceOfferingName != "" {
-				params.WithFilter("service_offering_names", serviceOfferingName)
-			}
-
-			if serviceBrokerName != "" {
-				params.WithFilter("service_broker_names", serviceBrokerName)
-			}
-
-			if spaceName != "" {
-				params.WithFilter("space_names", spaceName)
-			}
-
-			if orgName != "" {
-				params.WithFilter("organization_names", orgName)
-			}
-
-			if startTime != "" {
-				params.WithFilter("created_ats[gte]", startTime)
-			}
-
-			if endTime != "" {
-				params.WithFilter("created_ats[lte]", endTime)
-			}
-
-			events, err := client.ServiceUsageEvents().List(ctx, params)
-			if err != nil {
-				return fmt.Errorf("failed to list service usage events: %w", err)
-			}
-
-			// Fetch all pages if requested
-			allEvents := events.Resources
-			if allPages && events.Pagination.TotalPages > 1 {
-				for page := 2; page <= events.Pagination.TotalPages; page++ {
-					params.Page = page
-					moreEvents, err := client.ServiceUsageEvents().List(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to fetch page %d: %w", page, err)
-					}
-					allEvents = append(allEvents, moreEvents.Resources...)
-				}
-			}
-
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(allEvents)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(allEvents)
-			default:
-				if len(allEvents) == 0 {
-					fmt.Println("No service usage events found")
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("GUID", "Service Instance", "Service Plan", "Service Offering", "State", "Space", "Organization", "Created")
-
-				for _, event := range allEvents {
-					// Format previous state
-					previousState := "N/A"
-					if event.PreviousState != nil {
-						previousState = *event.PreviousState
-					}
-
-					stateTransition := fmt.Sprintf("%s -> %s", previousState, event.State)
-
-					_ = table.Append(
-						event.GUID,
-						event.ServiceInstanceName,
-						event.ServicePlanName,
-						event.ServiceOfferingName,
-						stateTransition,
-						event.SpaceName,
-						event.OrganizationName,
-						event.CreatedAt.Format("2006-01-02 15:04:05"),
-					)
-				}
-
-				_ = table.Render()
-
-				if !allPages && events.Pagination.TotalPages > 1 {
-					fmt.Printf("\nShowing page 1 of %d. Use --all to fetch all pages.\n", events.Pagination.TotalPages)
-				}
-			}
-
-			return nil
+			return runServiceUsageEventsList(cmd, allPages, perPage, afterGUID, serviceInstanceName, servicePlanName, serviceOfferingName, serviceBrokerName, spaceName, orgName, startTime, endTime)
 		},
 	}
 
 	cmd.Flags().BoolVar(&allPages, "all", false, "fetch all pages")
-	cmd.Flags().IntVar(&perPage, "per-page", 50, "results per page")
+	cmd.Flags().IntVar(&perPage, "per-page", constants.StandardPageSize, "results per page")
 	cmd.Flags().StringVar(&afterGUID, "after-guid", "", "return events after this GUID")
 	cmd.Flags().StringVar(&serviceInstanceName, "service-instance-name", "", "filter by service instance name")
 	cmd.Flags().StringVar(&servicePlanName, "service-plan-name", "", "filter by service plan name")
@@ -178,6 +67,117 @@ func newServiceUsageEventsListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&endTime, "end-time", "", "filter events before this time (RFC3339 format)")
 
 	return cmd
+}
+
+func runServiceUsageEventsList(cmd *cobra.Command, allPages bool, perPage int, afterGUID, serviceInstanceName, servicePlanName, serviceOfferingName, serviceBrokerName, spaceName, orgName, startTime, endTime string) error {
+	client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
+	// Build filters using FilterBuilder
+	params := buildServiceUsageEventsFilters(perPage, afterGUID, serviceInstanceName, servicePlanName, serviceOfferingName, serviceBrokerName, spaceName, orgName, startTime, endTime)
+
+	events, err := client.ServiceUsageEvents().List(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to list service usage events: %w", err)
+	}
+
+	// Handle pagination
+	allEvents, err := handleServiceUsageEventsPagination(ctx, client, params, events, allPages)
+	if err != nil {
+		return err
+	}
+
+	// Output results
+	return renderServiceUsageEventsOutput(allEvents, events.Pagination, allPages)
+}
+
+func buildServiceUsageEventsFilters(perPage int, afterGUID, serviceInstanceName, servicePlanName, serviceOfferingName, serviceBrokerName, spaceName, orgName, startTime, endTime string) *capi.QueryParams {
+	return NewFilterBuilder().
+		SetPerPage(perPage).
+		AddFilterIf("guids", afterGUID).
+		AddFilterIf("service_instance_names", serviceInstanceName).
+		AddFilterIf("service_plan_names", servicePlanName).
+		AddFilterIf("service_offering_names", serviceOfferingName).
+		AddFilterIf("service_broker_names", serviceBrokerName).
+		AddFilterIf("space_names", spaceName).
+		AddFilterIf("organization_names", orgName).
+		AddFilterIf("created_ats[gte]", startTime).
+		AddFilterIf("created_ats[lte]", endTime).
+		Build()
+}
+
+//nolint:dupl // Acceptable duplication - each pagination handler works with different resource types and endpoints
+func handleServiceUsageEventsPagination(ctx context.Context, client capi.Client, params *capi.QueryParams, events *capi.ListResponse[capi.ServiceUsageEvent], allPages bool) ([]capi.ServiceUsageEvent, error) {
+	if !allPages || events.Pagination.TotalPages <= 1 {
+		return events.Resources, nil
+	}
+
+	handler := &PaginationHandler[capi.ServiceUsageEvent]{
+		FetchPage: func(ctx context.Context, params *capi.QueryParams, page int) ([]capi.ServiceUsageEvent, *capi.Pagination, error) {
+			params.Page = page
+			moreEvents, err := client.ServiceUsageEvents().List(ctx, params)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to list service usage events: %w", err)
+			}
+
+			return moreEvents.Resources, &moreEvents.Pagination, nil
+		},
+	}
+
+	return handler.FetchAllPages(ctx, params, allPages, events.Resources, &events.Pagination)
+}
+
+func renderServiceUsageEventsOutput(allEvents []capi.ServiceUsageEvent, pagination capi.Pagination, allPages bool) error {
+	renderer := &StandardOutputRenderer[capi.ServiceUsageEvent]{
+		RenderTable: renderServiceUsageEventsTable,
+	}
+
+	output := viper.GetString("output")
+
+	return renderer.Render(allEvents, &pagination, allPages, output)
+}
+
+func renderServiceUsageEventsTable(events []capi.ServiceUsageEvent, pagination *capi.Pagination, allPages bool) error {
+	if len(events) == 0 {
+		_, _ = os.Stdout.WriteString("No service usage events found\n")
+
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("GUID", "Service Instance", "Service Plan", "Service Offering", "State", "Space", "Organization", "Created")
+
+	for _, event := range events {
+		previousState := NotAvailable
+		if event.PreviousState != nil {
+			previousState = *event.PreviousState
+		}
+
+		stateTransition := fmt.Sprintf("%s -> %s", previousState, event.State)
+
+		_ = table.Append(
+			event.GUID,
+			event.ServiceInstanceName,
+			event.ServicePlanName,
+			event.ServiceOfferingName,
+			stateTransition,
+			event.SpaceName,
+			event.OrganizationName,
+			event.CreatedAt.Format("2006-01-02 15:04:05"),
+		)
+	}
+
+	_ = table.Render()
+
+	if !allPages && pagination.TotalPages > 1 {
+		_, _ = fmt.Fprintf(os.Stdout, "\nShowing page 1 of %d. Use --all to fetch all pages.\n", pagination.TotalPages)
+	}
+
+	return nil
 }
 
 func newServiceUsageEventsGetCommand() *cobra.Command {
@@ -203,51 +203,53 @@ func newServiceUsageEventsGetCommand() *cobra.Command {
 			// Output results
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(event)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(event)
 			default:
-				fmt.Printf("Service Usage Event: %s\n", event.GUID)
-				fmt.Printf("  Created: %s\n", event.CreatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("  Updated: %s\n", event.UpdatedAt.Format("2006-01-02 15:04:05"))
-				fmt.Println()
+				_, _ = fmt.Fprintf(os.Stdout, "Service Usage Event: %s\n", event.GUID)
+				_, _ = fmt.Fprintf(os.Stdout, "  Created: %s\n", event.CreatedAt.Format("2006-01-02 15:04:05"))
+				_, _ = fmt.Fprintf(os.Stdout, "  Updated: %s\n", event.UpdatedAt.Format("2006-01-02 15:04:05"))
+				_, _ = os.Stdout.WriteString("\n")
 
-				fmt.Println("Service Instance Information:")
-				fmt.Printf("  Service Instance Name: %s\n", event.ServiceInstanceName)
-				fmt.Printf("  Service Instance GUID: %s\n", event.ServiceInstanceGUID)
-				fmt.Printf("  Service Instance Type: %s\n", event.ServiceInstanceType)
-				fmt.Println()
+				_, _ = os.Stdout.WriteString("Service Instance Information:\n")
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Instance Name: %s\n", event.ServiceInstanceName)
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Instance GUID: %s\n", event.ServiceInstanceGUID)
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Instance Type: %s\n", event.ServiceInstanceType)
+				_, _ = os.Stdout.WriteString("\n")
 
-				fmt.Println("Service Plan Information:")
-				fmt.Printf("  Service Plan Name: %s\n", event.ServicePlanName)
-				fmt.Printf("  Service Plan GUID: %s\n", event.ServicePlanGUID)
-				fmt.Println()
+				_, _ = os.Stdout.WriteString("Service Plan Information:\n")
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Plan Name: %s\n", event.ServicePlanName)
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Plan GUID: %s\n", event.ServicePlanGUID)
+				_, _ = os.Stdout.WriteString("\n")
 
-				fmt.Println("Service Offering Information:")
-				fmt.Printf("  Service Offering Name: %s\n", event.ServiceOfferingName)
-				fmt.Printf("  Service Offering GUID: %s\n", event.ServiceOfferingGUID)
-				fmt.Println()
+				_, _ = os.Stdout.WriteString("Service Offering Information:\n")
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Offering Name: %s\n", event.ServiceOfferingName)
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Offering GUID: %s\n", event.ServiceOfferingGUID)
+				_, _ = os.Stdout.WriteString("\n")
 
-				fmt.Println("Service Broker Information:")
-				fmt.Printf("  Service Broker Name: %s\n", event.ServiceBrokerName)
-				fmt.Printf("  Service Broker GUID: %s\n", event.ServiceBrokerGUID)
-				fmt.Println()
+				_, _ = os.Stdout.WriteString("Service Broker Information:\n")
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Broker Name: %s\n", event.ServiceBrokerName)
+				_, _ = fmt.Fprintf(os.Stdout, "  Service Broker GUID: %s\n", event.ServiceBrokerGUID)
+				_, _ = os.Stdout.WriteString("\n")
 
-				fmt.Println("Location Information:")
-				fmt.Printf("  Space Name: %s\n", event.SpaceName)
-				fmt.Printf("  Space GUID: %s\n", event.SpaceGUID)
-				fmt.Printf("  Organization Name: %s\n", event.OrganizationName)
-				fmt.Printf("  Organization GUID: %s\n", event.OrganizationGUID)
-				fmt.Println()
+				_, _ = os.Stdout.WriteString("Location Information:\n")
+				_, _ = fmt.Fprintf(os.Stdout, "  Space Name: %s\n", event.SpaceName)
+				_, _ = fmt.Fprintf(os.Stdout, "  Space GUID: %s\n", event.SpaceGUID)
+				_, _ = fmt.Fprintf(os.Stdout, "  Organization Name: %s\n", event.OrganizationName)
+				_, _ = fmt.Fprintf(os.Stdout, "  Organization GUID: %s\n", event.OrganizationGUID)
+				_, _ = os.Stdout.WriteString("\n")
 
-				fmt.Println("State Information:")
-				fmt.Printf("  Current State: %s\n", event.State)
+				_, _ = os.Stdout.WriteString("State Information:\n")
+				_, _ = fmt.Fprintf(os.Stdout, "  Current State: %s\n", event.State)
 				if event.PreviousState != nil {
-					fmt.Printf("  Previous State: %s\n", *event.PreviousState)
+					_, _ = fmt.Fprintf(os.Stdout, "  Previous State: %s\n", *event.PreviousState)
 				}
 			}
 
@@ -257,48 +259,21 @@ func newServiceUsageEventsGetCommand() *cobra.Command {
 }
 
 func newServiceUsageEventsPurgeReseedCommand() *cobra.Command {
-	var force bool
-
-	cmd := &cobra.Command{
-		Use:   "purge-and-reseed",
-		Short: "Purge and reseed service usage events",
-		Long:  "Purge existing service usage events and reseed with current state",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if !force {
-				fmt.Print("This will purge all existing service usage events and reseed with current state.\n")
-				fmt.Print("This action cannot be undone. Continue? (y/N): ")
-				var response string
-				_, _ = fmt.Scanln(&response)
-				if response != "y" && response != "Y" {
-					fmt.Println("Cancelled")
-					return nil
+	config := PurgeReseedConfig{
+		EntityType:       "service usage events",
+		EntityTypePlural: "service instances",
+		PurgeFunc: func(ctx context.Context, client interface{}) error {
+			if capiClient, ok := client.(interface {
+				ServiceUsageEvents() interface {
+					PurgeAndReseed(ctx context.Context) error
 				}
+			}); ok {
+				return capiClient.ServiceUsageEvents().PurgeAndReseed(ctx)
 			}
 
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-
-			fmt.Println("Purging and reseeding service usage events...")
-			start := time.Now()
-
-			err = client.ServiceUsageEvents().PurgeAndReseed(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to purge and reseed service usage events: %w", err)
-			}
-
-			duration := time.Since(start)
-			fmt.Printf("Successfully purged and reseeded service usage events in %v\n", duration)
-			fmt.Println("New events will reflect the current state of all service instances")
-
-			return nil
+			return capi.ErrInvalidClientType
 		},
 	}
 
-	cmd.Flags().BoolVarP(&force, "force", "f", false, "skip confirmation prompt")
-
-	return cmd
+	return createPurgeAndReseedCommand(config)
 }

@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUAAClientCommand creates the client sub-command group
+// NewUAAClientCommand creates the client sub-command group.
 func NewUAAClientCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "client",
@@ -51,35 +51,41 @@ This command group provides comprehensive OAuth client management capabilities i
 func createClientCreateCommand() *cobra.Command {
 	cmd := createUsersCreateClientCommand()
 	cmd.Use = "create <client-id>"
+
 	return cmd
 }
 
 func createClientGetCommand() *cobra.Command {
 	cmd := createUsersGetClientCommand()
 	cmd.Use = "get <client-id>"
+
 	return cmd
 }
 
 func createClientListCommand() *cobra.Command {
 	cmd := createUsersListClientsCommand()
-	cmd.Use = "list"
+	cmd.Use = List
+
 	return cmd
 }
 
 func createClientUpdateCommand() *cobra.Command {
 	cmd := createUsersUpdateClientCommand()
 	cmd.Use = "update <client-id>"
+
 	return cmd
 }
 
 func createClientSetSecretCommand() *cobra.Command {
 	cmd := createUsersSetClientSecretCommand()
 	cmd.Use = "set-secret <client-id>"
+
 	return cmd
 }
 
 func createClientDeleteCommand() *cobra.Command {
 	cmd := createUsersDeleteClientCommand()
 	cmd.Use = "delete <client-id>"
+
 	return cmd
 }

@@ -3,6 +3,7 @@ package capi
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -35,22 +36,26 @@ func NewQueryParams() *QueryParams {
 	}
 }
 
-// ToValues converts QueryParams to url.Values
+// ToValues converts QueryParams to url.Values.
 func (q *QueryParams) ToValues() url.Values {
 	values := url.Values{}
 
 	if q.Page > 0 {
-		values.Set("page", fmt.Sprintf("%d", q.Page))
+		values.Set("page", strconv.Itoa(q.Page))
 	}
+
 	if q.PerPage > 0 {
-		values.Set("per_page", fmt.Sprintf("%d", q.PerPage))
+		values.Set("per_page", strconv.Itoa(q.PerPage))
 	}
+
 	if q.OrderBy != "" {
 		values.Set("order_by", q.OrderBy)
 	}
+
 	if q.LabelSelector != "" {
 		values.Set("label_selector", q.LabelSelector)
 	}
+
 	if len(q.Include) > 0 {
 		values.Set("include", strings.Join(q.Include, ","))
 	}
@@ -71,50 +76,59 @@ func (q *QueryParams) ToValues() url.Values {
 	return values
 }
 
-// WithPage sets the page number
+// WithPage sets the page number.
 func (q *QueryParams) WithPage(page int) *QueryParams {
 	q.Page = page
+
 	return q
 }
 
-// WithPerPage sets the number of results per page
+// WithPerPage sets the number of results per page.
 func (q *QueryParams) WithPerPage(perPage int) *QueryParams {
 	q.PerPage = perPage
+
 	return q
 }
 
-// WithOrderBy sets the ordering
+// WithOrderBy sets the ordering.
 func (q *QueryParams) WithOrderBy(orderBy string) *QueryParams {
 	q.OrderBy = orderBy
+
 	return q
 }
 
-// WithLabelSelector sets the label selector
+// WithLabelSelector sets the label selector.
 func (q *QueryParams) WithLabelSelector(selector string) *QueryParams {
 	q.LabelSelector = selector
+
 	return q
 }
 
-// WithInclude adds include parameters
+// WithInclude adds include parameters.
 func (q *QueryParams) WithInclude(includes ...string) *QueryParams {
 	q.Include = append(q.Include, includes...)
+
 	return q
 }
 
-// WithFields adds field selection for a resource
+// WithFields adds field selection for a resource.
 func (q *QueryParams) WithFields(resource string, fields ...string) *QueryParams {
 	if q.Fields == nil {
 		q.Fields = make(map[string][]string)
 	}
+
 	q.Fields[resource] = fields
+
 	return q
 }
 
-// WithFilter adds a filter
+// WithFilter adds a filter.
 func (q *QueryParams) WithFilter(key string, values ...string) *QueryParams {
 	if q.Filters == nil {
 		q.Filters = make(map[string][]string)
 	}
+
 	q.Filters[key] = append(q.Filters[key], values...)
+
 	return q
 }

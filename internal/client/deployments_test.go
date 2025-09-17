@@ -1,8 +1,9 @@
-package client
+package client_test
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,10 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestDeploymentsClient_Create(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		request      *capi.DeploymentCreateRequest
@@ -45,7 +50,7 @@ func TestDeploymentsClient_Create(t *testing.T) {
 					},
 				},
 			},
-			response: capi.Deployment{
+			response: &capi.Deployment{
 				Resource: capi.Resource{
 					GUID:      "deployment-guid",
 					CreatedAt: time.Now(),
@@ -105,7 +110,7 @@ func TestDeploymentsClient_Create(t *testing.T) {
 					GUID:    "revision-guid",
 					Version: 42,
 				},
-				Strategy: stringPtr("canary"),
+				Strategy: StringPtr("canary"),
 				Options: &capi.DeploymentOptions{
 					MaxInFlight: intPtr(2),
 					Canary: &capi.DeploymentCanaryOptions{
@@ -172,57 +177,19 @@ func TestDeploymentsClient_Create(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
-
-				var requestBody capi.DeploymentCreateRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
-
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			deployment, err := client.Deployments().Create(context.Background(), tt.request)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, deployment)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, deployment)
-				assert.NotEmpty(t, deployment.GUID)
-				assert.NotEmpty(t, deployment.State)
-			}
-		})
-	}
+	runCreateTestsForDeployments(t, tests)
 }
 
 func TestDeploymentsClient_Get(t *testing.T) {
-	tests := []struct {
-		name         string
-		guid         string
-		response     interface{}
-		statusCode   int
-		expectedPath string
-		wantErr      bool
-		errMessage   string
-	}{
+	t.Parallel()
+
+	tests := []TestGetOperation[capi.Deployment]{
 		{
-			name:         "successful get",
-			guid:         "test-deployment-guid",
-			expectedPath: "/v3/deployments/test-deployment-guid",
-			statusCode:   http.StatusOK,
-			response: capi.Deployment{
+			Name:         "successful get",
+			GUID:         "test-deployment-guid",
+			ExpectedPath: "/v3/deployments/test-deployment-guid",
+			StatusCode:   http.StatusOK,
+			Response: &capi.Deployment{
 				Resource: capi.Resource{
 					GUID:      "test-deployment-guid",
 					CreatedAt: time.Now(),
@@ -241,73 +208,53 @@ func TestDeploymentsClient_Get(t *testing.T) {
 					GUID: "droplet-guid",
 				},
 			},
-			wantErr: false,
+			WantErr: false,
 		},
 		{
-			name:         "deployment not found",
-			guid:         "non-existent-guid",
-			expectedPath: "/v3/deployments/non-existent-guid",
-			statusCode:   http.StatusNotFound,
-			response: map[string]interface{}{
-				"errors": []map[string]interface{}{
-					{
-						"code":   10010,
-						"title":  "CF-ResourceNotFound",
-						"detail": "Deployment not found",
-					},
+			Name:         "deployment not found",
+			GUID:         "non-existent-guid",
+			ExpectedPath: "/v3/deployments/non-existent-guid",
+			StatusCode:   http.StatusNotFound,
+			Response: &capi.Deployment{
+				Resource: capi.Resource{
+					GUID:      "test-deployment-guid",
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
 				},
+				State: "DEPLOYED",
 			},
-			wantErr:    true,
-			errMessage: "CF-ResourceNotFound",
+			WantErr:    true,
+			ErrMessage: "CF-ResourceNotFound",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
-			}))
-			defer server.Close()
-
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
-			require.NoError(t, err)
-
-			deployment, err := client.Deployments().Get(context.Background(), tt.guid)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
-				assert.Nil(t, deployment)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, deployment)
-				assert.Equal(t, tt.guid, deployment.GUID)
-				assert.Equal(t, "DEPLOYED", deployment.State)
-			}
-		})
-	}
+	RunGetTests(t, tests, func(c *Client) func(context.Context, string) (*capi.Deployment, error) {
+		return c.Deployments().Get
+	})
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestDeploymentsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/deployments", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/deployments", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if appGuids := query.Get("app_guids"); appGuids != "" {
 			assert.Equal(t, "app-1,app-2", appGuids)
 		}
+
 		if states := query.Get("states"); states != "" {
 			assert.Equal(t, "DEPLOYING,DEPLOYED", states)
 		}
+
 		if statusReasons := query.Get("status_reasons"); statusReasons != "" {
 			assert.Equal(t, "DEPLOYING,DEPLOYED", statusReasons)
 		}
+
 		if statusValues := query.Get("status_values"); statusValues != "" {
 			assert.Equal(t, "ACTIVE,FINALIZED", statusValues)
 		}
@@ -351,13 +298,13 @@ func TestDeploymentsClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -383,33 +330,9 @@ func TestDeploymentsClient_List(t *testing.T) {
 	require.NotNil(t, result)
 }
 
+//nolint:dupl // Acceptable duplication - each test validates different endpoints with different request/response types
 func TestDeploymentsClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/deployments/test-deployment-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
-
-		var requestBody capi.DeploymentUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
-
-		response := capi.Deployment{
-			Resource: capi.Resource{
-				GUID:      "test-deployment-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			State:    "DEPLOYING",
-			Metadata: requestBody.Metadata,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
+	t.Parallel()
 
 	request := &capi.DeploymentUpdateRequest{
 		Metadata: &capi.Metadata{
@@ -422,42 +345,90 @@ func TestDeploymentsClient_Update(t *testing.T) {
 		},
 	}
 
-	deployment, err := client.Deployments().Update(context.Background(), "test-deployment-guid", request)
-	require.NoError(t, err)
-	require.NotNil(t, deployment)
-	assert.Equal(t, "test-deployment-guid", deployment.GUID)
-	assert.Equal(t, "v1.0.1", deployment.Metadata.Labels["version"])
-	assert.Equal(t, "Updated deployment", deployment.Metadata.Annotations["note"])
+	response := &capi.Deployment{
+		Resource: capi.Resource{
+			GUID:      "test-deployment-guid",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		State: "DEPLOYING",
+		Metadata: &capi.Metadata{
+			Labels: map[string]string{
+				"version": "v1.0.1",
+			},
+			Annotations: map[string]string{
+				"note": "Updated deployment",
+			},
+		},
+	}
+
+	RunStandardUpdateTest(t, "deployment", "test-deployment-guid", "/v3/deployments/test-deployment-guid", request, response,
+		func(c *Client) func(context.Context, string, *capi.DeploymentUpdateRequest) (*capi.Deployment, error) {
+			return c.Deployments().Update
+		})
 }
 
 func TestDeploymentsClient_Cancel(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/deployments/test-deployment-guid/actions/cancel", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-		w.WriteHeader(http.StatusOK)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/deployments/test-deployment-guid/actions/cancel", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+		writer.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	err = client.Deployments().Cancel(context.Background(), "test-deployment-guid")
+	err = c.Deployments().Cancel(context.Background(), "test-deployment-guid")
 	require.NoError(t, err)
 }
 
 func TestDeploymentsClient_Continue(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/deployments/test-deployment-guid/actions/continue", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-		w.WriteHeader(http.StatusOK)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/deployments/test-deployment-guid/actions/continue", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+		writer.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	err = client.Deployments().Continue(context.Background(), "test-deployment-guid")
+	err = c.Deployments().Continue(context.Background(), "test-deployment-guid")
 	require.NoError(t, err)
+}
+
+// runCreateTestsForDeployments runs deployment create tests.
+func runCreateTestsForDeployments(t *testing.T, tests []struct {
+	name         string
+	request      *capi.DeploymentCreateRequest
+	response     interface{}
+	statusCode   int
+	expectedPath string
+	wantErr      bool
+	errMessage   string
+}) {
+	t.Helper()
+
+	for _, testCase := range tests {
+		RunCreateTestWithValidation(t, testCase.name, testCase.expectedPath, testCase.statusCode, testCase.response, testCase.wantErr, testCase.errMessage, func(c *Client) error {
+			deployment, err := c.Deployments().Create(context.Background(), testCase.request)
+			if err == nil {
+				assert.NotEmpty(t, deployment.GUID)
+				assert.NotEmpty(t, deployment.State)
+			}
+
+			if err != nil {
+				return fmt.Errorf("failed to create deployment: %w", err)
+			}
+
+			return nil
+		})
+	}
 }
 
 func timePtr(t time.Time) *time.Time {

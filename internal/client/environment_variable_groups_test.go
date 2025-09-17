@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,15 +8,18 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEnvironmentVariableGroupsClient_GetRunning(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/environment_variable_groups/running", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/environment_variable_groups/running", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		envVarGroup := capi.EnvironmentVariableGroup{
 			Name: "running",
@@ -27,24 +30,26 @@ func TestEnvironmentVariableGroupsClient_GetRunning(t *testing.T) {
 			UpdatedAt: &time.Time{},
 		}
 
-		_ = json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(writer).Encode(envVarGroup)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	envVarGroup, err := client.EnvironmentVariableGroups().Get(context.Background(), "running")
 	require.NoError(t, err)
 	assert.Equal(t, "running", envVarGroup.Name)
 	assert.Equal(t, "info", envVarGroup.Var["LOG_LEVEL"])
-	assert.Equal(t, float64(30), envVarGroup.Var["TIMEOUT"])
+	assert.InDelta(t, float64(30), envVarGroup.Var["TIMEOUT"], 0.01)
 }
 
 func TestEnvironmentVariableGroupsClient_GetStaging(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/environment_variable_groups/staging", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/environment_variable_groups/staging", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		envVarGroup := capi.EnvironmentVariableGroup{
 			Name: "staging",
@@ -55,11 +60,11 @@ func TestEnvironmentVariableGroupsClient_GetStaging(t *testing.T) {
 			UpdatedAt: &time.Time{},
 		}
 
-		_ = json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(writer).Encode(envVarGroup)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	envVarGroup, err := client.EnvironmentVariableGroups().Get(context.Background(), "staging")
@@ -70,26 +75,36 @@ func TestEnvironmentVariableGroupsClient_GetStaging(t *testing.T) {
 }
 
 func TestEnvironmentVariableGroupsClient_UpdateRunning(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/environment_variable_groups/running", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/environment_variable_groups/running", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req map[string]interface{}
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		varMap := req["var"].(map[string]interface{})
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
+
+		varMap, ok := req["var"].(map[string]interface{})
+		if !ok {
+			t.Errorf("req[\"var\"] is not a map[string]interface{}")
+
+			return
+		}
+
 		assert.Equal(t, "debug", varMap["LOG_LEVEL"])
-		assert.Equal(t, float64(60), varMap["TIMEOUT"])
+		assert.InDelta(t, float64(60), varMap["TIMEOUT"], 0.01)
 
 		envVarGroup := capi.EnvironmentVariableGroup{
 			Name: "running",
 			Var:  varMap,
 		}
 
-		_ = json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(writer).Encode(envVarGroup)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	envVarGroup, err := client.EnvironmentVariableGroups().Update(context.Background(), "running", map[string]interface{}{
@@ -100,17 +115,27 @@ func TestEnvironmentVariableGroupsClient_UpdateRunning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "running", envVarGroup.Name)
 	assert.Equal(t, "debug", envVarGroup.Var["LOG_LEVEL"])
-	assert.Equal(t, float64(60), envVarGroup.Var["TIMEOUT"])
+	assert.InDelta(t, float64(60), envVarGroup.Var["TIMEOUT"], 0.01)
 }
 
 func TestEnvironmentVariableGroupsClient_UpdateStaging(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/environment_variable_groups/staging", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/environment_variable_groups/staging", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req map[string]interface{}
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		varMap := req["var"].(map[string]interface{})
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
+
+		varMap, ok := req["var"].(map[string]interface{})
+		if !ok {
+			t.Errorf("req[\"var\"] is not a map[string]interface{}")
+
+			return
+		}
+
 		assert.Equal(t, "development", varMap["BUILD_ENV"])
 		assert.Equal(t, false, varMap["CACHE"])
 
@@ -119,11 +144,11 @@ func TestEnvironmentVariableGroupsClient_UpdateStaging(t *testing.T) {
 			Var:  varMap,
 		}
 
-		_ = json.NewEncoder(w).Encode(envVarGroup)
+		_ = json.NewEncoder(writer).Encode(envVarGroup)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	envVarGroup, err := client.EnvironmentVariableGroups().Update(context.Background(), "staging", map[string]interface{}{

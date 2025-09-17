@@ -1,24 +1,27 @@
-package capi
+package capi_test
 
 import (
 	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestResource_JSONMarshaling(t *testing.T) {
-	resource := Resource{
+	t.Parallel()
+
+	resource := capi.Resource{
 		GUID:      "test-guid",
 		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC),
-		Links: Links{
-			"self": Link{
+		Links: capi.Links{
+			"self": capi.Link{
 				Href: "https://api.example.org/v3/resources/test-guid",
 			},
-			"related": Link{
+			"related": capi.Link{
 				Href:   "https://api.example.org/v3/related",
 				Method: "POST",
 			},
@@ -28,7 +31,8 @@ func TestResource_JSONMarshaling(t *testing.T) {
 	data, err := json.Marshal(resource)
 	require.NoError(t, err)
 
-	var decoded Resource
+	var decoded capi.Resource
+
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
@@ -40,7 +44,9 @@ func TestResource_JSONMarshaling(t *testing.T) {
 }
 
 func TestMetadata_JSONMarshaling(t *testing.T) {
-	metadata := Metadata{
+	t.Parallel()
+
+	metadata := capi.Metadata{
 		Labels: map[string]string{
 			"environment": "production",
 			"team":        "platform",
@@ -54,7 +60,8 @@ func TestMetadata_JSONMarshaling(t *testing.T) {
 	data, err := json.Marshal(metadata)
 	require.NoError(t, err)
 
-	var decoded Metadata
+	var decoded capi.Metadata
+
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
@@ -63,9 +70,12 @@ func TestMetadata_JSONMarshaling(t *testing.T) {
 }
 
 func TestRelationship_JSONMarshaling(t *testing.T) {
+	t.Parallel()
 	t.Run("with data", func(t *testing.T) {
-		rel := Relationship{
-			Data: &RelationshipData{
+		t.Parallel()
+
+		rel := capi.Relationship{
+			Data: &capi.RelationshipData{
 				GUID: "related-guid",
 			},
 		}
@@ -73,7 +83,8 @@ func TestRelationship_JSONMarshaling(t *testing.T) {
 		data, err := json.Marshal(rel)
 		require.NoError(t, err)
 
-		var decoded Relationship
+		var decoded capi.Relationship
+
 		err = json.Unmarshal(data, &decoded)
 		require.NoError(t, err)
 
@@ -82,12 +93,15 @@ func TestRelationship_JSONMarshaling(t *testing.T) {
 	})
 
 	t.Run("without data", func(t *testing.T) {
-		rel := Relationship{}
+		t.Parallel()
+
+		rel := capi.Relationship{}
 
 		data, err := json.Marshal(rel)
 		require.NoError(t, err)
 
-		var decoded Relationship
+		var decoded capi.Relationship
+
 		err = json.Unmarshal(data, &decoded)
 		require.NoError(t, err)
 
@@ -96,8 +110,10 @@ func TestRelationship_JSONMarshaling(t *testing.T) {
 }
 
 func TestToManyRelationship_JSONMarshaling(t *testing.T) {
-	rel := ToManyRelationship{
-		Data: []RelationshipData{
+	t.Parallel()
+
+	rel := capi.ToManyRelationship{
+		Data: []capi.RelationshipData{
 			{GUID: "guid-1"},
 			{GUID: "guid-2"},
 			{GUID: "guid-3"},
@@ -107,7 +123,8 @@ func TestToManyRelationship_JSONMarshaling(t *testing.T) {
 	data, err := json.Marshal(rel)
 	require.NoError(t, err)
 
-	var decoded ToManyRelationship
+	var decoded capi.ToManyRelationship
+
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
@@ -118,16 +135,18 @@ func TestToManyRelationship_JSONMarshaling(t *testing.T) {
 }
 
 func TestPagination_JSONMarshaling(t *testing.T) {
-	pagination := Pagination{
+	t.Parallel()
+
+	pagination := capi.Pagination{
 		TotalResults: 100,
 		TotalPages:   10,
-		First: Link{
+		First: capi.Link{
 			Href: "https://api.example.org/v3/resources?page=1",
 		},
-		Last: Link{
+		Last: capi.Link{
 			Href: "https://api.example.org/v3/resources?page=10",
 		},
-		Next: &Link{
+		Next: &capi.Link{
 			Href: "https://api.example.org/v3/resources?page=2",
 		},
 		Previous: nil,
@@ -136,7 +155,8 @@ func TestPagination_JSONMarshaling(t *testing.T) {
 	data, err := json.Marshal(pagination)
 	require.NoError(t, err)
 
-	var decoded Pagination
+	var decoded capi.Pagination
+
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
@@ -150,31 +170,34 @@ func TestPagination_JSONMarshaling(t *testing.T) {
 }
 
 func TestListResponse_JSONMarshaling(t *testing.T) {
+	t.Parallel()
+
 	type TestResource struct {
-		Resource
+		capi.Resource
+
 		Name string `json:"name"`
 	}
 
-	listResp := ListResponse[TestResource]{
-		Pagination: Pagination{
+	listResp := capi.ListResponse[TestResource]{
+		Pagination: capi.Pagination{
 			TotalResults: 2,
 			TotalPages:   1,
-			First: Link{
+			First: capi.Link{
 				Href: "https://api.example.org/v3/test?page=1",
 			},
-			Last: Link{
+			Last: capi.Link{
 				Href: "https://api.example.org/v3/test?page=1",
 			},
 		},
 		Resources: []TestResource{
 			{
-				Resource: Resource{
+				Resource: capi.Resource{
 					GUID: "guid-1",
 				},
 				Name: "test-1",
 			},
 			{
-				Resource: Resource{
+				Resource: capi.Resource{
 					GUID: "guid-2",
 				},
 				Name: "test-2",
@@ -185,7 +208,8 @@ func TestListResponse_JSONMarshaling(t *testing.T) {
 	data, err := json.Marshal(listResp)
 	require.NoError(t, err)
 
-	var decoded ListResponse[TestResource]
+	var decoded capi.ListResponse[TestResource]
+
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 

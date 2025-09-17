@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewVersionCommand creates the version command
+// NewVersionCommand creates the version command.
 func NewVersionCommand(version, commit, date string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
@@ -20,8 +20,8 @@ func NewVersionCommand(version, commit, date string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			type VersionInfo struct {
 				Version string `json:"version" yaml:"version"`
-				Commit  string `json:"commit" yaml:"commit"`
-				Built   string `json:"built" yaml:"built"`
+				Commit  string `json:"commit"  yaml:"commit"`
+				Built   string `json:"built"   yaml:"built"`
 			}
 
 			versionInfo := VersionInfo{
@@ -32,12 +32,14 @@ func NewVersionCommand(version, commit, date string) *cobra.Command {
 
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(versionInfo)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(versionInfo)
 			default:
 				table := tablewriter.NewWriter(os.Stdout)
@@ -45,7 +47,8 @@ func NewVersionCommand(version, commit, date string) *cobra.Command {
 				_ = table.Append("Version", version)
 				_ = table.Append("Commit", commit)
 				_ = table.Append("Built", date)
-				if err := table.Render(); err != nil {
+				err := table.Render()
+				if err != nil {
 					return fmt.Errorf("failed to render table: %w", err)
 				}
 			}

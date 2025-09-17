@@ -2,24 +2,45 @@ package capi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 )
 
-// Client is the main interface for interacting with the CF API
-type Client interface {
-	// Resource accessors
+// Static errors for err113 compliance.
+var (
+	ErrDeprecatedClientConstructor = errors.New("use github.com/fivetwenty-io/capi/v3/pkg/cfclient.New to create a client")
+)
+
+// CoreResourceClients provides access to core CF resource clients.
+type CoreResourceClients interface {
 	Apps() AppsClient
 	Organizations() OrganizationsClient
 	Spaces() SpacesClient
+	Users() UsersClient
+	Roles() RolesClient
+}
+
+// InfrastructureClients provides access to infrastructure resource clients.
+type InfrastructureClients interface {
 	Domains() DomainsClient
 	Routes() RoutesClient
+	SecurityGroups() SecurityGroupsClient
+	IsolationSegments() IsolationSegmentsClient
+	Stacks() StacksClient
+}
+
+// ServiceClients provides access to service-related resource clients.
+type ServiceClients interface {
 	ServiceBrokers() ServiceBrokersClient
 	ServiceOfferings() ServiceOfferingsClient
 	ServicePlans() ServicePlansClient
 	ServiceInstances() ServiceInstancesClient
 	ServiceCredentialBindings() ServiceCredentialBindingsClient
 	ServiceRouteBindings() ServiceRouteBindingsClient
+}
+
+// BuildDeploymentClients provides access to build and deployment resource clients.
+type BuildDeploymentClients interface {
 	Builds() BuildsClient
 	Buildpacks() BuildpacksClient
 	Deployments() DeploymentsClient
@@ -27,34 +48,59 @@ type Client interface {
 	Packages() PackagesClient
 	Processes() ProcessesClient
 	Tasks() TasksClient
-	Stacks() StacksClient
-	Users() UsersClient
-	Roles() RolesClient
-	SecurityGroups() SecurityGroupsClient
-	IsolationSegments() IsolationSegmentsClient
-	FeatureFlags() FeatureFlagsClient
-	Jobs() JobsClient
-	OrganizationQuotas() OrganizationQuotasClient
-	SpaceQuotas() SpaceQuotasClient
 	Sidecars() SidecarsClient
 	Revisions() RevisionsClient
+	Manifests() ManifestsClient
+}
+
+// ConfigurationClients provides access to configuration resource clients.
+type ConfigurationClients interface {
+	FeatureFlags() FeatureFlagsClient
+	OrganizationQuotas() OrganizationQuotasClient
+	SpaceQuotas() SpaceQuotasClient
 	EnvironmentVariableGroups() EnvironmentVariableGroupsClient
+}
+
+// MonitoringClients provides access to monitoring and audit resource clients.
+type MonitoringClients interface {
+	Jobs() JobsClient
 	AppUsageEvents() AppUsageEventsClient
 	ServiceUsageEvents() ServiceUsageEventsClient
 	AuditEvents() AuditEventsClient
 	ResourceMatches() ResourceMatchesClient
-	Manifests() ManifestsClient
+}
 
-	// Info endpoints
+// ResourceClients provides access to all resource-specific clients.
+type ResourceClients interface {
+	// Composite interfaces for resource groups
+	CoreResourceClients
+	InfrastructureClients
+	ServiceClients
+	BuildDeploymentClients
+	ConfigurationClients
+	MonitoringClients
+}
+
+// InfoClient provides access to CF API information endpoints.
+type InfoClient interface {
 	GetInfo(ctx context.Context) (*Info, error)
 	GetRootInfo(ctx context.Context) (*RootInfo, error)
 	GetUsageSummary(ctx context.Context) (*UsageSummary, error)
+}
 
-	// Admin operations
+// AdminClient provides access to administrative operations.
+type AdminClient interface {
 	ClearBuildpackCache(ctx context.Context) (*Job, error)
 }
 
-// Logger interface for logging
+type Client interface {
+	// Composite interfaces for related resource groups
+	ResourceClients
+	InfoClient
+	AdminClient
+}
+
+// Logger interface for logging.
 type Logger interface {
 	Debug(msg string, fields map[string]interface{})
 	Info(msg string, fields map[string]interface{})
@@ -144,56 +190,57 @@ type Config struct {
 }
 
 // NewClient creates a new CF API client
-// Deprecated: Use github.com/fivetwenty-io/capi/v3/pkg/cfclient.New instead
+// Deprecated: Use github.com/fivetwenty-io/capi/v3/pkg/cfclient.New instead.
 func NewClient(config *Config) (Client, error) {
-	return nil, fmt.Errorf("use github.com/fivetwenty-io/capi/v3/pkg/cfclient.New to create a client")
+	return nil, ErrDeprecatedClientConstructor
 }
 
-// Info represents the /v3/info response
+// Info represents the /v3/info response.
 type Info struct {
-	Build       string                 `json:"build"`
-	CLIVersion  CLIVersion             `json:"cli_version"`
-	Custom      map[string]interface{} `json:"custom"`
-	Description string                 `json:"description"`
-	Name        string                 `json:"name"`
-	Version     int                    `json:"version"`
-	Links       Links                  `json:"links"`
-	CFOnK8s     bool                   `json:"cf_on_k8s"`
+	Build       string                 `json:"build"       yaml:"build"`
+	CLIVersion  CLIVersion             `json:"cli_version" yaml:"cli_version"`
+	Custom      map[string]interface{} `json:"custom"      yaml:"custom"`
+	Description string                 `json:"description" yaml:"description"`
+	Name        string                 `json:"name"        yaml:"name"`
+	Version     int                    `json:"version"     yaml:"version"`
+	Links       Links                  `json:"links"       yaml:"links"`
+	CFOnK8s     bool                   `json:"cf_on_k8s"   yaml:"cf_on_k8s"`
 }
 
-// CLIVersion represents CLI version information
+// CLIVersion represents CLI version information.
 type CLIVersion struct {
-	Minimum     string `json:"minimum"`
-	Recommended string `json:"recommended"`
+	Minimum     string `json:"minimum"     yaml:"minimum"`
+	Recommended string `json:"recommended" yaml:"recommended"`
 }
 
-// RootInfo represents the root / response
+// RootInfo represents the root / response.
 type RootInfo struct {
-	Links Links `json:"links"`
+	Links Links `json:"links" yaml:"links"`
 }
 
-// UsageSummary represents platform usage summary
+// UsageSummary represents platform usage summary.
 type UsageSummary struct {
-	UsageSummary UsageSummaryData `json:"usage_summary"`
-	Links        Links            `json:"links"`
+	UsageSummary UsageSummaryData `json:"usage_summary" yaml:"usage_summary"`
+	Links        Links            `json:"links"         yaml:"links"`
 }
 
-// UsageSummaryData contains the actual usage data
+// UsageSummaryData contains the actual usage data.
 type UsageSummaryData struct {
-	StartedInstances int `json:"started_instances"`
-	MemoryInMB       int `json:"memory_in_mb"`
+	StartedInstances int `json:"started_instances" yaml:"started_instances"`
+	MemoryInMB       int `json:"memory_in_mb"      yaml:"memory_in_mb"`
 }
 
-// Job represents an asynchronous job
+// Job represents an asynchronous job.
 type Job struct {
 	Resource
-	Operation string     `json:"operation"`
-	State     string     `json:"state"`
-	Errors    []APIError `json:"errors,omitempty"`
-	Warnings  []Warning  `json:"warnings,omitempty"`
+
+	Operation string     `json:"operation"          yaml:"operation"`
+	State     string     `json:"state"              yaml:"state"`
+	Errors    []APIError `json:"errors,omitempty"   yaml:"errors,omitempty"`
+	Warnings  []Warning  `json:"warnings,omitempty" yaml:"warnings,omitempty"`
 }
 
-// Warning represents a warning in API responses
+// Warning represents a warning in API responses.
 type Warning struct {
-	Detail string `json:"detail"`
+	Detail string `json:"detail" yaml:"detail"`
 }

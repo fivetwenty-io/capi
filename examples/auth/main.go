@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
-	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 )
@@ -13,9 +13,22 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Example 1: Username/Password Authentication
-	fmt.Println("=== Username/Password Authentication ===")
-	userPassClient, err := cfclient.NewWithPassword(
+	runAuthenticationExamples(ctx)
+}
+
+func runAuthenticationExamples(ctx context.Context) {
+	userPassAuthExample(ctx)
+	clientCredsAuthExample(ctx)
+	accessTokenAuthExample(ctx)
+	customConfigAuthExample(ctx)
+	authErrorHandlingExample(ctx)
+	environmentConfigExample()
+}
+
+func userPassAuthExample(ctx context.Context) {
+	log.Println("=== Username/Password Authentication ===")
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"your-username",
 		"your-password",
@@ -24,17 +37,14 @@ func main() {
 		log.Fatalf("Failed to create client with username/password: %v", err)
 	}
 
-	// Test the connection
-	info, err := userPassClient.GetInfo(ctx)
-	if err != nil {
-		log.Fatalf("Failed to authenticate with username/password: %v", err)
-	}
-	fmt.Printf("Successfully authenticated! API Version: %d\n", info.Version)
-	fmt.Println()
+	testAuthentication(ctx, client, "username/password")
+	log.Println()
+}
 
-	// Example 2: Client Credentials Authentication
-	fmt.Println("=== Client Credentials Authentication ===")
-	clientCredsClient, err := cfclient.NewWithClientCredentials(
+func clientCredsAuthExample(ctx context.Context) {
+	log.Println("=== Client Credentials Authentication ===")
+
+	client, err := cfclient.NewWithClientCredentials(ctx,
 		"https://api.your-cf-domain.com",
 		"your-client-id",
 		"your-client-secret",
@@ -43,20 +53,16 @@ func main() {
 		log.Fatalf("Failed to create client with client credentials: %v", err)
 	}
 
-	info, err = clientCredsClient.GetInfo(ctx)
-	if err != nil {
-		log.Printf("Client credentials auth failed: %v", err)
-	} else {
-		fmt.Printf("Successfully authenticated with client credentials! API Version: %d\n", info.Version)
-	}
-	fmt.Println()
+	testAuthenticationWithFallback(ctx, client, "client credentials")
+	log.Println()
+}
 
-	// Example 3: Access Token Authentication
-	fmt.Println("=== Access Token Authentication ===")
+func accessTokenAuthExample(ctx context.Context) {
+	log.Println("=== Access Token Authentication ===")
 	// Note: You would typically get this token from another authentication flow
 	accessToken := "your-access-token-here"
 
-	tokenClient, err := cfclient.NewWithToken(
+	client, err := cfclient.NewWithToken(ctx,
 		"https://api.your-cf-domain.com",
 		accessToken,
 	)
@@ -64,40 +70,57 @@ func main() {
 		log.Fatalf("Failed to create client with access token: %v", err)
 	}
 
-	info, err = tokenClient.GetInfo(ctx)
-	if err != nil {
-		log.Printf("Access token auth failed (expected if token is invalid): %v", err)
-	} else {
-		fmt.Printf("Successfully authenticated with access token! API Version: %d\n", info.Version)
-	}
-	fmt.Println()
+	testAuthenticationWithFallback(ctx, client, "access token")
+	log.Println()
+}
 
-	// Example 4: Custom Configuration
-	fmt.Println("=== Custom Configuration ===")
-	config := &capi.Config{
-		APIEndpoint:   "https://api.your-cf-domain.com",
-		Username:      "your-username",
-		Password:      "your-password",
-		SkipTLSVerify: false, // Set to true for self-signed certificates (not recommended for production)
-		HTTPTimeout:   30 * time.Second,
-		UserAgent:     "my-custom-app/1.0.0",
-	}
+func customConfigAuthExample(ctx context.Context) {
+	log.Println("=== Custom Configuration ===")
 
-	customClient, err := cfclient.New(config)
+	config := buildCustomConfig()
+
+	client, err := cfclient.New(ctx, config)
 	if err != nil {
 		log.Fatalf("Failed to create client with custom config: %v", err)
 	}
 
-	info, err = customClient.GetInfo(ctx)
-	if err != nil {
-		log.Fatalf("Failed to authenticate with custom config: %v", err)
-	}
-	fmt.Printf("Successfully authenticated with custom config! API Version: %d\n", info.Version)
-	fmt.Println()
+	testAuthentication(ctx, client, "custom config")
+	log.Println()
+}
 
-	// Example 5: Authentication Error Handling
-	fmt.Println("=== Authentication Error Handling ===")
-	badClient, err := cfclient.NewWithPassword(
+func buildCustomConfig() *capi.Config {
+	return &capi.Config{
+		APIEndpoint:   "https://api.your-cf-domain.com",
+		Username:      "your-username",
+		Password:      "your-password",
+		SkipTLSVerify: false, // Set to true for self-signed certificates (not recommended for production)
+		HTTPTimeout:   constants.DefaultHTTPTimeout,
+		UserAgent:     "my-custom-app/1.0.0",
+	}
+}
+
+func testAuthentication(ctx context.Context, client capi.Client, authType string) {
+	info, err := client.GetInfo(ctx)
+	if err != nil {
+		log.Fatalf("Failed to authenticate with %s: %v", authType, err)
+	}
+
+	log.Printf("Successfully authenticated with %s! API Version: %d\n", authType, info.Version)
+}
+
+func testAuthenticationWithFallback(ctx context.Context, client capi.Client, authType string) {
+	info, err := client.GetInfo(ctx)
+	if err != nil {
+		log.Printf("%s auth failed: %v", authType, err)
+	} else {
+		log.Printf("Successfully authenticated with %s! API Version: %d\n", authType, info.Version)
+	}
+}
+
+func authErrorHandlingExample(ctx context.Context) {
+	log.Println("=== Authentication Error Handling ===")
+
+	badClient, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"wrong-username",
 		"wrong-password",
@@ -108,25 +131,38 @@ func main() {
 
 	_, err = badClient.GetInfo(ctx)
 	if err != nil {
-		fmt.Printf("Authentication failed as expected: %v\n", err)
-
-		// Check if it's a CF API error
-		if capiErr, ok := err.(*capi.ErrorResponse); ok {
-			fmt.Printf("CF Error Details:\n")
-			fmt.Printf("  Errors: %d\n", len(capiErr.Errors))
-
-			for _, errDetail := range capiErr.Errors {
-				fmt.Printf("  Error: %d - %s: %s\n", errDetail.Code, errDetail.Title, errDetail.Detail)
-			}
-		}
+		log.Printf("Authentication failed as expected: %v\n", err)
+		handleAuthenticationError(err)
 	}
 
-	// Example 6: Environment-based Configuration
-	fmt.Println("\n=== Environment-based Configuration ===")
+	log.Println()
+}
+
+func handleAuthenticationError(err error) {
+	capiErr := &capi.ResponseError{}
+	if !errors.As(err, &capiErr) {
+		return
+	}
+
+	log.Printf("CF Error Details:\n")
+	log.Printf("  Errors: %d\n", len(capiErr.Errors))
+
+	for _, errDetail := range capiErr.Errors {
+		log.Printf("  Error: %d - %s: %s\n", errDetail.Code, errDetail.Title, errDetail.Detail)
+	}
+}
+
+func environmentConfigExample() {
+	log.Println("=== Environment-based Configuration ===")
 	// This example shows how you might configure the client from environment variables
 	// in a real application
 
-	envConfig := &capi.Config{
+	envConfig := buildEnvironmentConfig()
+	printEnvironmentConfig(envConfig)
+}
+
+func buildEnvironmentConfig() *capi.Config {
+	return &capi.Config{
 		APIEndpoint:   getEnv("CF_API_ENDPOINT", "https://api.your-cf-domain.com"),
 		Username:      getEnv("CF_USERNAME", ""),
 		Password:      getEnv("CF_PASSWORD", ""),
@@ -134,28 +170,32 @@ func main() {
 		ClientSecret:  getEnv("CF_CLIENT_SECRET", ""),
 		SkipTLSVerify: getEnv("CF_SKIP_SSL", "false") == "true",
 	}
-
-	fmt.Printf("Configuration from environment:\n")
-	fmt.Printf("  API Endpoint: %s\n", envConfig.APIEndpoint)
-	fmt.Printf("  Username: %s\n", maskString(envConfig.Username))
-	fmt.Printf("  Client ID: %s\n", maskString(envConfig.ClientID))
-	fmt.Printf("  Skip TLS: %v\n", envConfig.SkipTLSVerify)
 }
 
-// Helper function to get environment variable with default
+func printEnvironmentConfig(config *capi.Config) {
+	log.Printf("Configuration from environment:\n")
+	log.Printf("  API Endpoint: %s\n", config.APIEndpoint)
+	log.Printf("  Username: %s\n", maskString(config.Username))
+	log.Printf("  Client ID: %s\n", maskString(config.ClientID))
+	log.Printf("  Skip TLS: %v\n", config.SkipTLSVerify)
+}
+
+// Helper function to get environment variable with default.
 func getEnv(key, defaultValue string) string {
 	// In a real application, you would use os.Getenv(key)
 	// For this example, we return the default
 	return defaultValue
 }
 
-// Helper function to mask sensitive information
-func maskString(s string) string {
-	if s == "" {
+// Helper function to mask sensitive information.
+func maskString(str string) string {
+	if str == "" {
 		return "(not set)"
 	}
-	if len(s) <= 4 {
+
+	if len(str) <= constants.StringTruncationLimit {
 		return "****"
 	}
-	return s[:2] + "****" + s[len(s)-2:]
+
+	return str[:2] + "****" + str[len(str)-2:]
 }

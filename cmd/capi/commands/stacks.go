@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"os"
+	"strconv"
 
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/olekukonko/tablewriter"
@@ -13,7 +15,179 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewStacksCommand creates the stacks command group
+// NewStacksCommand creates the stacks command group.
+// fetchAllStackPages fetches all pages of stacks if allPages is true.
+func fetchAllStackPages(ctx context.Context, client capi.Client, params *capi.QueryParams, initialStacks *capi.ListResponse[capi.Stack], allPages bool) ([]capi.Stack, error) {
+	allStacks := initialStacks.Resources
+	if allPages && initialStacks.Pagination.TotalPages > 1 {
+		for page := 2; page <= initialStacks.Pagination.TotalPages; page++ {
+			params.Page = page
+
+			moreStacks, err := client.Stacks().List(ctx, params)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch page %d: %w", page, err)
+			}
+
+			allStacks = append(allStacks, moreStacks.Resources...)
+		}
+	}
+
+	return allStacks, nil
+}
+
+// fetchAllAppPages fetches all pages of apps if allPages is true.
+func fetchAllStackAppPages(ctx context.Context, client capi.Client, stackGUID string, params *capi.QueryParams, initialApps *capi.ListResponse[capi.App], allPages bool) ([]capi.App, error) {
+	allApps := initialApps.Resources
+	if allPages && initialApps.Pagination.TotalPages > 1 {
+		for page := 2; page <= initialApps.Pagination.TotalPages; page++ {
+			params.Page = page
+
+			moreApps, err := client.Stacks().ListApps(ctx, stackGUID, params)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch page %d: %w", page, err)
+			}
+
+			allApps = append(allApps, moreApps.Resources...)
+		}
+	}
+
+	return allApps, nil
+}
+
+// renderStacksOutput handles the output rendering for stacks based on the format.
+func renderStacksOutput(output string, stacks []capi.Stack) error {
+	switch output {
+	case OutputFormatJSON:
+		return renderJSONOutput(stacks)
+	case OutputFormatYAML:
+		return renderYAMLOutput(stacks)
+	default:
+		return renderStacksTable(stacks)
+	}
+}
+
+// renderAppsOutput handles the output rendering for apps based on the format.
+func renderAppsOutput(output string, apps []capi.App) error {
+	switch output {
+	case OutputFormatJSON:
+		return renderJSONOutput(apps)
+	case OutputFormatYAML:
+		return renderYAMLOutput(apps)
+	default:
+		return renderAppsTable(apps)
+	}
+}
+
+// renderJSONOutput renders data as JSON.
+func renderJSONOutput(data interface{}) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+
+	err := encoder.Encode(data)
+	if err != nil {
+		return fmt.Errorf("encoding data to JSON: %w", err)
+	}
+
+	return nil
+}
+
+// renderYAMLOutput renders data as YAML.
+func renderYAMLOutput(data interface{}) error {
+	encoder := yaml.NewEncoder(os.Stdout)
+
+	err := encoder.Encode(data)
+	if err != nil {
+		return fmt.Errorf("failed to encode data to YAML: %w", err)
+	}
+
+	return nil
+}
+
+// renderStacksTable renders stacks in table format.
+func renderStacksTable(stacks []capi.Stack) error {
+	if len(stacks) == 0 {
+		_, _ = os.Stdout.WriteString("No stacks found\n")
+
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Name", "Description", "Default", "Build Image", "Run Image", "Created", "Updated")
+
+	for _, stack := range stacks {
+		defaultStack := False
+		if stack.Default {
+			defaultStack = True
+		}
+
+		buildImage := truncateString(stack.BuildRootfsImage, constants.ShortCommandDisplayLength)
+		runImage := truncateString(stack.RunRootfsImage, constants.ShortCommandDisplayLength)
+
+		_ = table.Append([]string{
+			stack.Name,
+			stack.Description,
+			defaultStack,
+			buildImage,
+			runImage,
+			stack.CreatedAt.Format("2006-01-02 15:04:05"),
+			stack.UpdatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	_ = table.Render()
+
+	return nil
+}
+
+// renderAppsTable renders apps in table format.
+func renderAppsTable(apps []capi.App) error {
+	if len(apps) == 0 {
+		_, _ = os.Stdout.WriteString("No apps found using this stack\n")
+
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Name", "GUID", "State", "Lifecycle", "Created", "Updated")
+
+	for _, app := range apps {
+		lifecycle := formatAppLifecycle(app)
+		_ = table.Append([]string{
+			app.Name,
+			app.GUID,
+			app.State,
+			lifecycle,
+			app.CreatedAt.Format("2006-01-02 15:04:05"),
+			app.UpdatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	_ = table.Render()
+
+	return nil
+}
+
+// truncateString truncates a string to maxLength with ellipsis.
+func truncateString(s string, maxLength int) string {
+	if len(s) > maxLength {
+		return s[:37] + "..."
+	}
+
+	return s
+}
+
+// formatAppLifecycle formats the lifecycle information for an app.
+func formatAppLifecycle(app capi.App) string {
+	lifecycle := app.Lifecycle.Type
+	if len(app.Lifecycle.Data) > 0 {
+		if stackName, ok := app.Lifecycle.Data["stack"]; ok {
+			lifecycle += fmt.Sprintf(" (%v)", stackName)
+		}
+	}
+
+	return lifecycle
+}
+
 func NewStacksCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "stacks",
@@ -65,74 +239,18 @@ func newStacksListCommand() *cobra.Command {
 			}
 
 			// Fetch all pages if requested
-			allStacks := stacks.Resources
-			if allPages && stacks.Pagination.TotalPages > 1 {
-				for page := 2; page <= stacks.Pagination.TotalPages; page++ {
-					params.Page = page
-					moreStacks, err := client.Stacks().List(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to fetch page %d: %w", page, err)
-					}
-					allStacks = append(allStacks, moreStacks.Resources...)
-				}
+			allStacks, err := fetchAllStackPages(ctx, client, params, stacks, allPages)
+			if err != nil {
+				return err
 			}
 
 			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(allStacks)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(allStacks)
-			default:
-				if len(allStacks) == 0 {
-					fmt.Println("No stacks found")
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("Name", "Description", "Default", "Build Image", "Run Image", "Created", "Updated")
-
-				for _, stack := range allStacks {
-					defaultStack := "false"
-					if stack.Default {
-						defaultStack = "true"
-					}
-
-					// Truncate long image names for table display
-					buildImage := stack.BuildRootfsImage
-					if len(buildImage) > 40 {
-						buildImage = buildImage[:37] + "..."
-					}
-
-					runImage := stack.RunRootfsImage
-					if len(runImage) > 40 {
-						runImage = runImage[:37] + "..."
-					}
-
-					_ = table.Append([]string{
-						stack.Name,
-						stack.Description,
-						defaultStack,
-						buildImage,
-						runImage,
-						stack.CreatedAt.Format("2006-01-02 15:04:05"),
-						stack.UpdatedAt.Format("2006-01-02 15:04:05"),
-					})
-				}
-
-				_ = table.Render()
-			}
-
-			return nil
+			return renderStacksOutput(viper.GetString("output"), allStacks)
 		},
 	}
 
 	cmd.Flags().BoolVar(&allPages, "all-pages", false, "fetch all pages")
-	cmd.Flags().IntVar(&perPage, "per-page", 50, "number of results per page")
+	cmd.Flags().IntVar(&perPage, "per-page", constants.StandardPageSize, "number of results per page")
 	cmd.Flags().StringVar(&name, "name", "", "filter by stack name")
 
 	return cmd
@@ -162,25 +280,38 @@ func newStacksGetCommand() *cobra.Command {
 			// Output results
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(stack)
-			case "yaml":
+
+				err := encoder.Encode(stack)
+				if err != nil {
+					return fmt.Errorf("encoding stack to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(stack)
+
+				err := encoder.Encode(stack)
+				if err != nil {
+					return fmt.Errorf("encoding stack to YAML: %w", err)
+				}
+
+				return nil
 			default:
 				table := tablewriter.NewWriter(os.Stdout)
 				table.Header("Property", "Value")
 				_ = table.Append("GUID", stack.GUID)
 				_ = table.Append("Name", stack.Name)
 				_ = table.Append("Description", stack.Description)
-				_ = table.Append("Default", fmt.Sprintf("%t", stack.Default))
+				_ = table.Append("Default", strconv.FormatBool(stack.Default))
 				_ = table.Append("Build Image", stack.BuildRootfsImage)
 				_ = table.Append("Run Image", stack.RunRootfsImage)
 				_ = table.Append("Created", stack.CreatedAt.Format("2006-01-02 15:04:05"))
 				_ = table.Append("Updated", stack.UpdatedAt.Format("2006-01-02 15:04:05"))
-				if err := table.Render(); err != nil {
+				err := table.Render()
+				if err != nil {
 					return fmt.Errorf("failed to render table: %w", err)
 				}
 			}
@@ -227,19 +358,31 @@ func newStacksCreateCommand() *cobra.Command {
 			// Output results
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(stack)
-			case "yaml":
+
+				err := encoder.Encode(stack)
+				if err != nil {
+					return fmt.Errorf("encoding stack to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(stack)
+
+				err := encoder.Encode(stack)
+				if err != nil {
+					return fmt.Errorf("encoding stack to YAML: %w", err)
+				}
+
+				return nil
 			default:
-				fmt.Printf("Created stack: %s\n", stack.GUID)
-				fmt.Printf("  Name:        %s\n", stack.Name)
-				fmt.Printf("  Description: %s\n", stack.Description)
-				fmt.Printf("  Build Image: %s\n", stack.BuildRootfsImage)
-				fmt.Printf("  Run Image:   %s\n", stack.RunRootfsImage)
+				_, _ = fmt.Fprintf(os.Stdout, "Created stack: %s\n", stack.GUID)
+				_, _ = fmt.Fprintf(os.Stdout, "  Name:        %s\n", stack.Name)
+				_, _ = fmt.Fprintf(os.Stdout, "  Description: %s\n", stack.Description)
+				_, _ = fmt.Fprintf(os.Stdout, "  Build Image: %s\n", stack.BuildRootfsImage)
+				_, _ = fmt.Fprintf(os.Stdout, "  Run Image:   %s\n", stack.RunRootfsImage)
 			}
 
 			return nil
@@ -285,17 +428,29 @@ func newStacksUpdateCommand() *cobra.Command {
 			// Output results
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(stack)
-			case "yaml":
+
+				err := encoder.Encode(stack)
+				if err != nil {
+					return fmt.Errorf("encoding stack to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(stack)
+
+				err := encoder.Encode(stack)
+				if err != nil {
+					return fmt.Errorf("encoding stack to YAML: %w", err)
+				}
+
+				return nil
 			default:
-				fmt.Printf("Updated stack: %s\n", stack.GUID)
-				fmt.Printf("  Name:        %s\n", stack.Name)
-				fmt.Printf("  Description: %s\n", stack.Description)
+				_, _ = fmt.Fprintf(os.Stdout, "Updated stack: %s\n", stack.GUID)
+				_, _ = fmt.Fprintf(os.Stdout, "  Name:        %s\n", stack.Name)
+				_, _ = fmt.Fprintf(os.Stdout, "  Description: %s\n", stack.Description)
 			}
 
 			return nil
@@ -326,7 +481,7 @@ func newStacksDeleteCommand() *cobra.Command {
 				return fmt.Errorf("failed to delete stack: %w", err)
 			}
 
-			fmt.Printf("Stack %s deleted successfully\n", stackGUID)
+			_, _ = fmt.Fprintf(os.Stdout, "Stack %s deleted successfully\n", stackGUID)
 
 			return nil
 		},
@@ -363,64 +518,18 @@ func newStacksListAppsCommand() *cobra.Command {
 			}
 
 			// Fetch all pages if requested
-			allApps := apps.Resources
-			if allPages && apps.Pagination.TotalPages > 1 {
-				for page := 2; page <= apps.Pagination.TotalPages; page++ {
-					params.Page = page
-					moreApps, err := client.Stacks().ListApps(ctx, stackGUID, params)
-					if err != nil {
-						return fmt.Errorf("failed to fetch page %d: %w", page, err)
-					}
-					allApps = append(allApps, moreApps.Resources...)
-				}
+			allApps, err := fetchAllStackAppPages(ctx, client, stackGUID, params, apps, allPages)
+			if err != nil {
+				return err
 			}
 
 			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(allApps)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(allApps)
-			default:
-				if len(allApps) == 0 {
-					fmt.Println("No apps found using this stack")
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("Name", "GUID", "State", "Lifecycle", "Created", "Updated")
-
-				for _, app := range allApps {
-					lifecycle := app.Lifecycle.Type
-					if len(app.Lifecycle.Data) > 0 {
-						if stackName, ok := app.Lifecycle.Data["stack"]; ok {
-							lifecycle += fmt.Sprintf(" (%v)", stackName)
-						}
-					}
-
-					_ = table.Append([]string{
-						app.Name,
-						app.GUID,
-						app.State,
-						lifecycle,
-						app.CreatedAt.Format("2006-01-02 15:04:05"),
-						app.UpdatedAt.Format("2006-01-02 15:04:05"),
-					})
-				}
-
-				_ = table.Render()
-			}
-
-			return nil
+			return renderAppsOutput(viper.GetString("output"), allApps)
 		},
 	}
 
 	cmd.Flags().BoolVar(&allPages, "all-pages", false, "fetch all pages")
-	cmd.Flags().IntVar(&perPage, "per-page", 50, "number of results per page")
+	cmd.Flags().IntVar(&perPage, "per-page", constants.StandardPageSize, "number of results per page")
 
 	return cmd
 }

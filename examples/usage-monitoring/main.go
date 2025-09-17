@@ -2,25 +2,27 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <cf-api-endpoint>")
-		fmt.Println("Example: go run main.go https://api.cf.example.com")
+	if len(os.Args) < constants.MinimumArgumentCount {
+		log.Println("Usage: go run main.go <cf-api-endpoint>")
+		log.Println("Example: go run main.go https://api.cf.example.com")
 		os.Exit(1)
 	}
 
 	endpoint := os.Args[1]
 
-	client, err := cfclient.NewWithPassword(
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		endpoint,
 		os.Getenv("CF_USERNAME"),
 		os.Getenv("CF_PASSWORD"),
@@ -29,43 +31,53 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 
-	ctx := context.Background()
-
-	fmt.Println("=== Cloud Foundry Usage Monitoring Examples ===")
-	fmt.Println()
+	log.Println("=== Cloud Foundry Usage Monitoring Examples ===")
+	log.Println()
 
 	// Application Usage Events
-	fmt.Println("1. Application Usage Events")
+	log.Println("1. Application Usage Events")
 	demonstrateAppUsageEvents(ctx, client)
 
 	// Service Usage Events
-	fmt.Println("\n2. Service Usage Events")
+	log.Println("\n2. Service Usage Events")
 	demonstrateServiceUsageEvents(ctx, client)
 
 	// Audit Events
-	fmt.Println("\n3. Audit Events")
+	log.Println("\n3. Audit Events")
 	demonstrateAuditEvents(ctx, client)
 
 	// Environment Variable Groups
-	fmt.Println("\n4. Environment Variable Groups")
+	log.Println("\n4. Environment Variable Groups")
 	demonstrateEnvironmentVariableGroups(ctx, client)
 }
 
 func demonstrateAppUsageEvents(ctx context.Context, client capi.Client) {
-	// List recent app usage events
-	fmt.Println("   Listing recent application usage events...")
+	events := listAppUsageEvents(ctx, client)
+	if events == nil {
+		return
+	}
+
+	showDetailedAppEvent(ctx, client, events)
+	filterAppEventsByTimeRange(ctx, client)
+}
+
+func listAppUsageEvents(ctx context.Context, client capi.Client) *capi.ListResponse[capi.AppUsageEvent] {
+	log.Println("   Listing recent application usage events...")
+
 	params := capi.NewQueryParams()
-	params.WithPerPage(10)
+	params.WithPerPage(constants.DefaultPageSize)
 
 	events, err := client.AppUsageEvents().List(ctx, params)
 	if err != nil {
 		log.Printf("   Failed to list app usage events: %v", err)
-		return
+
+		return nil
 	}
 
-	fmt.Printf("   Found %d app usage events\n", len(events.Resources))
+	log.Printf("   Found %d app usage events\n", len(events.Resources))
+
 	for i, event := range events.Resources {
-		if i >= 3 { // Show only first 3 for demo
+		if i >= constants.DemoDisplayLimit { // Show only first 3 for demo
 			break
 		}
 
@@ -74,7 +86,7 @@ func demonstrateAppUsageEvents(ctx context.Context, client capi.Client) {
 			previousState = *event.PreviousState
 		}
 
-		fmt.Printf("     - App: %s, State: %s -> %s, Instances: %d, Memory: %d MB\n",
+		log.Printf("     - App: %s, State: %s -> %s, Instances: %d, Memory: %d MB\n",
 			event.AppName,
 			previousState,
 			event.State,
@@ -82,66 +94,84 @@ func demonstrateAppUsageEvents(ctx context.Context, client capi.Client) {
 			event.MemoryInMBPerInstance)
 	}
 
-	// Get detailed information for the first event
-	if len(events.Resources) > 0 {
-		fmt.Println("\n   Getting detailed event information...")
-		event, err := client.AppUsageEvents().Get(ctx, events.Resources[0].GUID)
-		if err != nil {
-			log.Printf("   Failed to get app usage event: %v", err)
-			return
-		}
+	return events
+}
 
-		fmt.Printf("   Event Details:\n")
-		fmt.Printf("     GUID: %s\n", event.GUID)
-		fmt.Printf("     App: %s (%s)\n", event.AppName, event.AppGUID)
-		fmt.Printf("     Space: %s (%s)\n", event.SpaceName, event.SpaceGUID)
-		fmt.Printf("     Organization: %s (%s)\n", event.OrganizationName, event.OrganizationGUID)
-		fmt.Printf("     Process Type: %s\n", event.ProcessType)
-		fmt.Printf("     Created: %s\n", event.CreatedAt.Format(time.RFC3339))
-
-		if event.BuildpackName != nil {
-			fmt.Printf("     Buildpack: %s\n", *event.BuildpackName)
-		}
-		if event.TaskName != nil {
-			fmt.Printf("     Task: %s\n", *event.TaskName)
-		}
+func showDetailedAppEvent(ctx context.Context, client capi.Client, events *capi.ListResponse[capi.AppUsageEvent]) {
+	if len(events.Resources) == 0 {
+		return
 	}
 
-	// Demonstrate filtering by time range
-	fmt.Println("\n   Filtering events by time range (last 24 hours)...")
+	log.Println("\n   Getting detailed event information...")
+
+	event, err := client.AppUsageEvents().Get(ctx, events.Resources[0].GUID)
+	if err != nil {
+		log.Printf("   Failed to get app usage event: %v", err)
+
+		return
+	}
+
+	printAppEventDetails(event)
+}
+
+func printAppEventDetails(event *capi.AppUsageEvent) {
+	log.Printf("   Event Details:\n")
+	log.Printf("     GUID: %s\n", event.GUID)
+	log.Printf("     App: %s (%s)\n", event.AppName, event.AppGUID)
+	log.Printf("     Space: %s (%s)\n", event.SpaceName, event.SpaceGUID)
+	log.Printf("     Organization: %s (%s)\n", event.OrganizationName, event.OrganizationGUID)
+	log.Printf("     Process Type: %s\n", event.ProcessType)
+	log.Printf("     Created: %s\n", event.CreatedAt.Format(time.RFC3339))
+
+	if event.BuildpackName != nil {
+		log.Printf("     Buildpack: %s\n", *event.BuildpackName)
+	}
+
+	if event.TaskName != nil {
+		log.Printf("     Task: %s\n", *event.TaskName)
+	}
+}
+
+func filterAppEventsByTimeRange(ctx context.Context, client capi.Client) {
+	log.Println("\n   Filtering events by time range (last 24 hours)...")
+
 	yesterday := time.Now().Add(-24 * time.Hour)
 	timeParams := capi.NewQueryParams()
 	timeParams.WithFilter("created_ats[gte]", yesterday.Format(time.RFC3339))
-	timeParams.WithPerPage(5)
+	timeParams.WithPerPage(constants.SmallPageSize)
 
 	recentEvents, err := client.AppUsageEvents().List(ctx, timeParams)
 	if err != nil {
 		log.Printf("   Failed to filter app usage events: %v", err)
+
 		return
 	}
 
-	fmt.Printf("   Found %d events in the last 24 hours\n", len(recentEvents.Resources))
+	log.Printf("   Found %d events in the last 24 hours\n", len(recentEvents.Resources))
 }
 
 func demonstrateServiceUsageEvents(ctx context.Context, client capi.Client) {
 	// List recent service usage events
-	fmt.Println("   Listing recent service usage events...")
+	log.Println("   Listing recent service usage events...")
+
 	params := capi.NewQueryParams()
-	params.WithPerPage(10)
+	params.WithPerPage(constants.DefaultPageSize)
 
 	events, err := client.ServiceUsageEvents().List(ctx, params)
 	if err != nil {
 		log.Printf("   Failed to list service usage events: %v", err)
+
 		return
 	}
 
-	fmt.Printf("   Found %d service usage events\n", len(events.Resources))
+	log.Printf("   Found %d service usage events\n", len(events.Resources))
+
 	for i, event := range events.Resources {
-		if i >= 3 { // Show only first 3 for demo
+		if i >= constants.DemoDisplayLimit { // Show only first 3 for demo
 			break
 		}
 
-		fmt.Printf("     - Service: %s (%s), State: %s, Plan: %s\n",
+		log.Printf("     - Service: %s (%s), State: %s, Plan: %s\n",
 			event.ServiceInstanceName,
 			event.ServiceInstanceType,
 			event.State,
@@ -150,135 +180,193 @@ func demonstrateServiceUsageEvents(ctx context.Context, client capi.Client) {
 
 	// Get detailed information for the first event
 	if len(events.Resources) > 0 {
-		fmt.Println("\n   Getting detailed service event information...")
+		log.Println("\n   Getting detailed service event information...")
+
 		event, err := client.ServiceUsageEvents().Get(ctx, events.Resources[0].GUID)
 		if err != nil {
 			log.Printf("   Failed to get service usage event: %v", err)
+
 			return
 		}
 
-		fmt.Printf("   Service Event Details:\n")
-		fmt.Printf("     GUID: %s\n", event.GUID)
-		fmt.Printf("     Service Instance: %s (%s)\n", event.ServiceInstanceName, event.ServiceInstanceGUID)
-		fmt.Printf("     Service Type: %s\n", event.ServiceInstanceType)
-		fmt.Printf("     Service Offering: %s\n", event.ServiceOfferingName)
-		fmt.Printf("     Service Plan: %s\n", event.ServicePlanName)
-		fmt.Printf("     Service Broker: %s\n", event.ServiceBrokerName)
-		fmt.Printf("     Space: %s (%s)\n", event.SpaceName, event.SpaceGUID)
-		fmt.Printf("     Organization: %s (%s)\n", event.OrganizationName, event.OrganizationGUID)
+		log.Printf("   Service Event Details:\n")
+		log.Printf("     GUID: %s\n", event.GUID)
+		log.Printf("     Service Instance: %s (%s)\n", event.ServiceInstanceName, event.ServiceInstanceGUID)
+		log.Printf("     Service Type: %s\n", event.ServiceInstanceType)
+		log.Printf("     Service Offering: %s\n", event.ServiceOfferingName)
+		log.Printf("     Service Plan: %s\n", event.ServicePlanName)
+		log.Printf("     Service Broker: %s\n", event.ServiceBrokerName)
+		log.Printf("     Space: %s (%s)\n", event.SpaceName, event.SpaceGUID)
+		log.Printf("     Organization: %s (%s)\n", event.OrganizationName, event.OrganizationGUID)
 	}
 }
 
 func demonstrateAuditEvents(ctx context.Context, client capi.Client) {
-	// List recent audit events
-	fmt.Println("   Listing recent audit events...")
+	events := listRecentAuditEvents(ctx, client)
+	if events == nil {
+		return
+	}
+
+	printAuditEventsSummary(events)
+	showDetailedAuditEvent(ctx, client, events)
+	filterAuditEventsByType(ctx, client)
+}
+
+func listRecentAuditEvents(ctx context.Context, client capi.Client) *capi.ListResponse[capi.AuditEvent] {
+	log.Println("   Listing recent audit events...")
+
 	params := capi.NewQueryParams()
-	params.WithPerPage(10)
+	params.WithPerPage(constants.DefaultPageSize)
 
 	events, err := client.AuditEvents().List(ctx, params)
 	if err != nil {
 		log.Printf("   Failed to list audit events: %v", err)
-		return
+
+		return nil
 	}
 
-	fmt.Printf("   Found %d audit events\n", len(events.Resources))
+	return events
+}
+
+func printAuditEventsSummary(events *capi.ListResponse[capi.AuditEvent]) {
+	log.Printf("   Found %d audit events\n", len(events.Resources))
+
 	for i, event := range events.Resources {
-		if i >= 5 { // Show only first 5 for demo
+		if i >= constants.MaxDemoItems { // Show only first 5 for demo
 			break
 		}
 
-		fmt.Printf("     - Type: %s, Actor: %s, Target: %s (%s)\n",
+		log.Printf("     - Type: %s, Actor: %s, Target: %s (%s)\n",
 			event.Type,
 			event.Actor.Name,
 			event.Target.Name,
 			event.Target.Type)
 	}
+}
 
-	// Get detailed information for the first event
-	if len(events.Resources) > 0 {
-		fmt.Println("\n   Getting detailed audit event information...")
-		event, err := client.AuditEvents().Get(ctx, events.Resources[0].GUID)
-		if err != nil {
-			log.Printf("   Failed to get audit event: %v", err)
-			return
-		}
-
-		fmt.Printf("   Audit Event Details:\n")
-		fmt.Printf("     GUID: %s\n", event.GUID)
-		fmt.Printf("     Type: %s\n", event.Type)
-		fmt.Printf("     Actor: %s (%s) - %s\n", event.Actor.Name, event.Actor.Type, event.Actor.GUID)
-		fmt.Printf("     Target: %s (%s) - %s\n", event.Target.Name, event.Target.Type, event.Target.GUID)
-		fmt.Printf("     Created: %s\n", event.CreatedAt.Format(time.RFC3339))
-
-		if event.Space != nil {
-			fmt.Printf("     Space: %s (%s)\n", event.Space.Name, event.Space.GUID)
-		}
-		if event.Organization != nil {
-			fmt.Printf("     Organization: %s (%s)\n", event.Organization.Name, event.Organization.GUID)
-		}
-
-		// Show event data if available
-		if len(event.Data) > 0 {
-			fmt.Printf("     Event Data:\n")
-			for key, value := range event.Data {
-				fmt.Printf("       %s: %v\n", key, value)
-			}
-		}
+func showDetailedAuditEvent(ctx context.Context, client capi.Client, events *capi.ListResponse[capi.AuditEvent]) {
+	if len(events.Resources) == 0 {
+		return
 	}
 
-	// Demonstrate filtering by event type
-	fmt.Println("\n   Filtering audit events by type (app events)...")
-	appEventParams := capi.NewQueryParams()
-	appEventParams.WithFilter("types", "audit.app.create,audit.app.update,audit.app.delete")
-	appEventParams.WithPerPage(5)
+	log.Println("\n   Getting detailed audit event information...")
+
+	event, err := client.AuditEvents().Get(ctx, events.Resources[0].GUID)
+	if err != nil {
+		log.Printf("   Failed to get audit event: %v", err)
+
+		return
+	}
+
+	printAuditEventDetails(event)
+}
+
+func printAuditEventDetails(event *capi.AuditEvent) {
+	log.Printf("   Audit Event Details:\n")
+	log.Printf("     GUID: %s\n", event.GUID)
+	log.Printf("     Type: %s\n", event.Type)
+	log.Printf("     Actor: %s (%s) - %s\n", event.Actor.Name, event.Actor.Type, event.Actor.GUID)
+	log.Printf("     Target: %s (%s) - %s\n", event.Target.Name, event.Target.Type, event.Target.GUID)
+	log.Printf("     Created: %s\n", event.CreatedAt.Format(time.RFC3339))
+
+	printAuditEventContext(event)
+	printAuditEventData(event)
+}
+
+func printAuditEventContext(event *capi.AuditEvent) {
+	if event.Space != nil {
+		log.Printf("     Space: %s (%s)\n", event.Space.Name, event.Space.GUID)
+	}
+
+	if event.Organization != nil {
+		log.Printf("     Organization: %s (%s)\n", event.Organization.Name, event.Organization.GUID)
+	}
+}
+
+func printAuditEventData(event *capi.AuditEvent) {
+	if len(event.Data) == 0 {
+		return
+	}
+
+	log.Printf("     Event Data:\n")
+
+	for key, value := range event.Data {
+		log.Printf("       %s: %v\n", key, value)
+	}
+}
+
+func filterAuditEventsByType(ctx context.Context, client capi.Client) {
+	log.Println("\n   Filtering audit events by type (app events)...")
+
+	appEventParams := buildAppEventParams()
 
 	appEvents, err := client.AuditEvents().List(ctx, appEventParams)
 	if err != nil {
 		log.Printf("   Failed to filter audit events: %v", err)
+
 		return
 	}
 
-	fmt.Printf("   Found %d app-related audit events\n", len(appEvents.Resources))
+	printFilteredAuditEvents(appEvents)
+}
+
+func buildAppEventParams() *capi.QueryParams {
+	params := capi.NewQueryParams()
+	params.WithFilter("types", "audit.app.create,audit.app.update,audit.app.delete")
+	params.WithPerPage(constants.SmallPageSize)
+
+	return params
+}
+
+func printFilteredAuditEvents(appEvents *capi.ListResponse[capi.AuditEvent]) {
+	log.Printf("   Found %d app-related audit events\n", len(appEvents.Resources))
+
 	for _, event := range appEvents.Resources {
-		fmt.Printf("     - %s: %s\n", event.Type, event.Target.Name)
+		log.Printf("     - %s: %s\n", event.Type, event.Target.Name)
 	}
 }
 
 func demonstrateEnvironmentVariableGroups(ctx context.Context, client capi.Client) {
 	// Get running environment variables
-	fmt.Println("   Getting running environment variables...")
+	log.Println("   Getting running environment variables...")
+
 	runningEnvVars, err := client.EnvironmentVariableGroups().Get(ctx, "running")
 	if err != nil {
 		log.Printf("   Failed to get running environment variables: %v", err)
+
 		return
 	}
 
-	fmt.Printf("   Running Environment Variables (%d variables):\n", len(runningEnvVars.Var))
+	log.Printf("   Running Environment Variables (%d variables):\n", len(runningEnvVars.Var))
+
 	for key, value := range runningEnvVars.Var {
-		fmt.Printf("     %s=%v\n", key, value)
+		log.Printf("     %s=%v\n", key, value)
 	}
 
 	// Get staging environment variables
-	fmt.Println("\n   Getting staging environment variables...")
+	log.Println("\n   Getting staging environment variables...")
+
 	stagingEnvVars, err := client.EnvironmentVariableGroups().Get(ctx, "staging")
 	if err != nil {
 		log.Printf("   Failed to get staging environment variables: %v", err)
+
 		return
 	}
 
-	fmt.Printf("   Staging Environment Variables (%d variables):\n", len(stagingEnvVars.Var))
+	log.Printf("   Staging Environment Variables (%d variables):\n", len(stagingEnvVars.Var))
+
 	for key, value := range stagingEnvVars.Var {
-		fmt.Printf("     %s=%v\n", key, value)
+		log.Printf("     %s=%v\n", key, value)
 	}
 
 	// Demonstrate updating environment variables (commented out to avoid affecting real environment)
-	fmt.Println("\n   Environment variable update example (commented out for safety):")
-	fmt.Println("   // Update running environment variables")
-	fmt.Println("   // newVars := map[string]interface{}{")
-	fmt.Println("   //     \"DEMO_LOG_LEVEL\": \"debug\",")
-	fmt.Println("   //     \"DEMO_FEATURE_FLAG\": true,")
-	fmt.Println("   // }")
-	fmt.Println("   // runningEnvVars, err := client.EnvironmentVariableGroups().Update(ctx, \"running\", newVars)")
+	log.Println("\n   Environment variable update example (commented out for safety):")
+	log.Println("   // Update running environment variables")
+	log.Println("   // newVars := map[string]interface{}{")
+	log.Println("   //     \"DEMO_LOG_LEVEL\": \"debug\",")
+	log.Println("   //     \"DEMO_FEATURE_FLAG\": true,")
+	log.Println("   // }")
+	log.Println("   // runningEnvVars, err := client.EnvironmentVariableGroups().Update(ctx, \"running\", newVars)")
 
 	/*
 		// Uncomment this section if you want to actually update environment variables

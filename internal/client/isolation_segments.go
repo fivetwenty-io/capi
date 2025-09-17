@@ -10,19 +10,19 @@ import (
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
-// IsolationSegmentsClient implements capi.IsolationSegmentsClient
+// IsolationSegmentsClient implements capi.IsolationSegmentsClient.
 type IsolationSegmentsClient struct {
 	httpClient *http.Client
 }
 
-// NewIsolationSegmentsClient creates a new isolation segments client
+// NewIsolationSegmentsClient creates a new isolation segments client.
 func NewIsolationSegmentsClient(httpClient *http.Client) *IsolationSegmentsClient {
 	return &IsolationSegmentsClient{
 		httpClient: httpClient,
 	}
 }
 
-// Create implements capi.IsolationSegmentsClient.Create
+// Create implements capi.IsolationSegmentsClient.Create.
 func (c *IsolationSegmentsClient) Create(ctx context.Context, request *capi.IsolationSegmentCreateRequest) (*capi.IsolationSegment, error) {
 	path := "/v3/isolation_segments"
 
@@ -31,32 +31,36 @@ func (c *IsolationSegmentsClient) Create(ctx context.Context, request *capi.Isol
 		return nil, fmt.Errorf("creating isolation segment: %w", err)
 	}
 
-	var is capi.IsolationSegment
-	if err := json.Unmarshal(resp.Body, &is); err != nil {
+	var isolationSegment capi.IsolationSegment
+
+	err = json.Unmarshal(resp.Body, &isolationSegment)
+	if err != nil {
 		return nil, fmt.Errorf("parsing isolation segment response: %w", err)
 	}
 
-	return &is, nil
+	return &isolationSegment, nil
 }
 
-// Get implements capi.IsolationSegmentsClient.Get
+// Get implements capi.IsolationSegmentsClient.Get.
 func (c *IsolationSegmentsClient) Get(ctx context.Context, guid string) (*capi.IsolationSegment, error) {
-	path := fmt.Sprintf("/v3/isolation_segments/%s", guid)
+	path := "/v3/isolation_segments/" + guid
 
 	resp, err := c.httpClient.Get(ctx, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting isolation segment: %w", err)
 	}
 
-	var is capi.IsolationSegment
-	if err := json.Unmarshal(resp.Body, &is); err != nil {
+	var isolationSegment capi.IsolationSegment
+
+	err = json.Unmarshal(resp.Body, &isolationSegment)
+	if err != nil {
 		return nil, fmt.Errorf("parsing isolation segment: %w", err)
 	}
 
-	return &is, nil
+	return &isolationSegment, nil
 }
 
-// List implements capi.IsolationSegmentsClient.List
+// List implements capi.IsolationSegmentsClient.List.
 func (c *IsolationSegmentsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.IsolationSegment], error) {
 	path := "/v3/isolation_segments"
 
@@ -71,33 +75,37 @@ func (c *IsolationSegmentsClient) List(ctx context.Context, params *capi.QueryPa
 	}
 
 	var list capi.ListResponse[capi.IsolationSegment]
-	if err := json.Unmarshal(resp.Body, &list); err != nil {
+
+	err = json.Unmarshal(resp.Body, &list)
+	if err != nil {
 		return nil, fmt.Errorf("parsing isolation segments list: %w", err)
 	}
 
 	return &list, nil
 }
 
-// Update implements capi.IsolationSegmentsClient.Update
+// Update implements capi.IsolationSegmentsClient.Update.
 func (c *IsolationSegmentsClient) Update(ctx context.Context, guid string, request *capi.IsolationSegmentUpdateRequest) (*capi.IsolationSegment, error) {
-	path := fmt.Sprintf("/v3/isolation_segments/%s", guid)
+	path := "/v3/isolation_segments/" + guid
 
 	resp, err := c.httpClient.Patch(ctx, path, request)
 	if err != nil {
 		return nil, fmt.Errorf("updating isolation segment: %w", err)
 	}
 
-	var is capi.IsolationSegment
-	if err := json.Unmarshal(resp.Body, &is); err != nil {
+	var isolationSegment capi.IsolationSegment
+
+	err = json.Unmarshal(resp.Body, &isolationSegment)
+	if err != nil {
 		return nil, fmt.Errorf("parsing isolation segment response: %w", err)
 	}
 
-	return &is, nil
+	return &isolationSegment, nil
 }
 
-// Delete implements capi.IsolationSegmentsClient.Delete
+// Delete implements capi.IsolationSegmentsClient.Delete.
 func (c *IsolationSegmentsClient) Delete(ctx context.Context, guid string) error {
-	path := fmt.Sprintf("/v3/isolation_segments/%s", guid)
+	path := "/v3/isolation_segments/" + guid
 
 	_, err := c.httpClient.Delete(ctx, path)
 	if err != nil {
@@ -107,7 +115,7 @@ func (c *IsolationSegmentsClient) Delete(ctx context.Context, guid string) error
 	return nil
 }
 
-// EntitleOrganizations implements capi.IsolationSegmentsClient.EntitleOrganizations
+// EntitleOrganizations implements capi.IsolationSegmentsClient.EntitleOrganizations.
 func (c *IsolationSegmentsClient) EntitleOrganizations(ctx context.Context, guid string, orgGUIDs []string) (*capi.ToManyRelationship, error) {
 	path := fmt.Sprintf("/v3/isolation_segments/%s/relationships/organizations", guid)
 
@@ -124,14 +132,16 @@ func (c *IsolationSegmentsClient) EntitleOrganizations(ctx context.Context, guid
 	}
 
 	var relationship capi.ToManyRelationship
-	if err := json.Unmarshal(resp.Body, &relationship); err != nil {
+
+	err = json.Unmarshal(resp.Body, &relationship)
+	if err != nil {
 		return nil, fmt.Errorf("parsing relationship response: %w", err)
 	}
 
 	return &relationship, nil
 }
 
-// RevokeOrganization implements capi.IsolationSegmentsClient.RevokeOrganization
+// RevokeOrganization implements capi.IsolationSegmentsClient.RevokeOrganization.
 func (c *IsolationSegmentsClient) RevokeOrganization(ctx context.Context, guid string, orgGUID string) error {
 	path := fmt.Sprintf("/v3/isolation_segments/%s/relationships/organizations/%s", guid, orgGUID)
 
@@ -143,7 +153,7 @@ func (c *IsolationSegmentsClient) RevokeOrganization(ctx context.Context, guid s
 	return nil
 }
 
-// ListOrganizations implements capi.IsolationSegmentsClient.ListOrganizations
+// ListOrganizations implements capi.IsolationSegmentsClient.ListOrganizations.
 func (c *IsolationSegmentsClient) ListOrganizations(ctx context.Context, guid string) (*capi.ListResponse[capi.Organization], error) {
 	path := fmt.Sprintf("/v3/isolation_segments/%s/organizations", guid)
 
@@ -153,14 +163,16 @@ func (c *IsolationSegmentsClient) ListOrganizations(ctx context.Context, guid st
 	}
 
 	var list capi.ListResponse[capi.Organization]
-	if err := json.Unmarshal(resp.Body, &list); err != nil {
+
+	err = json.Unmarshal(resp.Body, &list)
+	if err != nil {
 		return nil, fmt.Errorf("parsing organizations list: %w", err)
 	}
 
 	return &list, nil
 }
 
-// ListSpaces implements capi.IsolationSegmentsClient.ListSpaces
+// ListSpaces implements capi.IsolationSegmentsClient.ListSpaces.
 func (c *IsolationSegmentsClient) ListSpaces(ctx context.Context, guid string) (*capi.ListResponse[capi.Space], error) {
 	path := fmt.Sprintf("/v3/isolation_segments/%s/relationships/spaces", guid)
 
@@ -170,7 +182,9 @@ func (c *IsolationSegmentsClient) ListSpaces(ctx context.Context, guid string) (
 	}
 
 	var list capi.ListResponse[capi.Space]
-	if err := json.Unmarshal(resp.Body, &list); err != nil {
+
+	err = json.Unmarshal(resp.Body, &list)
+	if err != nil {
 		return nil, fmt.Errorf("parsing spaces list: %w", err)
 	}
 

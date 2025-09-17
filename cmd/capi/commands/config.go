@@ -1,15 +1,18 @@
 package commands
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/auth"
 	"github.com/fivetwenty-io/capi/v3/internal/client"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 	"github.com/olekukonko/tablewriter"
@@ -18,74 +21,78 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the CLI configuration
+const (
+	organizationKey = "organization"
+)
+
+// Config represents the CLI configuration.
 type Config struct {
 	// Multi-API configuration
-	APIs       map[string]*APIConfig `json:"apis,omitempty" yaml:"apis,omitempty"`
+	APIs       map[string]*APIConfig `json:"apis,omitempty"        yaml:"apis,omitempty"`
 	CurrentAPI string                `json:"current_api,omitempty" yaml:"current_api,omitempty"`
 
 	// Global settings
-	Output  string `json:"output" yaml:"output"`
+	Output  string `json:"output"   yaml:"output"`
 	NoColor bool   `json:"no_color" yaml:"no_color"`
 
 	// Legacy fields for backward compatibility (will be migrated to APIs map)
-	API               string            `json:"api,omitempty" yaml:"api,omitempty"`
-	Token             string            `json:"token,omitempty" yaml:"token,omitempty"`
-	RefreshToken      string            `json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
-	Username          string            `json:"username,omitempty" yaml:"username,omitempty"`
-	Organization      string            `json:"organization,omitempty" yaml:"organization,omitempty"`
+	API               string            `json:"api,omitempty"               yaml:"api,omitempty"`
+	Token             string            `json:"token,omitempty"             yaml:"token,omitempty"`
+	RefreshToken      string            `json:"refresh_token,omitempty"     yaml:"refresh_token,omitempty"`
+	Username          string            `json:"username,omitempty"          yaml:"username,omitempty"`
+	Organization      string            `json:"organization,omitempty"      yaml:"organization,omitempty"`
 	OrganizationGUID  string            `json:"organization_guid,omitempty" yaml:"organization_guid,omitempty"`
-	Space             string            `json:"space,omitempty" yaml:"space,omitempty"`
-	SpaceGUID         string            `json:"space_guid,omitempty" yaml:"space_guid,omitempty"`
-	SkipSSLValidation bool              `json:"skip_ssl_validation" yaml:"skip_ssl_validation"`
-	Targets           map[string]Target `json:"targets,omitempty" yaml:"targets,omitempty"`
-	CurrentTarget     string            `json:"current_target,omitempty" yaml:"current_target,omitempty"`
-	UAAEndpoint       string            `json:"uaa_endpoint,omitempty" yaml:"uaa_endpoint,omitempty"`
-	UAAToken          string            `json:"uaa_token,omitempty" yaml:"uaa_token,omitempty"`
+	Space             string            `json:"space,omitempty"             yaml:"space,omitempty"`
+	SpaceGUID         string            `json:"space_guid,omitempty"        yaml:"space_guid,omitempty"`
+	SkipSSLValidation bool              `json:"skip_ssl_validation"         yaml:"skip_ssl_validation"`
+	Targets           map[string]Target `json:"targets,omitempty"           yaml:"targets,omitempty"`
+	CurrentTarget     string            `json:"current_target,omitempty"    yaml:"current_target,omitempty"`
+	UAAEndpoint       string            `json:"uaa_endpoint,omitempty"      yaml:"uaa_endpoint,omitempty"`
+	UAAToken          string            `json:"uaa_token,omitempty"         yaml:"uaa_token,omitempty"`
 	UAARefreshToken   string            `json:"uaa_refresh_token,omitempty" yaml:"uaa_refresh_token,omitempty"`
-	UAAClientID       string            `json:"uaa_client_id,omitempty" yaml:"uaa_client_id,omitempty"`
+	UAAClientID       string            `json:"uaa_client_id,omitempty"     yaml:"uaa_client_id,omitempty"`
 	UAAClientSecret   string            `json:"uaa_client_secret,omitempty" yaml:"uaa_client_secret,omitempty"`
 }
 
-// APIConfig represents configuration for a single Cloud Foundry API endpoint
+// APIConfig represents configuration for a single Cloud Foundry API endpoint.
 type APIConfig struct {
-	Endpoint          string            `json:"endpoint" yaml:"endpoint"`
-	Token             string            `json:"token,omitempty" yaml:"token,omitempty"`
-	TokenExpiresAt    *time.Time        `json:"token_expires_at,omitempty" yaml:"token_expires_at,omitempty"`
-	RefreshToken      string            `json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
-	LastRefreshed     *time.Time        `json:"last_refreshed,omitempty" yaml:"last_refreshed,omitempty"`
-	Username          string            `json:"username,omitempty" yaml:"username,omitempty"`
-	Organization      string            `json:"organization,omitempty" yaml:"organization,omitempty"`
+	Endpoint          string            `json:"endpoint"                    yaml:"endpoint"`
+	Token             string            `json:"token,omitempty"             yaml:"token,omitempty"`
+	TokenExpiresAt    *time.Time        `json:"token_expires_at,omitempty"  yaml:"token_expires_at,omitempty"`
+	RefreshToken      string            `json:"refresh_token,omitempty"     yaml:"refresh_token,omitempty"`
+	LastRefreshed     *time.Time        `json:"last_refreshed,omitempty"    yaml:"last_refreshed,omitempty"`
+	Username          string            `json:"username,omitempty"          yaml:"username,omitempty"`
+	Organization      string            `json:"organization,omitempty"      yaml:"organization,omitempty"`
 	OrganizationGUID  string            `json:"organization_guid,omitempty" yaml:"organization_guid,omitempty"`
-	Space             string            `json:"space,omitempty" yaml:"space,omitempty"`
-	SpaceGUID         string            `json:"space_guid,omitempty" yaml:"space_guid,omitempty"`
-	SkipSSLValidation bool              `json:"skip_ssl_validation" yaml:"skip_ssl_validation"`
-	UAAEndpoint       string            `json:"uaa_endpoint,omitempty" yaml:"uaa_endpoint,omitempty"`
-	UAAToken          string            `json:"uaa_token,omitempty" yaml:"uaa_token,omitempty"`
+	Space             string            `json:"space,omitempty"             yaml:"space,omitempty"`
+	SpaceGUID         string            `json:"space_guid,omitempty"        yaml:"space_guid,omitempty"`
+	SkipSSLValidation bool              `json:"skip_ssl_validation"         yaml:"skip_ssl_validation"`
+	UAAEndpoint       string            `json:"uaa_endpoint,omitempty"      yaml:"uaa_endpoint,omitempty"`
+	UAAToken          string            `json:"uaa_token,omitempty"         yaml:"uaa_token,omitempty"`
 	UAARefreshToken   string            `json:"uaa_refresh_token,omitempty" yaml:"uaa_refresh_token,omitempty"`
-	UAAClientID       string            `json:"uaa_client_id,omitempty" yaml:"uaa_client_id,omitempty"`
+	UAAClientID       string            `json:"uaa_client_id,omitempty"     yaml:"uaa_client_id,omitempty"`
 	UAAClientSecret   string            `json:"uaa_client_secret,omitempty" yaml:"uaa_client_secret,omitempty"`
-	APILinks          map[string]string `json:"api_links,omitempty" yaml:"api_links,omitempty"`
+	APILinks          map[string]string `json:"api_links,omitempty"         yaml:"api_links,omitempty"`
 }
 
-// Target represents a saved CF target
+// Target represents a saved CF target.
 type Target struct {
-	API               string `json:"api" yaml:"api"`
-	Token             string `json:"token,omitempty" yaml:"token,omitempty"`
+	API               string `json:"api"                     yaml:"api"`
+	Token             string `json:"token,omitempty"         yaml:"token,omitempty"`
 	RefreshToken      string `json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
-	Username          string `json:"username,omitempty" yaml:"username,omitempty"`
-	Organization      string `json:"organization,omitempty" yaml:"organization,omitempty"`
-	Space             string `json:"space,omitempty" yaml:"space,omitempty"`
-	SkipSSLValidation bool   `json:"skip_ssl_validation" yaml:"skip_ssl_validation"`
+	Username          string `json:"username,omitempty"      yaml:"username,omitempty"`
+	Organization      string `json:"organization,omitempty"  yaml:"organization,omitempty"`
+	Space             string `json:"space,omitempty"         yaml:"space,omitempty"`
+	SkipSSLValidation bool   `json:"skip_ssl_validation"     yaml:"skip_ssl_validation"`
 	// UAA-specific fields for targets
-	UAAEndpoint     string `json:"uaa_endpoint,omitempty" yaml:"uaa_endpoint,omitempty"`
-	UAAToken        string `json:"uaa_token,omitempty" yaml:"uaa_token,omitempty"`
+	UAAEndpoint     string `json:"uaa_endpoint,omitempty"      yaml:"uaa_endpoint,omitempty"`
+	UAAToken        string `json:"uaa_token,omitempty"         yaml:"uaa_token,omitempty"`
 	UAARefreshToken string `json:"uaa_refresh_token,omitempty" yaml:"uaa_refresh_token,omitempty"`
-	UAAClientID     string `json:"uaa_client_id,omitempty" yaml:"uaa_client_id,omitempty"`
+	UAAClientID     string `json:"uaa_client_id,omitempty"     yaml:"uaa_client_id,omitempty"`
 	UAAClientSecret string `json:"uaa_client_secret,omitempty" yaml:"uaa_client_secret,omitempty"`
 }
 
-// NewConfigCommand creates the config command group
+// NewConfigCommand creates the config command group.
 func NewConfigCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
@@ -118,12 +125,14 @@ func newConfigShowCommand() *cobra.Command {
 
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case constants.FormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(config)
-			case "yaml":
+			case constants.FormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(config)
 			default:
 				return displayConfigTable(config)
@@ -143,7 +152,7 @@ func newConfigSetCommand() *cobra.Command {
 		Use:   "set KEY VALUE",
 		Short: "Set a configuration value",
 		Long:  "Set a specific configuration value (global or API-specific)",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(constants.MinimumArgumentCount),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := args[0]
 			value := args[1]
@@ -214,7 +223,8 @@ func newConfigClearCommand() *cobra.Command {
 				configFile = filepath.Join(home, ".capi", "config.yml")
 			}
 
-			if err := os.Remove(configFile); err != nil && !os.IsNotExist(err) {
+			err := os.Remove(configFile)
+			if err != nil && !os.IsNotExist(err) {
 				return fmt.Errorf("failed to remove config file: %w", err)
 			}
 
@@ -228,7 +238,18 @@ func newConfigClearCommand() *cobra.Command {
 }
 
 func loadConfig() *Config {
-	config := &Config{
+	config := createBaseConfig()
+
+	loadAPIConfigurations(config)
+	handleLegacyMigration(config)
+	loadLegacyTargets(config)
+
+	return config
+}
+
+// createBaseConfig creates a base config with global settings and legacy fields.
+func createBaseConfig() *Config {
+	return &Config{
 		// Global settings
 		Output:  viper.GetString("output"),
 		NoColor: viper.GetBool("no_color"),
@@ -241,7 +262,7 @@ func loadConfig() *Config {
 		Token:             viper.GetString("token"),
 		RefreshToken:      viper.GetString("refresh_token"),
 		Username:          viper.GetString("username"),
-		Organization:      viper.GetString("organization"),
+		Organization:      viper.GetString(organizationKey),
 		OrganizationGUID:  viper.GetString("organization_guid"),
 		Space:             viper.GetString("space"),
 		SpaceGUID:         viper.GetString("space_guid"),
@@ -254,123 +275,199 @@ func loadConfig() *Config {
 		UAAClientID:       viper.GetString("uaa_client_id"),
 		UAAClientSecret:   viper.GetString("uaa_client_secret"),
 	}
+}
 
-	// Load multi-API configuration if it exists
+// loadAPIConfigurations loads multi-API configuration from viper.
+func loadAPIConfigurations(config *Config) {
 	config.CurrentAPI = viper.GetString("current_api")
-	if apisRaw := viper.GetStringMap("apis"); apisRaw != nil {
-		for domain, apiRaw := range apisRaw {
-			if apiMap, ok := apiRaw.(map[string]interface{}); ok {
-				apiConfig := &APIConfig{}
-				if endpoint, ok := apiMap["endpoint"].(string); ok {
-					apiConfig.Endpoint = endpoint
-				}
-				if token, ok := apiMap["token"].(string); ok {
-					apiConfig.Token = token
-				}
-				if refreshToken, ok := apiMap["refresh_token"].(string); ok {
-					apiConfig.RefreshToken = refreshToken
-				}
-				if username, ok := apiMap["username"].(string); ok {
-					apiConfig.Username = username
-				}
-				if org, ok := apiMap["organization"].(string); ok {
-					apiConfig.Organization = org
-				}
-				if orgGUID, ok := apiMap["organization_guid"].(string); ok {
-					apiConfig.OrganizationGUID = orgGUID
-				}
-				if space, ok := apiMap["space"].(string); ok {
-					apiConfig.Space = space
-				}
-				if spaceGUID, ok := apiMap["space_guid"].(string); ok {
-					apiConfig.SpaceGUID = spaceGUID
-				}
-				if skipSSL, ok := apiMap["skip_ssl_validation"].(bool); ok {
-					apiConfig.SkipSSLValidation = skipSSL
-				}
-				if uaaEndpoint, ok := apiMap["uaa_endpoint"].(string); ok {
-					apiConfig.UAAEndpoint = uaaEndpoint
-				}
-				if uaaToken, ok := apiMap["uaa_token"].(string); ok {
-					apiConfig.UAAToken = uaaToken
-				}
-				if uaaRefreshToken, ok := apiMap["uaa_refresh_token"].(string); ok {
-					apiConfig.UAARefreshToken = uaaRefreshToken
-				}
-				if uaaClientID, ok := apiMap["uaa_client_id"].(string); ok {
-					apiConfig.UAAClientID = uaaClientID
-				}
-				if uaaClientSecret, ok := apiMap["uaa_client_secret"].(string); ok {
-					apiConfig.UAAClientSecret = uaaClientSecret
-				}
-				// Parse timestamp fields
-				if tokenExpiresAtStr, ok := apiMap["token_expires_at"].(string); ok && tokenExpiresAtStr != "" {
-					if t, err := time.Parse(time.RFC3339, tokenExpiresAtStr); err == nil {
-						apiConfig.TokenExpiresAt = &t
-					}
-				}
-				if lastRefreshedStr, ok := apiMap["last_refreshed"].(string); ok && lastRefreshedStr != "" {
-					if t, err := time.Parse(time.RFC3339, lastRefreshedStr); err == nil {
-						apiConfig.LastRefreshed = &t
-					}
-				}
-				config.APIs[domain] = apiConfig
-			}
+
+	apisRaw := viper.GetStringMap("apis")
+	if apisRaw == nil {
+		return
+	}
+
+	for domain, apiRaw := range apisRaw {
+		if apiMap, ok := apiRaw.(map[string]interface{}); ok {
+			apiConfig := parseAPIConfig(apiMap)
+			config.APIs[domain] = apiConfig
+		}
+	}
+}
+
+// parseAPIConfig parses API configuration from a map.
+func parseAPIConfig(apiMap map[string]interface{}) *APIConfig {
+	apiConfig := &APIConfig{}
+
+	parseAPIBasicFields(apiConfig, apiMap)
+	parseAPIAuthFields(apiConfig, apiMap)
+	parseAPIOrganizationSpaceFields(apiConfig, apiMap)
+	parseAPIUAAFields(apiConfig, apiMap)
+	parseAPITimestampFields(apiConfig, apiMap)
+
+	return apiConfig
+}
+
+// parseAPIBasicFields parses basic API configuration fields.
+func parseAPIBasicFields(apiConfig *APIConfig, apiMap map[string]interface{}) {
+	if endpoint, ok := apiMap["endpoint"].(string); ok {
+		apiConfig.Endpoint = endpoint
+	}
+
+	if skipSSL, ok := apiMap["skip_ssl_validation"].(bool); ok {
+		apiConfig.SkipSSLValidation = skipSSL
+	}
+}
+
+// parseAPIAuthFields parses authentication-related API configuration fields.
+func parseAPIAuthFields(apiConfig *APIConfig, apiMap map[string]interface{}) {
+	if token, ok := apiMap["token"].(string); ok {
+		apiConfig.Token = token
+	}
+
+	if refreshToken, ok := apiMap["refresh_token"].(string); ok {
+		apiConfig.RefreshToken = refreshToken
+	}
+
+	if username, ok := apiMap["username"].(string); ok {
+		apiConfig.Username = username
+	}
+}
+
+// parseAPIUAAFields parses UAA-related API configuration fields.
+func parseAPIUAAFields(apiConfig *APIConfig, apiMap map[string]interface{}) {
+	uaaFields := map[string]*string{
+		"uaa_endpoint":      &apiConfig.UAAEndpoint,
+		"uaa_token":         &apiConfig.UAAToken,
+		"uaa_refresh_token": &apiConfig.UAARefreshToken,
+		"uaa_client_id":     &apiConfig.UAAClientID,
+		"uaa_client_secret": &apiConfig.UAAClientSecret,
+	}
+
+	for key, field := range uaaFields {
+		if value, ok := apiMap[key].(string); ok {
+			*field = value
+		}
+	}
+}
+
+// parseAPIOrganizationSpaceFields parses organization and space fields.
+func parseAPIOrganizationSpaceFields(apiConfig *APIConfig, apiMap map[string]interface{}) {
+	if org, ok := apiMap[organizationKey].(string); ok {
+		apiConfig.Organization = org
+	}
+
+	if orgGUID, ok := apiMap["organization_guid"].(string); ok {
+		apiConfig.OrganizationGUID = orgGUID
+	}
+
+	if space, ok := apiMap["space"].(string); ok {
+		apiConfig.Space = space
+	}
+
+	if spaceGUID, ok := apiMap["space_guid"].(string); ok {
+		apiConfig.SpaceGUID = spaceGUID
+	}
+}
+
+// parseAPITimestampFields parses timestamp fields in API configuration.
+func parseAPITimestampFields(apiConfig *APIConfig, apiMap map[string]interface{}) {
+	if tokenExpiresAtStr, ok := apiMap["token_expires_at"].(string); ok && tokenExpiresAtStr != "" {
+		t, err := time.Parse(time.RFC3339, tokenExpiresAtStr)
+		if err == nil {
+			apiConfig.TokenExpiresAt = &t
 		}
 	}
 
-	// Handle migration from legacy single-API config
+	if lastRefreshedStr, ok := apiMap["last_refreshed"].(string); ok && lastRefreshedStr != "" {
+		t, err := time.Parse(time.RFC3339, lastRefreshedStr)
+		if err == nil {
+			apiConfig.LastRefreshed = &t
+		}
+	}
+}
+
+// handleLegacyMigration handles migration from legacy single-API config.
+func handleLegacyMigration(config *Config) {
 	if config.API != "" && len(config.APIs) == 0 {
-		config = migrateFromLegacyConfig(config)
+		migrateFromLegacyConfig(config)
+	}
+}
+
+// loadLegacyTargets loads legacy target configurations from viper.
+func loadLegacyTargets(config *Config) {
+	targetsRaw := viper.GetStringMap("targets")
+	if targetsRaw == nil {
+		return
 	}
 
-	// Convert legacy targets from viper (for backward compatibility)
-	if targetsRaw := viper.GetStringMap("targets"); targetsRaw != nil {
-		for name, targetRaw := range targetsRaw {
-			if targetMap, ok := targetRaw.(map[string]interface{}); ok {
-				target := Target{}
-				if api, ok := targetMap["api"].(string); ok {
-					target.API = api
-				}
-				if token, ok := targetMap["token"].(string); ok {
-					target.Token = token
-				}
-				if refreshToken, ok := targetMap["refresh_token"].(string); ok {
-					target.RefreshToken = refreshToken
-				}
-				if username, ok := targetMap["username"].(string); ok {
-					target.Username = username
-				}
-				if org, ok := targetMap["organization"].(string); ok {
-					target.Organization = org
-				}
-				if space, ok := targetMap["space"].(string); ok {
-					target.Space = space
-				}
-				if skipSSL, ok := targetMap["skip_ssl_validation"].(bool); ok {
-					target.SkipSSLValidation = skipSSL
-				}
-				if uaaEndpoint, ok := targetMap["uaa_endpoint"].(string); ok {
-					target.UAAEndpoint = uaaEndpoint
-				}
-				if uaaToken, ok := targetMap["uaa_token"].(string); ok {
-					target.UAAToken = uaaToken
-				}
-				if uaaRefreshToken, ok := targetMap["uaa_refresh_token"].(string); ok {
-					target.UAARefreshToken = uaaRefreshToken
-				}
-				if uaaClientID, ok := targetMap["uaa_client_id"].(string); ok {
-					target.UAAClientID = uaaClientID
-				}
-				if uaaClientSecret, ok := targetMap["uaa_client_secret"].(string); ok {
-					target.UAAClientSecret = uaaClientSecret
-				}
-				config.Targets[name] = target
-			}
+	for name, targetRaw := range targetsRaw {
+		if targetMap, ok := targetRaw.(map[string]interface{}); ok {
+			target := parseTarget(targetMap)
+			config.Targets[name] = target
 		}
 	}
+}
 
-	return config
+// parseTarget parses a target configuration from a map.
+func parseTarget(targetMap map[string]interface{}) Target {
+	target := Target{}
+
+	parseTargetBasicFields(&target, targetMap)
+	parseTargetAuthFields(&target, targetMap)
+	parseTargetUAAFields(&target, targetMap)
+
+	return target
+}
+
+// parseTargetBasicFields parses basic target fields.
+func parseTargetBasicFields(target *Target, targetMap map[string]interface{}) {
+	if api, ok := targetMap["api"].(string); ok {
+		target.API = api
+	}
+
+	if org, ok := targetMap[organizationKey].(string); ok {
+		target.Organization = org
+	}
+
+	if space, ok := targetMap["space"].(string); ok {
+		target.Space = space
+	}
+
+	if skipSSL, ok := targetMap["skip_ssl_validation"].(bool); ok {
+		target.SkipSSLValidation = skipSSL
+	}
+}
+
+// parseTargetAuthFields parses authentication fields for targets.
+func parseTargetAuthFields(target *Target, targetMap map[string]interface{}) {
+	if token, ok := targetMap["token"].(string); ok {
+		target.Token = token
+	}
+
+	if refreshToken, ok := targetMap["refresh_token"].(string); ok {
+		target.RefreshToken = refreshToken
+	}
+
+	if username, ok := targetMap["username"].(string); ok {
+		target.Username = username
+	}
+}
+
+// parseTargetUAAFields parses UAA-related fields for targets.
+func parseTargetUAAFields(target *Target, targetMap map[string]interface{}) {
+	uaaFields := map[string]*string{
+		"uaa_endpoint":      &target.UAAEndpoint,
+		"uaa_token":         &target.UAAToken,
+		"uaa_refresh_token": &target.UAARefreshToken,
+		"uaa_client_id":     &target.UAAClientID,
+		"uaa_client_secret": &target.UAAClientSecret,
+	}
+
+	for key, field := range uaaFields {
+		if value, ok := targetMap[key].(string); ok {
+			*field = value
+		}
+	}
 }
 
 func saveConfig() error {
@@ -386,24 +483,31 @@ func saveConfigStruct(config *Config) error {
 	if configFile == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get user home directory: %w", err)
 		}
+
 		configDir := filepath.Join(home, ".capi")
-		if err := os.MkdirAll(configDir, 0750); err != nil {
-			return err
+
+		err = os.MkdirAll(configDir, constants.ConfigDirPerm)
+		if err != nil {
+			return fmt.Errorf("failed to create config directory: %w", err)
 		}
+
 		configFile = filepath.Join(configDir, "config.yml")
 	}
 
 	// Create backup before migration if APIs are being used and legacy fields exist
 	if len(config.APIs) > 0 && config.API != "" {
 		backupFile := configFile + ".backup"
-		if _, err := os.Stat(backupFile); os.IsNotExist(err) {
+
+		_, err := os.Stat(backupFile)
+		if os.IsNotExist(err) {
 			// Read current config and save as backup
 			// configFile is securely constructed from user home dir and is not user-controllable
 			// #nosec G304
-			if currentData, err := os.ReadFile(configFile); err == nil {
-				_ = os.WriteFile(backupFile, currentData, 0600)
+			currentData, err := os.ReadFile(configFile)
+			if err == nil {
+				_ = os.WriteFile(backupFile, currentData, constants.ConfigFilePerm)
 			}
 		}
 	}
@@ -429,13 +533,18 @@ func saveConfigStruct(config *Config) error {
 
 	data, err := yaml.Marshal(config)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal config to YAML: %w", err)
 	}
 
-	return os.WriteFile(configFile, data, 0600)
+	err = os.WriteFile(configFile, data, constants.ConfigFilePerm)
+	if err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
 }
 
-// migrateFromLegacyConfig converts legacy single-API config to new multi-API format
+// migrateFromLegacyConfig converts legacy single-API config to new multi-API format.
 func migrateFromLegacyConfig(config *Config) *Config {
 	if config.API == "" {
 		return config
@@ -485,7 +594,7 @@ func migrateFromLegacyConfig(config *Config) *Config {
 	return config
 }
 
-// extractDomainFromEndpoint extracts the domain portion from a CF API endpoint
+// extractDomainFromEndpoint extracts the domain portion from a CF API endpoint.
 func extractDomainFromEndpoint(endpoint string) string {
 	// Remove protocol if present
 	domain := endpoint
@@ -508,30 +617,31 @@ func extractDomainFromEndpoint(endpoint string) string {
 	return domain
 }
 
-// getCurrentAPIConfig returns the configuration for the currently targeted API
+// getCurrentAPIConfig returns the configuration for the currently targeted API.
 func getCurrentAPIConfig() (*APIConfig, error) {
 	config := loadConfig()
 
 	if config.CurrentAPI == "" {
 		if len(config.APIs) == 0 {
-			return nil, fmt.Errorf("no APIs configured, use 'capi apis add' to add one")
+			return nil, fmt.Errorf("%w, use 'capi apis add' to add one", capi.ErrNoAPIsConfigured)
 		}
 		// If no current API set but APIs exist, use the first one
 		for domain := range config.APIs {
 			config.CurrentAPI = domain
+
 			break
 		}
 	}
 
 	apiConfig, exists := config.APIs[config.CurrentAPI]
 	if !exists {
-		return nil, fmt.Errorf("current API '%s' not found in configuration", config.CurrentAPI)
+		return nil, fmt.Errorf("%w in configuration: '%s'", capi.ErrCurrentAPINotFound, config.CurrentAPI)
 	}
 
 	return apiConfig, nil
 }
 
-// getAPIConfigByFlag returns API config based on command line flag or current API
+// getAPIConfigByFlag returns API config based on command line flag or current API.
 func getAPIConfigByFlag(apiFlag string) (*APIConfig, error) {
 	config := loadConfig()
 
@@ -555,17 +665,17 @@ func getAPIConfigByFlag(apiFlag string) (*APIConfig, error) {
 			}
 		}
 
-		return nil, fmt.Errorf("API '%s' not found in configuration, use 'capi apis list' to see available APIs", apiFlag)
+		return nil, fmt.Errorf("%w in configuration, use 'capi apis list' to see available APIs: '%s'", capi.ErrAPINotFound, apiFlag)
 	}
 
 	// Otherwise use current API
 	return getCurrentAPIConfig()
 }
 
-// ResolveAPIEndpoint resolves a short name or returns the endpoint if it's already a URL
+// ResolveAPIEndpoint resolves a short name or returns the endpoint if it's already a URL.
 func ResolveAPIEndpoint(apiNameOrEndpoint string) (string, error) {
 	if apiNameOrEndpoint == "" {
-		return "", fmt.Errorf("API name or endpoint is required")
+		return "", capi.ErrAPINameOrEndpointRequired
 	}
 
 	config := loadConfig()
@@ -579,7 +689,7 @@ func ResolveAPIEndpoint(apiNameOrEndpoint string) (string, error) {
 	return apiNameOrEndpoint, nil
 }
 
-// GetEffectiveUAAEndpoint returns the effective UAA endpoint from either legacy config or current API
+// GetEffectiveUAAEndpoint returns the effective UAA endpoint from either legacy config or current API.
 func GetEffectiveUAAEndpoint(config *Config) string {
 	// Check legacy UAA endpoint first
 	if config.UAAEndpoint != "" {
@@ -596,196 +706,253 @@ func GetEffectiveUAAEndpoint(config *Config) string {
 	return ""
 }
 
-// discoverUAAEndpoint discovers the UAA endpoint from a CF API endpoint
-func discoverUAAEndpoint(apiEndpoint string, skipSSLValidation bool) (string, error) {
+// discoverUAAEndpoint discovers the UAA endpoint from a CF API endpoint.
+func discoverUAAEndpoint(apiEndpoint string) string {
 	// This is a simplified implementation - in a real scenario you'd make an HTTP request
 	// to the API root and parse the UAA link from the response
 	// For now, use a common pattern
 	if strings.Contains(apiEndpoint, "api.") {
-		return strings.Replace(apiEndpoint, "api.", "uaa.", 1), nil
+		return strings.Replace(apiEndpoint, "api.", "uaa.", 1)
 	}
 
 	// Fallback: assume UAA is at the same domain with /uaa path
-	return strings.TrimSuffix(apiEndpoint, "/") + "/uaa", nil
+	return strings.TrimSuffix(apiEndpoint, "/") + "/uaa"
 }
 
-// CreateClientWithAPI creates a CAPI client using the specified API or current API
+// CreateClientWithAPI creates a CAPI client using the specified API or current API.
 func CreateClientWithAPI(apiFlag string) (capi.Client, error) {
 	return CreateClientWithTokenRefresh(apiFlag)
 }
 
-// CreateClientWithTokenRefresh creates a CAPI client with automatic token refresh
+// CreateClientWithTokenRefresh creates a CAPI client with automatic token refresh.
 func CreateClientWithTokenRefresh(apiFlag string) (capi.Client, error) {
-	// Get API config based on flag or current API
-	apiConfig, err := getAPIConfigByFlag(apiFlag)
+	apiConfig, apiDomain, err := prepareClientConfig(apiFlag)
 	if err != nil {
 		return nil, err
 	}
 
-	if apiConfig.Endpoint == "" {
-		return nil, fmt.Errorf("no API endpoint configured, use 'capi apis add' first")
+	setViperAPIConfig(apiConfig)
+	tokenManager := createTokenManager(apiConfig, apiDomain)
+	capiConfig := buildCAPIConfig(apiConfig)
+
+	return createFinalClient(capiConfig, tokenManager, apiConfig)
+}
+
+func prepareClientConfig(apiFlag string) (*APIConfig, string, error) {
+	apiConfig, err := getAPIConfigByFlag(apiFlag)
+	if err != nil {
+		return nil, "", err
 	}
 
-	// Determine the API domain key for this config
+	if apiConfig.Endpoint == "" {
+		return nil, "", fmt.Errorf("%w, use 'capi apis add' first", capi.ErrNoAPIEndpointConfigured)
+	}
+
+	apiDomain, err := findAPIDomain(apiConfig)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return apiConfig, apiDomain, nil
+}
+
+func findAPIDomain(apiConfig *APIConfig) (string, error) {
 	config := loadConfig()
-	var apiDomain string
+
 	for domain, cfg := range config.APIs {
 		if cfg.Endpoint == apiConfig.Endpoint {
-			apiDomain = domain
-			break
+			return domain, nil
 		}
 	}
-	if apiDomain == "" {
-		return nil, fmt.Errorf("could not determine API domain for configuration")
-	}
 
-	// Set the API config values in viper so other commands can access them
+	return "", capi.ErrCouldNotDetermineAPIDomain
+}
+
+func setViperAPIConfig(apiConfig *APIConfig) {
 	viper.Set("api", apiConfig.Endpoint)
-	viper.Set("organization", apiConfig.Organization)
+	viper.Set(organizationKey, apiConfig.Organization)
 	viper.Set("organization_guid", apiConfig.OrganizationGUID)
 	viper.Set("space", apiConfig.Space)
 	viper.Set("space_guid", apiConfig.SpaceGUID)
 	viper.Set("username", apiConfig.Username)
 	viper.Set("uaa_endpoint", apiConfig.UAAEndpoint)
+}
 
-	// Create token manager if we have authentication information
-	var tokenManager auth.TokenManager
-
-	if apiConfig.Token != "" || apiConfig.RefreshToken != "" || apiConfig.Username != "" {
-		// Discover UAA endpoint if not set
-		uaaEndpoint := apiConfig.UAAEndpoint
-		if uaaEndpoint == "" {
-			// Try to discover from API endpoint
-			uaaURL, err := discoverUAAEndpoint(apiConfig.Endpoint, apiConfig.SkipSSLValidation)
-			if err == nil {
-				uaaEndpoint = uaaURL
-			} else {
-				// Fallback to common UAA pattern
-				uaaEndpoint = strings.Replace(apiConfig.Endpoint, "api.", "uaa.", 1)
-			}
-		}
-
-		// Create OAuth2 config
-		oauth2Config := &auth.OAuth2Config{
-			TokenURL:     strings.TrimSuffix(uaaEndpoint, "/") + "/oauth/token",
-			ClientID:     "cf", // Default CF CLI client ID
-			ClientSecret: "",
-			Username:     apiConfig.Username,
-			RefreshToken: apiConfig.RefreshToken,
-			AccessToken:  apiConfig.Token,
-		}
-
-		// Create config persister
-		configPersister := NewConfigPersister()
-
-		// Determine initial token expiry
-		var initialExpiry time.Time
-		if apiConfig.TokenExpiresAt != nil {
-			initialExpiry = *apiConfig.TokenExpiresAt
-		}
-
-		// Create config token manager
-		tokenManager = auth.NewConfigTokenManager(oauth2Config, configPersister, apiDomain, apiConfig.Token, initialExpiry)
+func createTokenManager(apiConfig *APIConfig, apiDomain string) auth.TokenManager {
+	if !hasAuthInfo(apiConfig) {
+		return nil
 	}
 
-	// Create CAPI config
-	capiConfig := &capi.Config{
+	uaaEndpoint := resolveUAAEndpoint(apiConfig)
+	oauth2Config := buildOAuth2Config(apiConfig, uaaEndpoint)
+	configPersister := NewConfigPersister()
+	initialExpiry := getInitialTokenExpiry(apiConfig)
+
+	return auth.NewConfigTokenManager(oauth2Config, configPersister, apiDomain, apiConfig.Token, initialExpiry)
+}
+
+func hasAuthInfo(apiConfig *APIConfig) bool {
+	return apiConfig.Token != "" || apiConfig.RefreshToken != "" || apiConfig.Username != ""
+}
+
+func resolveUAAEndpoint(apiConfig *APIConfig) string {
+	if apiConfig.UAAEndpoint != "" {
+		return apiConfig.UAAEndpoint
+	}
+
+	return discoverUAAEndpoint(apiConfig.Endpoint)
+}
+
+func buildOAuth2Config(apiConfig *APIConfig, uaaEndpoint string) *auth.OAuth2Config {
+	return &auth.OAuth2Config{
+		TokenURL:     strings.TrimSuffix(uaaEndpoint, "/") + "/oauth/token",
+		ClientID:     "cf", // Default CF CLI client ID
+		ClientSecret: "",
+		Username:     apiConfig.Username,
+		RefreshToken: apiConfig.RefreshToken,
+		AccessToken:  apiConfig.Token,
+	}
+}
+
+func getInitialTokenExpiry(apiConfig *APIConfig) time.Time {
+	if apiConfig.TokenExpiresAt != nil {
+		return *apiConfig.TokenExpiresAt
+	}
+
+	return time.Time{}
+}
+
+func buildCAPIConfig(apiConfig *APIConfig) *capi.Config {
+	return &capi.Config{
 		APIEndpoint:   apiConfig.Endpoint,
 		SkipTLSVerify: apiConfig.SkipSSLValidation,
 		Username:      apiConfig.Username,
 		TokenURL:      strings.TrimSuffix(apiConfig.UAAEndpoint, "/") + "/oauth/token",
 	}
+}
 
-	// If we have a token manager, we don't need to set AccessToken directly
-	if tokenManager != nil {
-		// The client will use the token manager for authentication
-	} else if apiConfig.Token != "" {
-		capiConfig.AccessToken = apiConfig.Token
-	} else {
-		return nil, fmt.Errorf("not authenticated, use 'capi login' first")
-	}
-
-	// Create the client using the internal client package for token manager support
+func createFinalClient(capiConfig *capi.Config, tokenManager auth.TokenManager, apiConfig *APIConfig) (capi.Client, error) {
 	if tokenManager != nil {
 		return createClientWithTokenManager(capiConfig, tokenManager)
 	}
 
-	return cfclient.New(capiConfig)
+	if apiConfig.Token != "" {
+		capiConfig.AccessToken = apiConfig.Token
+
+		ctx := context.Background()
+
+		client, err := cfclient.New(ctx, capiConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create CF client: %w", err)
+		}
+
+		return client, nil
+	}
+
+	return nil, fmt.Errorf("%w, use 'capi login' first", capi.ErrNotAuthenticated)
 }
 
-// createClientWithTokenManager creates a client with a custom token manager
+// createClientWithTokenManager creates a client with a custom token manager.
 func createClientWithTokenManager(config *capi.Config, tokenManager auth.TokenManager) (capi.Client, error) {
 	// Use the internal client package to create a client with token manager
-	return client.NewWithTokenManager(config, tokenManager)
+	client, err := client.NewWithTokenManager(config, tokenManager)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client with token manager: %w", err)
+	}
+
+	return client, nil
 }
 
-// setGlobalConfig sets a global configuration value
+// setGlobalConfig sets a global configuration value.
 func setGlobalConfig(config *Config, key, value string) error {
 	switch key {
 	case "output":
 		config.Output = value
 	case "no_color":
-		if value == "true" || value == "1" {
+		if value == constants.BooleanTrue || value == "1" {
 			config.NoColor = true
 		} else {
 			config.NoColor = false
 		}
 	default:
-		return fmt.Errorf("unknown global configuration key: %s. Use --api flag for API-specific settings", key)
+		return fmt.Errorf("%w: %s. Use --api flag for API-specific settings", capi.ErrUnknownConfigKey, key)
 	}
 
-	if err := saveConfigStruct(config); err != nil {
+	err := saveConfigStruct(config)
+	if err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	return outputConfigUpdateResult("Set global", key, value, "")
 }
 
-// setAPISpecificConfig sets configuration for a specific API
+// setAPISpecificConfig sets configuration for a specific API.
 func setAPISpecificConfig(config *Config, apiDomain, key, value string) error {
-	apiConfig, exists := config.APIs[apiDomain]
-	if !exists {
-		return fmt.Errorf("API '%s' not found. Use 'capi apis list' to see available APIs", apiDomain)
+	apiConfig, err := validateAPIExists(config, apiDomain)
+	if err != nil {
+		return err
 	}
 
-	switch key {
-	case "username":
-		apiConfig.Username = value
-	case "organization":
-		apiConfig.Organization = value
-	case "organization_guid":
-		apiConfig.OrganizationGUID = value
-	case "space":
-		apiConfig.Space = value
-	case "space_guid":
-		apiConfig.SpaceGUID = value
-	case "skip_ssl_validation":
-		if value == "true" || value == "1" {
-			apiConfig.SkipSSLValidation = true
-		} else {
-			apiConfig.SkipSSLValidation = false
-		}
-	case "uaa_endpoint":
-		apiConfig.UAAEndpoint = value
-	case "uaa_client_id":
-		apiConfig.UAAClientID = value
-	case "uaa_client_secret":
-		apiConfig.UAAClientSecret = value
-	default:
-		return fmt.Errorf("unknown API-specific configuration key: %s", key)
+	err = setAPIConfigValue(apiConfig, key, value)
+	if err != nil {
+		return err
 	}
 
-	// Update the API config in the main config
 	config.APIs[apiDomain] = apiConfig
 
-	if err := saveConfigStruct(config); err != nil {
+	err = saveConfigStruct(config)
+	if err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	return outputConfigUpdateResult("Set", key, value, apiDomain)
 }
 
-// unsetGlobalConfig unsets a global configuration value
+// validateAPIExists validates that an API exists in the configuration.
+func validateAPIExists(config *Config, apiDomain string) (*APIConfig, error) {
+	apiConfig, exists := config.APIs[apiDomain]
+	if !exists {
+		return nil, fmt.Errorf("%w. Use 'capi apis list' to see available APIs: '%s'", capi.ErrAPINotFound, apiDomain)
+	}
+
+	return apiConfig, nil
+}
+
+// setAPIConfigValue sets a specific configuration value for an API.
+func setAPIConfigValue(apiConfig *APIConfig, key, value string) error {
+	if handler, exists := getAPIConfigHandler(key); exists {
+		handler(apiConfig, value)
+
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s", capi.ErrUnknownConfigKey, key)
+}
+
+// getAPIConfigHandler returns a handler function for a given config key.
+func getAPIConfigHandler(key string) (func(*APIConfig, string), bool) {
+	handlers := map[string]func(*APIConfig, string){
+		"username":            func(c *APIConfig, v string) { c.Username = v },
+		organizationKey:       func(c *APIConfig, v string) { c.Organization = v },
+		"organization_guid":   func(c *APIConfig, v string) { c.OrganizationGUID = v },
+		"space":               func(c *APIConfig, v string) { c.Space = v },
+		"space_guid":          func(c *APIConfig, v string) { c.SpaceGUID = v },
+		"skip_ssl_validation": func(c *APIConfig, v string) { c.SkipSSLValidation = parseBoolValue(v) },
+		"uaa_endpoint":        func(c *APIConfig, v string) { c.UAAEndpoint = v },
+		"uaa_client_id":       func(c *APIConfig, v string) { c.UAAClientID = v },
+		"uaa_client_secret":   func(c *APIConfig, v string) { c.UAAClientSecret = v },
+	}
+	handler, exists := handlers[key]
+
+	return handler, exists
+}
+
+// parseBoolValue parses a boolean value from string.
+func parseBoolValue(value string) bool {
+	return value == constants.BooleanTrue || value == "1"
+}
+
+// unsetGlobalConfig unsets a global configuration value.
 func unsetGlobalConfig(config *Config, key string) error {
 	switch key {
 	case "output":
@@ -793,27 +960,28 @@ func unsetGlobalConfig(config *Config, key string) error {
 	case "no_color":
 		config.NoColor = false
 	default:
-		return fmt.Errorf("unknown global configuration key: %s. Use --api flag for API-specific settings", key)
+		return fmt.Errorf("%w: %s. Use --api flag for API-specific settings", capi.ErrUnknownConfigKey, key)
 	}
 
-	if err := saveConfigStruct(config); err != nil {
+	err := saveConfigStruct(config)
+	if err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	return outputConfigUpdateResult("Unset global", key, "", "")
 }
 
-// unsetAPISpecificConfig unsets configuration for a specific API
+// unsetAPISpecificConfig unsets configuration for a specific API.
 func unsetAPISpecificConfig(config *Config, apiDomain, key string) error {
 	apiConfig, exists := config.APIs[apiDomain]
 	if !exists {
-		return fmt.Errorf("API '%s' not found. Use 'capi apis list' to see available APIs", apiDomain)
+		return fmt.Errorf("API '%s': %w. Use 'capi apis list' to see available APIs", apiDomain, capi.ErrAPINotFound)
 	}
 
 	switch key {
 	case "username":
 		apiConfig.Username = ""
-	case "organization":
+	case organizationKey:
 		apiConfig.Organization = ""
 	case "organization_guid":
 		apiConfig.OrganizationGUID = ""
@@ -831,47 +999,60 @@ func unsetAPISpecificConfig(config *Config, apiDomain, key string) error {
 		apiConfig.UAAClientSecret = ""
 	// Token fields should not be unset via config command for security
 	case "token", "refresh_token", "uaa_token", "uaa_refresh_token":
-		return fmt.Errorf("token fields cannot be unset via config command. Use 'capi logout' instead")
+		return fmt.Errorf("%w. Use 'capi logout' instead", capi.ErrTokenFieldsCannotUnset)
 	default:
-		return fmt.Errorf("unknown API-specific configuration key: %s", key)
+		return fmt.Errorf("%w: %s", capi.ErrUnknownConfigKey, key)
 	}
 
 	// Update the API config in the main config
 	config.APIs[apiDomain] = apiConfig
 
-	if err := saveConfigStruct(config); err != nil {
+	err := saveConfigStruct(config)
+	if err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	return outputConfigUpdateResult("Unset", key, "", apiDomain)
 }
 
-// showAPISpecificConfig shows configuration for a specific API
+// showAPISpecificConfig shows configuration for a specific API.
 func showAPISpecificConfig(config *Config, apiDomain string) error {
 	apiConfig, exists := config.APIs[apiDomain]
 	if !exists {
-		return fmt.Errorf("API '%s' not found. Use 'capi apis list' to see available APIs", apiDomain)
+		return fmt.Errorf("API '%s': %w. Use 'capi apis list' to see available APIs", apiDomain, capi.ErrAPINotFound)
 	}
 
 	output := viper.GetString("output")
 	switch output {
-	case "json":
+	case constants.FormatJSON:
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(apiConfig)
-	case "yaml":
+
+		err := encoder.Encode(apiConfig)
+		if err != nil {
+			return fmt.Errorf("failed to encode API config as JSON: %w", err)
+		}
+
+		return nil
+	case constants.FormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
-		return encoder.Encode(apiConfig)
+
+		err := encoder.Encode(apiConfig)
+		if err != nil {
+			return fmt.Errorf("failed to encode API config as YAML: %w", err)
+		}
+
+		return nil
 	default:
 		return displayAPISpecificConfigTable(config, apiDomain, apiConfig)
 	}
 }
 
-// clearAPISpecificConfig clears configuration for a specific API
+// clearAPISpecificConfig clears configuration for a specific API.
 func clearAPISpecificConfig(config *Config, apiDomain string) error {
 	apiConfig, exists := config.APIs[apiDomain]
 	if !exists {
-		return fmt.Errorf("API '%s' not found. Use 'capi apis list' to see available APIs", apiDomain)
+		return fmt.Errorf("API '%s': %w. Use 'capi apis list' to see available APIs", apiDomain, capi.ErrAPINotFound)
 	}
 
 	// Clear all configuration except the endpoint
@@ -894,246 +1075,340 @@ func clearAPISpecificConfig(config *Config, apiDomain string) error {
 	// Update the API config in the main config
 	config.APIs[apiDomain] = apiConfig
 
-	if err := saveConfigStruct(config); err != nil {
+	err := saveConfigStruct(config)
+	if err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	return outputConfigUpdateResult("Cleared configuration for API", apiDomain, "", "")
 }
 
-// displayConfigTable displays configuration in a table format
+// displayConfigTable displays configuration in a table format.
 func displayConfigTable(config *Config) error {
-	// Global configuration table
+	err := displayGlobalConfigTable(config)
+	if err != nil {
+		return err
+	}
+
+	err = displayAPIsConfigTable(config)
+	if err != nil {
+		return err
+	}
+
+	err = displayLegacyConfigTable(config)
+	if err != nil {
+		return err
+	}
+
+	return displayLegacyTargetsTable(config)
+}
+
+func displayGlobalConfigTable(config *Config) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Property", "Value")
 
-	if err := table.Append([]string{"Output", config.Output}); err != nil {
-		return err
-	}
-	if err := table.Append([]string{"No Color", fmt.Sprintf("%v", config.NoColor)}); err != nil {
-		return err
-	}
+	addGlobalConfigRows(table, config)
 
-	if config.CurrentAPI != "" {
-		if err := table.Append([]string{"Current API", config.CurrentAPI}); err != nil {
-			return err
-		}
-	}
+	_, _ = os.Stdout.WriteString("Global Configuration:\n")
 
-	fmt.Println("Global Configuration:")
-	if err := table.Render(); err != nil {
-		return err
-	}
-
-	// APIs configuration table
-	if len(config.APIs) > 0 {
-		fmt.Println("\nConfigured APIs:")
-		apiTable := tablewriter.NewWriter(os.Stdout)
-		apiTable.Header("Domain", "Endpoint", "Username", "Organization", "Space", "Current", "UAA Endpoint")
-
-		for domain, apiConfig := range config.APIs {
-			current := ""
-			if domain == config.CurrentAPI {
-				current = "✓"
-			}
-
-			username := apiConfig.Username
-			if username == "" {
-				username = "-"
-			}
-
-			organization := apiConfig.Organization
-			if organization == "" {
-				organization = "-"
-			}
-
-			space := apiConfig.Space
-			if space == "" {
-				space = "-"
-			}
-
-			uaaEndpoint := apiConfig.UAAEndpoint
-			if uaaEndpoint == "" {
-				uaaEndpoint = "-"
-			}
-
-			if err := apiTable.Append([]string{domain, apiConfig.Endpoint, username, organization, space, current, uaaEndpoint}); err != nil {
-				return err
-			}
-		}
-
-		if err := apiTable.Render(); err != nil {
-			return err
-		}
-	} else {
-		fmt.Println("\nNo APIs configured. Use 'capi apis add' to add one.")
-	}
-
-	// Legacy configuration table (for migration purposes)
-	if config.API != "" {
-		fmt.Println("\nLegacy Configuration (will be migrated):")
-		legacyTable := tablewriter.NewWriter(os.Stdout)
-		legacyTable.Header("Property", "Value")
-
-		if err := legacyTable.Append([]string{"API", config.API}); err != nil {
-			return err
-		}
-		if config.Username != "" {
-			if err := legacyTable.Append([]string{"Username", config.Username}); err != nil {
-				return err
-			}
-		}
-		if config.Organization != "" {
-			if err := legacyTable.Append([]string{"Organization", config.Organization}); err != nil {
-				return err
-			}
-		}
-		if config.Space != "" {
-			if err := legacyTable.Append([]string{"Space", config.Space}); err != nil {
-				return err
-			}
-		}
-
-		if err := legacyTable.Render(); err != nil {
-			return err
-		}
-	}
-
-	// Legacy targets table
-	if len(config.Targets) > 0 {
-		fmt.Println("\nLegacy Targets (deprecated):")
-		targetsTable := tablewriter.NewWriter(os.Stdout)
-		targetsTable.Header("Name", "API", "Username", "Organization", "Space")
-
-		for name, target := range config.Targets {
-			username := target.Username
-			if username == "" {
-				username = "-"
-			}
-
-			organization := target.Organization
-			if organization == "" {
-				organization = "-"
-			}
-
-			space := target.Space
-			if space == "" {
-				space = "-"
-			}
-
-			if err := targetsTable.Append([]string{name, target.API, username, organization, space}); err != nil {
-				return err
-			}
-		}
-
-		if err := targetsTable.Render(); err != nil {
-			return err
-		}
+	err := table.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render table: %w", err)
 	}
 
 	return nil
 }
 
-// displayAPISpecificConfigTable displays configuration for a specific API in table format
+func addGlobalConfigRows(table *tablewriter.Table, config *Config) {
+	_ = table.Append([]string{"Output", config.Output})
+	_ = table.Append([]string{"No Color", strconv.FormatBool(config.NoColor)})
+
+	if config.CurrentAPI != "" {
+		_ = table.Append([]string{"Current API", config.CurrentAPI})
+	}
+}
+
+func displayAPIsConfigTable(config *Config) error {
+	if len(config.APIs) == 0 {
+		_, _ = os.Stdout.WriteString("\nNo APIs configured. Use 'capi apis add' to add one.\n")
+
+		return nil
+	}
+
+	_, _ = os.Stdout.WriteString("\nConfigured APIs:\n")
+
+	apiTable := tablewriter.NewWriter(os.Stdout)
+	apiTable.Header("Domain", "Endpoint", "Username", "Organization", "Space", "Current", "UAA Endpoint")
+
+	addAPIConfigRows(apiTable, config)
+
+	err := apiTable.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render API config table: %w", err)
+	}
+
+	return nil
+}
+
+func addAPIConfigRows(table *tablewriter.Table, config *Config) {
+	for domain, apiConfig := range config.APIs {
+		row := buildAPIConfigRow(domain, apiConfig, config.CurrentAPI)
+		_ = table.Append(row)
+	}
+}
+
+func buildAPIConfigRow(domain string, apiConfig *APIConfig, currentAPI string) []string {
+	return []string{
+		domain,
+		apiConfig.Endpoint,
+		formatConfigValue(apiConfig.Username),
+		formatConfigValue(apiConfig.Organization),
+		formatConfigValue(apiConfig.Space),
+		formatCurrentIndicator(domain == currentAPI),
+		formatConfigValue(apiConfig.UAAEndpoint),
+	}
+}
+
+func formatConfigValue(value string) string {
+	if value == "" {
+		return "-"
+	}
+
+	return value
+}
+
+func formatCurrentIndicator(isCurrent bool) string {
+	if isCurrent {
+		return "✓"
+	}
+
+	return ""
+}
+
+func displayLegacyConfigTable(config *Config) error {
+	if config.API == "" {
+		return nil
+	}
+
+	_, _ = os.Stdout.WriteString("\nLegacy Configuration (will be migrated):\n")
+
+	legacyTable := tablewriter.NewWriter(os.Stdout)
+	legacyTable.Header("Property", "Value")
+
+	addLegacyConfigRows(legacyTable, config)
+
+	err := legacyTable.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render legacy config table: %w", err)
+	}
+
+	return nil
+}
+
+func addLegacyConfigRows(table *tablewriter.Table, config *Config) {
+	_ = table.Append([]string{"API", config.API})
+
+	if config.Username != "" {
+		_ = table.Append([]string{"Username", config.Username})
+	}
+
+	if config.Organization != "" {
+		_ = table.Append([]string{"Organization", config.Organization})
+	}
+
+	if config.Space != "" {
+		_ = table.Append([]string{"Space", config.Space})
+	}
+}
+
+func displayLegacyTargetsTable(config *Config) error {
+	if len(config.Targets) == 0 {
+		return nil
+	}
+
+	_, _ = os.Stdout.WriteString("\nLegacy Targets (deprecated):\n")
+
+	targetsTable := tablewriter.NewWriter(os.Stdout)
+	targetsTable.Header("Name", "API", "Username", "Organization", "Space")
+
+	addLegacyTargetRows(targetsTable, config)
+
+	err := targetsTable.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render targets table: %w", err)
+	}
+
+	return nil
+}
+
+func addLegacyTargetRows(table *tablewriter.Table, config *Config) {
+	for name, target := range config.Targets {
+		row := buildLegacyTargetRow(name, target)
+		_ = table.Append(row)
+	}
+}
+
+func buildLegacyTargetRow(name string, target Target) []string {
+	return []string{
+		name,
+		target.API,
+		formatConfigValue(target.Username),
+		formatConfigValue(target.Organization),
+		formatConfigValue(target.Space),
+	}
+}
+
+// displayAPISpecificConfigTable displays configuration for a specific API in table format.
 func displayAPISpecificConfigTable(config *Config, apiDomain string, apiConfig *APIConfig) error {
+	displayAPITableHeader(config, apiDomain)
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	err := populateAPIConfigTable(table, apiConfig)
+	if err != nil {
+		return err
+	}
+
+	err = table.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render API config table: %w", err)
+	}
+
+	return nil
+}
+
+// displayAPITableHeader displays the header for API configuration table.
+func displayAPITableHeader(config *Config, apiDomain string) {
 	current := ""
 	if apiDomain == config.CurrentAPI {
 		current = " (current)"
 	}
 
-	fmt.Printf("Configuration for API '%s'%s:\n", apiDomain, current)
+	_, _ = fmt.Fprintf(os.Stdout, "Configuration for API '%s'%s:\n", apiDomain, current)
+}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.Header("Property", "Value")
-
-	if err := table.Append([]string{"Endpoint", apiConfig.Endpoint}); err != nil {
+// populateAPIConfigTable populates the API configuration table with rows.
+func populateAPIConfigTable(table *tablewriter.Table, apiConfig *APIConfig) error {
+	err := addBasicConfigRows(table, apiConfig)
+	if err != nil {
 		return err
 	}
 
+	err = addOrganizationSpaceRows(table, apiConfig)
+	if err != nil {
+		return err
+	}
+
+	err = addUAAConfigRows(table, apiConfig)
+	if err != nil {
+		return err
+	}
+
+	return addTokenRows(table, apiConfig)
+}
+
+// addBasicConfigRows adds basic configuration rows to the table.
+func addBasicConfigRows(table *tablewriter.Table, apiConfig *APIConfig) error {
+	err := table.Append([]string{"Endpoint", apiConfig.Endpoint})
+	if err != nil {
+		return fmt.Errorf("failed to append endpoint to config table: %w", err)
+	}
+
 	if apiConfig.Username != "" {
-		if err := table.Append([]string{"Username", apiConfig.Username}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.Organization != "" {
-		if err := table.Append([]string{"Organization", apiConfig.Organization}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.OrganizationGUID != "" {
-		if err := table.Append([]string{"Org GUID", apiConfig.OrganizationGUID}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.Space != "" {
-		if err := table.Append([]string{"Space", apiConfig.Space}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.SpaceGUID != "" {
-		if err := table.Append([]string{"Space GUID", apiConfig.SpaceGUID}); err != nil {
-			return err
+		err := table.Append([]string{"Username", apiConfig.Username})
+		if err != nil {
+			return fmt.Errorf("failed to append username to config table: %w", err)
 		}
 	}
 
 	if apiConfig.SkipSSLValidation {
-		if err := table.Append([]string{"Skip SSL", fmt.Sprintf("%v", apiConfig.SkipSSLValidation)}); err != nil {
-			return err
+		err := table.Append([]string{"Skip SSL", strconv.FormatBool(apiConfig.SkipSSLValidation)})
+		if err != nil {
+			return fmt.Errorf("failed to append SSL skip setting to config table: %w", err)
 		}
-	}
-
-	if apiConfig.UAAEndpoint != "" {
-		if err := table.Append([]string{"UAA Endpoint", apiConfig.UAAEndpoint}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.UAAClientID != "" {
-		if err := table.Append([]string{"UAA Client ID", apiConfig.UAAClientID}); err != nil {
-			return err
-		}
-	}
-
-	// Note: tokens are not displayed for security
-	if apiConfig.Token != "" {
-		if err := table.Append([]string{"Token", "[REDACTED]"}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.RefreshToken != "" {
-		if err := table.Append([]string{"Refresh Token", "[REDACTED]"}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.UAAToken != "" {
-		if err := table.Append([]string{"UAA Token", "[REDACTED]"}); err != nil {
-			return err
-		}
-	}
-
-	if apiConfig.UAARefreshToken != "" {
-		if err := table.Append([]string{"UAA Refresh Token", "[REDACTED]"}); err != nil {
-			return err
-		}
-	}
-
-	if err := table.Render(); err != nil {
-		return err
 	}
 
 	return nil
 }
 
-// outputConfigUpdateResult outputs configuration update results in the requested format
+// addOrganizationSpaceRows adds organization and space rows to the table.
+func addOrganizationSpaceRows(table *tablewriter.Table, apiConfig *APIConfig) error {
+	orgSpaceRows := map[string]string{
+		"Organization": apiConfig.Organization,
+		"Org GUID":     apiConfig.OrganizationGUID,
+		"Space":        apiConfig.Space,
+		"Space GUID":   apiConfig.SpaceGUID,
+	}
+
+	for label, value := range orgSpaceRows {
+		if value != "" {
+			err := table.Append([]string{label, value})
+			if err != nil {
+				return fmt.Errorf("failed to append %s to config table: %w", label, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// addUAAConfigRows adds UAA configuration rows to the table.
+func addUAAConfigRows(table *tablewriter.Table, apiConfig *APIConfig) error {
+	uaaRows := map[string]string{
+		"UAA Endpoint":  apiConfig.UAAEndpoint,
+		"UAA Client ID": apiConfig.UAAClientID,
+	}
+
+	for label, value := range uaaRows {
+		if value != "" {
+			err := table.Append([]string{label, value})
+			if err != nil {
+				return fmt.Errorf("failed to append %s to config table: %w", label, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// addTokenRows adds token-related rows to the table (redacted for security).
+func addTokenRows(table *tablewriter.Table, apiConfig *APIConfig) error {
+	tokenRows := map[string]string{
+		"Token":             apiConfig.Token,
+		"Refresh Token":     apiConfig.RefreshToken,
+		"UAA Token":         apiConfig.UAAToken,
+		"UAA Refresh Token": apiConfig.UAARefreshToken,
+	}
+
+	for label, value := range tokenRows {
+		if value != "" {
+			err := table.Append([]string{label, "[REDACTED]"})
+			if err != nil {
+				return fmt.Errorf("failed to append %s to config table: %w", label, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// outputConfigUpdateResult outputs configuration update results in the requested format.
 func outputConfigUpdateResult(action, key, value, apiDomain string) error {
+	result := buildConfigResult(action, key, value, apiDomain)
 	output := viper.GetString("output")
 
+	switch output {
+	case constants.FormatJSON:
+		return outputConfigAsJSON(result)
+	case constants.FormatYAML:
+		return outputConfigAsYAML(result)
+	default:
+		return outputConfigAsTable(action, key, value, apiDomain)
+	}
+}
+
+func buildConfigResult(action, key, value, apiDomain string) map[string]string {
 	result := map[string]string{
 		"action": action,
 		"key":    key,
@@ -1147,41 +1422,64 @@ func outputConfigUpdateResult(action, key, value, apiDomain string) error {
 		result["api_domain"] = apiDomain
 	}
 
-	switch output {
-	case "json":
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(result)
-	case "yaml":
-		encoder := yaml.NewEncoder(os.Stdout)
-		return encoder.Encode(result)
-	default:
-		// Table format for update results
-		table := tablewriter.NewWriter(os.Stdout)
-		table.Header("Property", "Value")
+	return result
+}
 
-		if err := table.Append([]string{"Action", action}); err != nil {
-			return err
-		}
-		if err := table.Append([]string{"Key", key}); err != nil {
-			return err
-		}
+func outputConfigAsJSON(result map[string]string) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
 
-		if value != "" {
-			if err := table.Append([]string{"Value", value}); err != nil {
-				return err
-			}
-		}
-
-		if apiDomain != "" {
-			if err := table.Append([]string{"API Domain", apiDomain}); err != nil {
-				return err
-			}
-		}
-
-		if err := table.Render(); err != nil {
-			return err
-		}
-		return nil
+	err := encoder.Encode(result)
+	if err != nil {
+		return fmt.Errorf("failed to encode config result as JSON: %w", err)
 	}
+
+	return nil
+}
+
+func outputConfigAsYAML(result map[string]string) error {
+	encoder := yaml.NewEncoder(os.Stdout)
+
+	err := encoder.Encode(result)
+	if err != nil {
+		return fmt.Errorf("failed to encode config result as YAML: %w", err)
+	}
+
+	return nil
+}
+
+func outputConfigAsTable(action, key, value, apiDomain string) error {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("Property", "Value")
+
+	err := table.Append([]string{"Action", action})
+	if err != nil {
+		return fmt.Errorf("failed to append action to table: %w", err)
+	}
+
+	err = table.Append([]string{"Key", key})
+	if err != nil {
+		return fmt.Errorf("failed to append key to table: %w", err)
+	}
+
+	if value != "" {
+		err := table.Append([]string{"Value", value})
+		if err != nil {
+			return fmt.Errorf("failed to append value to table: %w", err)
+		}
+	}
+
+	if apiDomain != "" {
+		err := table.Append([]string{"API Domain", apiDomain})
+		if err != nil {
+			return fmt.Errorf("failed to append API domain to table: %w", err)
+		}
+	}
+
+	err = table.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render update results table: %w", err)
+	}
+
+	return nil
 }

@@ -7,13 +7,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
-// createUsersContextCommand creates the UAA context command
+// createUsersContextCommand creates the UAA context command.
 func createUsersContextCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "context",
@@ -34,9 +35,9 @@ func createUsersContextCommand() *cobra.Command {
 			if err != nil {
 				// Show basic context even if UAA client creation fails
 				switch output {
-				case "json":
+				case OutputFormatJSON:
 					return showContextJSON(config, err)
-				case "yaml":
+				case OutputFormatYAML:
 					return showContextYAML(config, err)
 				default:
 					return showContextTable(config, err)
@@ -48,30 +49,32 @@ func createUsersContextCommand() *cobra.Command {
 			var serverInfo map[string]interface{}
 			var connectionError error
 
-			if err := uaaClient.TestConnection(ctx); err != nil {
+			err = uaaClient.TestConnection(ctx)
+			if err != nil {
 				connectionError = err
 			} else {
 				_ = WithPerformanceTracking("get-server-info", func() error {
 					var infoErr error
 					serverInfo, infoErr = CachedServerInfo(uaaClient)
+
 					return infoErr
 				})
 			}
 
 			// Display context based on output format
 			switch output {
-			case "json":
-				return showContextWithServerInfoJSON(config, uaaClient, serverInfo, connectionError)
-			case "yaml":
-				return showContextWithServerInfoYAML(config, uaaClient, serverInfo, connectionError)
+			case OutputFormatJSON:
+				return showContextWithServerInfoJSON(uaaClient, serverInfo, connectionError)
+			case OutputFormatYAML:
+				return showContextWithServerInfoYAML(uaaClient, serverInfo, connectionError)
 			default:
-				return showContextWithServerInfoTable(config, uaaClient, serverInfo, connectionError)
+				return showContextWithServerInfoTable(uaaClient, serverInfo, connectionError)
 			}
 		},
 	}
 }
 
-// createUsersTargetCommand creates the UAA target command
+// createUsersTargetCommand creates the UAA target command.
 func createUsersTargetCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "target <url>",
@@ -104,15 +107,17 @@ func createUsersTargetCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
-			if err := uaaClient.TestConnection(ctx); err != nil {
-				fmt.Printf("Warning: Failed to connect to UAA at %s: %v\n", targetURL, err)
-				fmt.Println("Target set but connection test failed. Please verify the URL and network connectivity.")
+			err = uaaClient.TestConnection(ctx)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to connect to UAA at %s: %v\n", targetURL, err)
+				_, _ = os.Stdout.WriteString("Target set but connection test failed. Please verify the URL and network connectivity.\n")
 			} else {
-				fmt.Printf("Successfully targeted UAA at %s\n", targetURL)
+				_, _ = fmt.Fprintf(os.Stdout, "Successfully targeted UAA at %s\n", targetURL)
 			}
 
 			// Save configuration
-			if err := saveConfigStruct(config); err != nil {
+			err = saveConfigStruct(config)
+			if err != nil {
 				return fmt.Errorf("failed to save configuration: %w", err)
 			}
 
@@ -121,7 +126,7 @@ func createUsersTargetCommand() *cobra.Command {
 	}
 }
 
-// createUsersInfoCommand creates the UAA info command
+// createUsersInfoCommand creates the UAA info command.
 func createUsersInfoCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "info",
@@ -131,7 +136,7 @@ func createUsersInfoCommand() *cobra.Command {
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			uaaClient, err := NewUAAClient(config)
@@ -147,13 +152,25 @@ func createUsersInfoCommand() *cobra.Command {
 
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(serverInfo)
-			case "yaml":
+
+				err := encoder.Encode(serverInfo)
+				if err != nil {
+					return fmt.Errorf("encoding server info to JSON: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(serverInfo)
+
+				err := encoder.Encode(serverInfo)
+				if err != nil {
+					return fmt.Errorf("encoding server info to YAML: %w", err)
+				}
+
+				return nil
 			default:
 				return displayServerInfoTable(serverInfo)
 			}
@@ -161,7 +178,7 @@ func createUsersInfoCommand() *cobra.Command {
 	}
 }
 
-// createUsersVersionCommand creates the UAA version command
+// createUsersVersionCommand creates the UAA version command.
 func createUsersVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
@@ -171,7 +188,7 @@ func createUsersVersionCommand() *cobra.Command {
 			config := loadConfig()
 
 			if GetEffectiveUAAEndpoint(config) == "" {
-				return fmt.Errorf("no UAA endpoint configured. Use 'capi uaa target <url>' to set one")
+				return constants.ErrNoUAAConfigured
 			}
 
 			uaaClient, err := NewUAAClient(config)
@@ -186,7 +203,7 @@ func createUsersVersionCommand() *cobra.Command {
 			}
 
 			// Extract version information
-			version := "unknown"
+			version := Unknown
 			if app, ok := serverInfo["app"].(map[string]interface{}); ok {
 				if v, ok := app["version"].(string); ok && v != "" {
 					version = v
@@ -195,29 +212,43 @@ func createUsersVersionCommand() *cobra.Command {
 
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				result := map[string]string{
 					"version":  version,
 					"endpoint": GetEffectiveUAAEndpoint(config),
 				}
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
-				return encoder.Encode(result)
-			case "yaml":
+
+				err := encoder.Encode(result)
+				if err != nil {
+					return fmt.Errorf("failed to encode result: %w", err)
+				}
+
+				return nil
+			case OutputFormatYAML:
 				result := map[string]string{
 					"version":  version,
 					"endpoint": GetEffectiveUAAEndpoint(config),
 				}
 				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(result)
+
+				err := encoder.Encode(result)
+				if err != nil {
+					return fmt.Errorf("failed to encode result: %w", err)
+				}
+
+				return nil
 			default:
 				table := tablewriter.NewWriter(os.Stdout)
 				table.Header("Property", "Value")
 				_ = table.Append("Version", version)
 				_ = table.Append("Endpoint", GetEffectiveUAAEndpoint(config))
-				if err := table.Render(); err != nil {
+				err := table.Render()
+				if err != nil {
 					return fmt.Errorf("failed to render table: %w", err)
 				}
+
 				return nil
 			}
 		},
@@ -239,7 +270,13 @@ func showContextJSON(config *Config, clientError error) error {
 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(context)
+
+	err := encoder.Encode(context)
+	if err != nil {
+		return fmt.Errorf("failed to encode context: %w", err)
+	}
+
+	return nil
 }
 
 func showContextYAML(config *Config, clientError error) error {
@@ -254,7 +291,13 @@ func showContextYAML(config *Config, clientError error) error {
 	}
 
 	encoder := yaml.NewEncoder(os.Stdout)
-	return encoder.Encode(context)
+
+	err := encoder.Encode(context)
+	if err != nil {
+		return fmt.Errorf("failed to encode context: %w", err)
+	}
+
+	return nil
 }
 
 func showContextTable(config *Config, clientError error) error {
@@ -263,75 +306,90 @@ func showContextTable(config *Config, clientError error) error {
 
 	_ = table.Append("Endpoint", getValueOrEmpty(config.UAAEndpoint))
 
-	authenticated := "false"
+	authenticated := False
 	if config.UAAToken != "" || config.Token != "" {
-		authenticated = "true"
+		authenticated = True
 	}
+
 	_ = table.Append("Authenticated", authenticated)
 
 	if clientError != nil {
 		_ = table.Append("Error", clientError.Error())
 	}
 
-	fmt.Println("UAA Context:")
-	fmt.Println()
-	if err := table.Render(); err != nil {
+	_, _ = os.Stdout.WriteString("UAA Context:\n")
+	_, _ = os.Stdout.WriteString("\n")
+
+	err := table.Render()
+	if err != nil {
 		return fmt.Errorf("failed to render table: %w", err)
 	}
 
 	return nil
 }
 
-func showContextWithServerInfoJSON(config *Config, client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
+func showContextWithServerInfoJSON(client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
 	context := map[string]interface{}{
 		"uaa_endpoint":      client.Endpoint(),
 		"authenticated":     client.IsAuthenticated(),
 		"connection_status": connectionError == nil,
 		"server_info":       serverInfo,
 	}
-
 	if connectionError != nil {
 		context["connection_error"] = connectionError.Error()
 	}
 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(context)
+
+	err := encoder.Encode(context)
+	if err != nil {
+		return fmt.Errorf("encoding context to JSON: %w", err)
+	}
+
+	return nil
 }
 
-func showContextWithServerInfoYAML(config *Config, client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
+func showContextWithServerInfoYAML(client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
 	context := map[string]interface{}{
 		"uaa_endpoint":      client.Endpoint(),
 		"authenticated":     client.IsAuthenticated(),
 		"connection_status": connectionError == nil,
 		"server_info":       serverInfo,
 	}
-
 	if connectionError != nil {
 		context["connection_error"] = connectionError.Error()
 	}
 
 	encoder := yaml.NewEncoder(os.Stdout)
-	return encoder.Encode(context)
+
+	err := encoder.Encode(context)
+	if err != nil {
+		return fmt.Errorf("encoding context to YAML: %w", err)
+	}
+
+	return nil
 }
 
-func showContextWithServerInfoTable(config *Config, client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
+func showContextWithServerInfoTable(client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header("Property", "Value")
 
 	// Add basic context information
 	_ = table.Append("Endpoint", getValueOrEmpty(client.Endpoint()))
 
-	authenticated := "false"
+	authenticated := False
 	if client.IsAuthenticated() {
-		authenticated = "true"
+		authenticated = True
 	}
+
 	_ = table.Append("Authenticated", authenticated)
 
-	connected := "true"
+	connected := True
 	if connectionError != nil {
-		connected = "false"
+		connected = False
 	}
+
 	_ = table.Append("Connected", connected)
 
 	if connectionError != nil {
@@ -339,26 +397,13 @@ func showContextWithServerInfoTable(config *Config, client *UAAClientWrapper, se
 	}
 
 	// Add server information if available
-	if len(serverInfo) > 0 {
-		if app, ok := serverInfo["app"].(map[string]interface{}); ok {
-			if name, ok := app["name"].(string); ok && name != "" {
-				_ = table.Append("Server Name", name)
-			}
-			if version, ok := app["version"].(string); ok && version != "" {
-				_ = table.Append("Server Version", version)
-			}
-		}
-		if commitID, ok := serverInfo["commit_id"].(string); ok && commitID != "" {
-			_ = table.Append("Commit ID", commitID)
-		}
-		if zoneName, ok := serverInfo["zone_name"].(string); ok && zoneName != "" {
-			_ = table.Append("Zone Name", zoneName)
-		}
-	}
+	addServerInfoToTable(table, serverInfo)
 
-	fmt.Println("UAA Context:")
-	fmt.Println()
-	if err := table.Render(); err != nil {
+	_, _ = os.Stdout.WriteString("UAA Context:\n")
+	_, _ = os.Stdout.WriteString("\n")
+
+	err := table.Render()
+	if err != nil {
 		return fmt.Errorf("failed to render table: %w", err)
 	}
 
@@ -383,15 +428,52 @@ func displayServerInfoTable(serverInfo map[string]interface{}) error {
 		}
 	}
 
-	if err := table.Render(); err != nil {
+	err := table.Render()
+	if err != nil {
 		return fmt.Errorf("failed to render table: %w", err)
 	}
+
 	return nil
+}
+
+// addServerInfoToTable adds server information to the table if available.
+func addServerInfoToTable(table *tablewriter.Table, serverInfo map[string]interface{}) {
+	if len(serverInfo) == 0 {
+		return
+	}
+
+	addAppInfoToTable(table, serverInfo)
+	addServerPropertyIfExists(table, serverInfo, "commit_id", "Commit ID")
+	addServerPropertyIfExists(table, serverInfo, "zone_name", "Zone Name")
+}
+
+// addAppInfoToTable adds application information from server info.
+func addAppInfoToTable(table *tablewriter.Table, serverInfo map[string]interface{}) {
+	app, ok := serverInfo["app"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	if name, ok := app["name"].(string); ok && name != "" {
+		_ = table.Append("Server Name", name)
+	}
+
+	if version, ok := app["version"].(string); ok && version != "" {
+		_ = table.Append("Server Version", version)
+	}
+}
+
+// addServerPropertyIfExists adds a server property to the table if it exists and is not empty.
+func addServerPropertyIfExists(table *tablewriter.Table, serverInfo map[string]interface{}, key, displayName string) {
+	if value, ok := serverInfo[key].(string); ok && value != "" {
+		_ = table.Append(displayName, value)
+	}
 }
 
 func getValueOrEmpty(value string) string {
 	if value == "" {
 		return "(not set)"
 	}
+
 	return value
 }

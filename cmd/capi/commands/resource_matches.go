@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewResourceMatchesCommand creates the resource matches command group
+// NewResourceMatchesCommand creates the resource matches command group.
 func NewResourceMatchesCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "resource-matches",
@@ -30,7 +31,7 @@ func NewResourceMatchesCommand() *cobra.Command {
 	return cmd
 }
 
-// validateFilePathResourceMatches validates that a file path is safe to read
+// validateFilePathResourceMatches validates that a file path is safe to read.
 func validateFilePathResourceMatches(filePath string) error {
 	// Clean the path to resolve any path traversal attempts
 	cleanPath := filepath.Clean(filePath)
@@ -39,17 +40,18 @@ func validateFilePathResourceMatches(filePath string) error {
 	if filepath.IsAbs(filePath) {
 		// Allow absolute paths but ensure they're clean
 		if cleanPath != filePath {
-			return fmt.Errorf("invalid file path: potential path traversal attempt")
+			return ErrDirectoryTraversalDetected
 		}
 	} else {
 		// For relative paths, ensure they don't escape the current directory
 		if len(cleanPath) > 0 && cleanPath[0] == '.' && len(cleanPath) > 1 && cleanPath[1] == '.' {
-			return fmt.Errorf("invalid file path: path traversal not allowed")
+			return ErrDirectoryTraversalDetected
 		}
 	}
 
 	// Check if file exists and is readable
-	if _, err := os.Stat(cleanPath); err != nil {
+	_, err := os.Stat(cleanPath)
+	if err != nil {
 		return fmt.Errorf("file not accessible: %w", err)
 	}
 
@@ -74,33 +76,13 @@ func newResourceMatchesCreateCommand() *cobra.Command {
 
 			ctx := context.Background()
 
-			var resourceList []capi.ResourceMatch
-
-			// Load resources from file if specified
-			if fromFile != "" {
-				// Validate file path to prevent directory traversal
-				if err := validateFilePathResourceMatches(fromFile); err != nil {
-					return fmt.Errorf("invalid resource file: %w", err)
-				}
-
-				fileResources, err := loadResourcesFromFile(fromFile)
-				if err != nil {
-					return fmt.Errorf("failed to load resources from file: %w", err)
-				}
-				resourceList = append(resourceList, fileResources...)
-			}
-
-			// Parse individual resource entries
-			for _, resourceStr := range resources {
-				resource, err := parseResourceString(resourceStr)
-				if err != nil {
-					return fmt.Errorf("failed to parse resource '%s': %w", resourceStr, err)
-				}
-				resourceList = append(resourceList, resource)
+			resourceList, err := buildResourceList(fromFile, resources)
+			if err != nil {
+				return err
 			}
 
 			if len(resourceList) == 0 {
-				return fmt.Errorf("no resources specified. Use --from-file or --resource flags")
+				return ErrNoResourcesSpecified
 			}
 
 			// Create resource matches request
@@ -113,68 +95,7 @@ func newResourceMatchesCreateCommand() *cobra.Command {
 				return fmt.Errorf("failed to create resource matches: %w", err)
 			}
 
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(matches)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(matches)
-			default:
-				if len(matches.Resources) == 0 {
-					fmt.Println("No matching resources found on the platform")
-					fmt.Printf("All %d resources will need to be uploaded\n", len(resourceList))
-					return nil
-				}
-
-				fmt.Printf("Resource Matches Summary:\n")
-				fmt.Printf("  Total resources checked: %d\n", len(resourceList))
-				fmt.Printf("  Matching resources found: %d\n", len(matches.Resources))
-				fmt.Printf("  Resources to upload: %d\n", len(resourceList)-len(matches.Resources))
-				fmt.Println()
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("SHA1", "Size", "Path", "Mode")
-
-				for _, resource := range matches.Resources {
-					_ = table.Append(
-						resource.SHA1,
-						fmt.Sprintf("%d", resource.Size),
-						resource.Path,
-						resource.Mode,
-					)
-				}
-
-				fmt.Println("Matching resources (already exist on platform):")
-				_ = table.Render()
-
-				// Calculate size savings
-				var totalSizeToUpload int64
-				var totalSizeMatched int64
-
-				for _, resource := range resourceList {
-					totalSizeToUpload += resource.Size
-				}
-
-				for _, resource := range matches.Resources {
-					totalSizeMatched += resource.Size
-				}
-
-				sizeSavings := totalSizeMatched
-				fmt.Printf("\nUpload optimization:\n")
-				fmt.Printf("  Total size without optimization: %d bytes\n", totalSizeToUpload)
-				fmt.Printf("  Size of matching resources: %d bytes\n", totalSizeMatched)
-				fmt.Printf("  Actual upload size needed: %d bytes\n", totalSizeToUpload-totalSizeMatched)
-				if totalSizeToUpload > 0 {
-					percentSaved := float64(sizeSavings) / float64(totalSizeToUpload) * 100
-					fmt.Printf("  Bandwidth saved: %.1f%%\n", percentSaved)
-				}
-			}
-
-			return nil
+			return outputResourceMatches(matches, resourceList)
 		},
 	}
 
@@ -184,11 +105,11 @@ func newResourceMatchesCreateCommand() *cobra.Command {
 	return cmd
 }
 
-// parseResourceString parses a resource string in the format "sha1:size:path:mode"
+// parseResourceString parses a resource string in the format "sha1:size:path:mode".
 func parseResourceString(resourceStr string) (capi.ResourceMatch, error) {
 	parts := strings.Split(resourceStr, ":")
-	if len(parts) != 4 {
-		return capi.ResourceMatch{}, fmt.Errorf("invalid format. Expected sha1:size:path:mode")
+	if len(parts) != constants.FilePathPartsCount {
+		return capi.ResourceMatch{}, ErrInvalidResourceFormat
 	}
 
 	sha1 := parts[0]
@@ -209,7 +130,132 @@ func parseResourceString(resourceStr string) (capi.ResourceMatch, error) {
 	}, nil
 }
 
-// loadResourcesFromFile loads resources from a JSON or YAML file
+// buildResourceList builds the resource list from file and command-line arguments.
+func buildResourceList(fromFile string, resources []string) ([]capi.ResourceMatch, error) {
+	resourceList := make([]capi.ResourceMatch, 0, len(resources))
+
+	// Load resources from file if specified
+	if fromFile != "" {
+		// Validate file path to prevent directory traversal
+		err := validateFilePathResourceMatches(fromFile)
+		if err != nil {
+			return nil, fmt.Errorf("invalid resource file: %w", err)
+		}
+
+		fileResources, err := loadResourcesFromFile(fromFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load resources from file: %w", err)
+		}
+
+		resourceList = append(resourceList, fileResources...)
+	}
+
+	// Parse individual resource entries
+	for _, resourceStr := range resources {
+		resource, err := parseResourceString(resourceStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse resource '%s': %w", resourceStr, err)
+		}
+
+		resourceList = append(resourceList, resource)
+	}
+
+	return resourceList, nil
+}
+
+// outputResourceMatches handles the output formatting for resource matches.
+func outputResourceMatches(matches *capi.ResourceMatches, resourceList []capi.ResourceMatch) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(matches)
+		if err != nil {
+			return fmt.Errorf("failed to encode matches to JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(matches)
+		if err != nil {
+			return fmt.Errorf("failed to encode matches to YAML: %w", err)
+		}
+
+		return nil
+	default:
+		return renderResourceMatchesTable(matches, resourceList)
+	}
+}
+
+// renderResourceMatchesTable renders the resource matches in table format.
+func renderResourceMatchesTable(matches *capi.ResourceMatches, resourceList []capi.ResourceMatch) error {
+	if len(matches.Resources) == 0 {
+		_, _ = os.Stdout.WriteString("No matching resources found on the platform\n")
+		_, _ = fmt.Fprintf(os.Stdout, "All %d resources will need to be uploaded\n", len(resourceList))
+
+		return nil
+	}
+
+	_, _ = os.Stdout.WriteString("Resource Matches Summary:\n")
+	_, _ = fmt.Fprintf(os.Stdout, "  Total resources checked: %d\n", len(resourceList))
+	_, _ = fmt.Fprintf(os.Stdout, "  Matching resources found: %d\n", len(matches.Resources))
+	_, _ = fmt.Fprintf(os.Stdout, "  Resources to upload: %d\n", len(resourceList)-len(matches.Resources))
+	_, _ = os.Stdout.WriteString("\n")
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("SHA1", "Size", "Path", "Mode")
+
+	for _, resource := range matches.Resources {
+		_ = table.Append(
+			resource.SHA1,
+			strconv.FormatInt(resource.Size, 10),
+			resource.Path,
+			resource.Mode,
+		)
+	}
+
+	_, _ = os.Stdout.WriteString("Matching resources (already exist on platform):\n")
+
+	_ = table.Render()
+
+	printUploadOptimization(resourceList, matches.Resources)
+
+	return nil
+}
+
+// printUploadOptimization prints the upload optimization statistics.
+func printUploadOptimization(resourceList []capi.ResourceMatch, matchedResources []capi.ResourceMatch) {
+	var (
+		totalSizeToUpload int64
+		totalSizeMatched  int64
+	)
+
+	for _, resource := range resourceList {
+		totalSizeToUpload += resource.Size
+	}
+
+	for _, resource := range matchedResources {
+		totalSizeMatched += resource.Size
+	}
+
+	sizeSavings := totalSizeMatched
+
+	_, _ = os.Stdout.WriteString("\nUpload optimization:\n")
+	_, _ = fmt.Fprintf(os.Stdout, "  Total size without optimization: %d bytes\n", totalSizeToUpload)
+	_, _ = fmt.Fprintf(os.Stdout, "  Size of matching resources: %d bytes\n", totalSizeMatched)
+	_, _ = fmt.Fprintf(os.Stdout, "  Actual upload size needed: %d bytes\n", totalSizeToUpload-totalSizeMatched)
+
+	if totalSizeToUpload > 0 {
+		percentSaved := float64(sizeSavings) / float64(totalSizeToUpload) * constants.PercentageMultiplierFloat
+		_, _ = fmt.Fprintf(os.Stdout, "  Bandwidth saved: %.1f%%\n", percentSaved)
+	}
+}
+
+// loadResourcesFromFile loads resources from a JSON or YAML file.
 func loadResourcesFromFile(filename string) ([]capi.ResourceMatch, error) {
 	data, err := os.ReadFile(filepath.Clean(filename))
 	if err != nil {
@@ -219,12 +265,14 @@ func loadResourcesFromFile(filename string) ([]capi.ResourceMatch, error) {
 	var resources []capi.ResourceMatch
 
 	// Try to parse as JSON first
-	if err := json.Unmarshal(data, &resources); err == nil {
+	err = json.Unmarshal(data, &resources)
+	if err == nil {
 		return resources, nil
 	}
 
 	// Try to parse as YAML
-	if err := yaml.Unmarshal(data, &resources); err == nil {
+	err = yaml.Unmarshal(data, &resources)
+	if err == nil {
 		return resources, nil
 	}
 
@@ -233,13 +281,15 @@ func loadResourcesFromFile(filename string) ([]capi.ResourceMatch, error) {
 		Resources []capi.ResourceMatch `json:"resources" yaml:"resources"`
 	}
 
-	if err := json.Unmarshal(data, &request); err == nil && len(request.Resources) > 0 {
+	err = json.Unmarshal(data, &request)
+	if err == nil && len(request.Resources) > 0 {
 		return request.Resources, nil
 	}
 
-	if err := yaml.Unmarshal(data, &request); err == nil && len(request.Resources) > 0 {
+	err = yaml.Unmarshal(data, &request)
+	if err == nil && len(request.Resources) > 0 {
 		return request.Resources, nil
 	}
 
-	return nil, fmt.Errorf("failed to parse file as JSON or YAML resource list")
+	return nil, ErrFailedToParseResourceFile
 }

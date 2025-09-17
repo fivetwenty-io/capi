@@ -1,26 +1,30 @@
-package capi
+package capi_test
 
 import (
 	"net/url"
 	"testing"
 
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:funlen // Test functions can be longer for detailed testing
 func TestQueryParams_ToValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
-		params   *QueryParams
+		params   *capi.QueryParams
 		expected url.Values
 	}{
 		{
 			name:     "empty params",
-			params:   NewQueryParams(),
+			params:   capi.NewQueryParams(),
 			expected: url.Values{},
 		},
 		{
 			name: "with pagination",
-			params: &QueryParams{
+			params: &capi.QueryParams{
 				Page:    2,
 				PerPage: 50,
 			},
@@ -31,7 +35,7 @@ func TestQueryParams_ToValues(t *testing.T) {
 		},
 		{
 			name: "with ordering",
-			params: &QueryParams{
+			params: &capi.QueryParams{
 				OrderBy: "-created_at",
 			},
 			expected: url.Values{
@@ -40,7 +44,7 @@ func TestQueryParams_ToValues(t *testing.T) {
 		},
 		{
 			name: "with label selector",
-			params: &QueryParams{
+			params: &capi.QueryParams{
 				LabelSelector: "environment=production,team=platform",
 			},
 			expected: url.Values{
@@ -49,7 +53,7 @@ func TestQueryParams_ToValues(t *testing.T) {
 		},
 		{
 			name: "with includes",
-			params: &QueryParams{
+			params: &capi.QueryParams{
 				Include: []string{"space", "organization"},
 			},
 			expected: url.Values{
@@ -58,7 +62,7 @@ func TestQueryParams_ToValues(t *testing.T) {
 		},
 		{
 			name: "with fields",
-			params: &QueryParams{
+			params: &capi.QueryParams{
 				Fields: map[string][]string{
 					"apps":   {"name", "state"},
 					"spaces": {"name"},
@@ -71,7 +75,7 @@ func TestQueryParams_ToValues(t *testing.T) {
 		},
 		{
 			name: "with filters",
-			params: &QueryParams{
+			params: &capi.QueryParams{
 				Filters: map[string][]string{
 					"names":  {"app1", "app2"},
 					"states": {"STARTED"},
@@ -84,7 +88,7 @@ func TestQueryParams_ToValues(t *testing.T) {
 		},
 		{
 			name: "with all options",
-			params: &QueryParams{
+			params: &capi.QueryParams{
 				Page:          3,
 				PerPage:       25,
 				OrderBy:       "name",
@@ -111,6 +115,8 @@ func TestQueryParams_ToValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.params.ToValues()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -118,8 +124,11 @@ func TestQueryParams_ToValues(t *testing.T) {
 }
 
 func TestQueryParams_Builders(t *testing.T) {
+	t.Parallel()
 	t.Run("chaining methods", func(t *testing.T) {
-		params := NewQueryParams().
+		t.Parallel()
+
+		params := capi.NewQueryParams().
 			WithPage(2).
 			WithPerPage(100).
 			WithOrderBy("-updated_at").
@@ -142,7 +151,9 @@ func TestQueryParams_Builders(t *testing.T) {
 	})
 
 	t.Run("WithInclude appends", func(t *testing.T) {
-		params := NewQueryParams().
+		t.Parallel()
+
+		params := capi.NewQueryParams().
 			WithInclude("space").
 			WithInclude("organization", "domain")
 
@@ -150,7 +161,9 @@ func TestQueryParams_Builders(t *testing.T) {
 	})
 
 	t.Run("WithFilter appends", func(t *testing.T) {
-		params := NewQueryParams().
+		t.Parallel()
+
+		params := capi.NewQueryParams().
 			WithFilter("names", "app1").
 			WithFilter("names", "app2", "app3")
 
@@ -158,7 +171,9 @@ func TestQueryParams_Builders(t *testing.T) {
 	})
 
 	t.Run("WithFields replaces", func(t *testing.T) {
-		params := NewQueryParams().
+		t.Parallel()
+
+		params := capi.NewQueryParams().
 			WithFields("apps", "guid").
 			WithFields("apps", "name", "state")
 
@@ -167,14 +182,16 @@ func TestQueryParams_Builders(t *testing.T) {
 }
 
 func TestNewQueryParams(t *testing.T) {
-	params := NewQueryParams()
+	t.Parallel()
+
+	params := capi.NewQueryParams()
 
 	assert.NotNil(t, params)
 	assert.NotNil(t, params.Fields)
 	assert.NotNil(t, params.Filters)
 	assert.Equal(t, 0, params.Page)
 	assert.Equal(t, 0, params.PerPage)
-	assert.Equal(t, "", params.OrderBy)
-	assert.Equal(t, "", params.LabelSelector)
+	assert.Empty(t, params.OrderBy)
+	assert.Empty(t, params.LabelSelector)
 	assert.Nil(t, params.Include)
 }

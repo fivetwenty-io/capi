@@ -1,3 +1,4 @@
+//nolint:testpackage // Need access to internal types
 package commands
 
 import (
@@ -9,6 +10,8 @@ import (
 )
 
 func TestCreateUsersGetPasswordTokenCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetPasswordTokenCommand()
 	assert.Equal(t, "get-password-token", cmd.Use)
 	assert.Equal(t, "Obtain access token using password grant", cmd.Short)
@@ -23,6 +26,8 @@ func TestCreateUsersGetPasswordTokenCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetClientCredentialsTokenCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetClientCredentialsTokenCommand()
 	assert.Equal(t, "get-client-credentials-token", cmd.Use)
 	assert.Equal(t, "Obtain access token using client credentials grant", cmd.Short)
@@ -36,6 +41,8 @@ func TestCreateUsersGetClientCredentialsTokenCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetAuthcodeTokenCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetAuthcodeTokenCommand()
 	assert.Equal(t, "get-authcode-token", cmd.Use)
 	assert.Equal(t, "Obtain access token using authorization code grant", cmd.Short)
@@ -50,6 +57,8 @@ func TestCreateUsersGetAuthcodeTokenCommand(t *testing.T) {
 }
 
 func TestCreateUsersRefreshTokenCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersRefreshTokenCommand()
 	assert.Equal(t, "refresh-token", cmd.Use)
 	assert.Equal(t, "Refresh access token", cmd.Short)
@@ -58,6 +67,8 @@ func TestCreateUsersRefreshTokenCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetTokenKeyCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetTokenKeyCommand()
 	assert.Equal(t, "get-token-key", cmd.Use)
 	assert.Equal(t, "View JWT signing key", cmd.Short)
@@ -66,6 +77,8 @@ func TestCreateUsersGetTokenKeyCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetTokenKeysCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetTokenKeysCommand()
 	assert.Equal(t, "get-token-keys", cmd.Use)
 	assert.Equal(t, "View all JWT signing keys", cmd.Short)
@@ -74,6 +87,8 @@ func TestCreateUsersGetTokenKeysCommand(t *testing.T) {
 }
 
 func TestCreateUsersGetImplicitTokenCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersGetImplicitTokenCommand()
 	assert.Equal(t, "get-implicit-token", cmd.Use)
 	assert.Equal(t, "Obtain access token using implicit grant", cmd.Short)
@@ -84,6 +99,8 @@ func TestCreateUsersGetImplicitTokenCommand(t *testing.T) {
 }
 
 func TestDisplayTokenInfo(t *testing.T) {
+	t.Parallel()
+
 	token := &oauth2.Token{
 		AccessToken:  "test-access-token",
 		RefreshToken: "test-refresh-token",

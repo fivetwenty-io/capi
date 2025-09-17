@@ -1,16 +1,18 @@
-package capi
+package capi_test
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
 
+	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAPIError_Error(t *testing.T) {
-	err := &APIError{
+	t.Parallel()
+
+	err := &capi.APIError{
 		Code:   10010,
 		Title:  "CF-ResourceNotFound",
 		Detail: "App not found",
@@ -19,21 +21,23 @@ func TestAPIError_Error(t *testing.T) {
 	assert.Equal(t, "CF-ResourceNotFound: App not found (code: 10010)", err.Error())
 }
 
-func TestErrorResponse_Error(t *testing.T) {
+func TestResponseError_Error(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
-		response *ErrorResponse
+		response *capi.ResponseError
 		expected string
 	}{
 		{
 			name:     "empty errors",
-			response: &ErrorResponse{},
+			response: &capi.ResponseError{},
 			expected: "unknown error",
 		},
 		{
 			name: "single error",
-			response: &ErrorResponse{
-				Errors: []APIError{
+			response: &capi.ResponseError{
+				Errors: []capi.APIError{
 					{
 						Code:   10010,
 						Title:  "CF-ResourceNotFound",
@@ -45,8 +49,8 @@ func TestErrorResponse_Error(t *testing.T) {
 		},
 		{
 			name: "multiple errors",
-			response: &ErrorResponse{
-				Errors: []APIError{
+			response: &capi.ResponseError{
+				Errors: []capi.APIError{
 					{
 						Code:   10010,
 						Title:  "CF-ResourceNotFound",
@@ -65,15 +69,19 @@ func TestErrorResponse_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.expected, tt.response.Error())
 		})
 	}
 }
 
-func TestErrorResponse_FirstError(t *testing.T) {
+func TestResponseError_FirstError(t *testing.T) {
+	t.Parallel()
 	t.Run("with errors", func(t *testing.T) {
-		response := &ErrorResponse{
-			Errors: []APIError{
+		t.Parallel()
+
+		response := &capi.ResponseError{
+			Errors: []capi.APIError{
 				{Code: 10010, Title: "CF-ResourceNotFound", Detail: "Not found"},
 				{Code: 10008, Title: "CF-UnprocessableEntity", Detail: "Invalid"},
 			},
@@ -86,12 +94,16 @@ func TestErrorResponse_FirstError(t *testing.T) {
 	})
 
 	t.Run("without errors", func(t *testing.T) {
-		response := &ErrorResponse{}
+		t.Parallel()
+
+		response := &capi.ResponseError{}
 		assert.Nil(t, response.FirstError())
 	})
 }
 
 func TestIsNotFound(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -99,40 +111,40 @@ func TestIsNotFound(t *testing.T) {
 	}{
 		{
 			name:     "APIError not found",
-			err:      &APIError{Code: ErrorCodeNotFound},
+			err:      &capi.APIError{Code: capi.ErrorCodeNotFound},
 			expected: true,
 		},
 		{
 			name:     "APIError other error",
-			err:      &APIError{Code: ErrorCodeNotAuthenticated},
+			err:      &capi.APIError{Code: capi.ErrorCodeNotAuthenticated},
 			expected: false,
 		},
 		{
-			name: "ErrorResponse with not found",
-			err: &ErrorResponse{
-				Errors: []APIError{
-					{Code: ErrorCodeNotFound},
+			name: "capi.ResponseError with not found",
+			err: &capi.ResponseError{
+				Errors: []capi.APIError{
+					{Code: capi.ErrorCodeNotFound},
 				},
 			},
 			expected: true,
 		},
 		{
-			name: "ErrorResponse without not found",
-			err: &ErrorResponse{
-				Errors: []APIError{
-					{Code: ErrorCodeNotAuthenticated},
+			name: "capi.ResponseError without not found",
+			err: &capi.ResponseError{
+				Errors: []capi.APIError{
+					{Code: capi.ErrorCodeNotAuthenticated},
 				},
 			},
 			expected: false,
 		},
 		{
-			name:     "ErrorResponse empty",
-			err:      &ErrorResponse{},
+			name:     "capi.ResponseError empty",
+			err:      &capi.ResponseError{},
 			expected: false,
 		},
 		{
 			name:     "other error type",
-			err:      errors.New("some error"),
+			err:      capi.ErrSomeError,
 			expected: false,
 		},
 		{
@@ -144,109 +156,79 @@ func TestIsNotFound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, IsNotFound(tt.err))
+			t.Parallel()
+			assert.Equal(t, tt.expected, capi.IsNotFound(tt.err))
+		})
+	}
+}
+
+// runErrorCodeTests runs standardized tests for error code checking functions.
+func runErrorCodeTests(t *testing.T, targetCode int, checkFunc func(error) bool) {
+	t.Helper()
+
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "APIError with target code",
+			err:      &capi.APIError{Code: targetCode},
+			expected: true,
+		},
+		{
+			name:     "APIError other error",
+			err:      &capi.APIError{Code: capi.ErrorCodeNotFound},
+			expected: targetCode == capi.ErrorCodeNotFound,
+		},
+		{
+			name: "ResponseError with target code",
+			err: &capi.ResponseError{
+				Errors: []capi.APIError{
+					{Code: targetCode},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "ResponseError without target code",
+			err: &capi.ResponseError{
+				Errors: []capi.APIError{
+					{Code: capi.ErrorCodeNotFound},
+				},
+			},
+			expected: targetCode == capi.ErrorCodeNotFound,
+		},
+		{
+			name:     "other error type",
+			err:      capi.ErrSomeError,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, checkFunc(tt.err))
 		})
 	}
 }
 
 func TestIsUnauthorized(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected bool
-	}{
-		{
-			name:     "APIError unauthorized",
-			err:      &APIError{Code: ErrorCodeNotAuthenticated},
-			expected: true,
-		},
-		{
-			name:     "APIError other error",
-			err:      &APIError{Code: ErrorCodeNotFound},
-			expected: false,
-		},
-		{
-			name: "ErrorResponse with unauthorized",
-			err: &ErrorResponse{
-				Errors: []APIError{
-					{Code: ErrorCodeNotAuthenticated},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "ErrorResponse without unauthorized",
-			err: &ErrorResponse{
-				Errors: []APIError{
-					{Code: ErrorCodeNotFound},
-				},
-			},
-			expected: false,
-		},
-		{
-			name:     "other error type",
-			err:      errors.New("some error"),
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, IsUnauthorized(tt.err))
-		})
-	}
+	t.Parallel()
+	runErrorCodeTests(t, capi.ErrorCodeNotAuthenticated, capi.IsUnauthorized)
 }
 
 func TestIsForbidden(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected bool
-	}{
-		{
-			name:     "APIError forbidden",
-			err:      &APIError{Code: ErrorCodeNotAuthorized},
-			expected: true,
-		},
-		{
-			name:     "APIError other error",
-			err:      &APIError{Code: ErrorCodeNotFound},
-			expected: false,
-		},
-		{
-			name: "ErrorResponse with forbidden",
-			err: &ErrorResponse{
-				Errors: []APIError{
-					{Code: ErrorCodeNotAuthorized},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "ErrorResponse without forbidden",
-			err: &ErrorResponse{
-				Errors: []APIError{
-					{Code: ErrorCodeNotFound},
-				},
-			},
-			expected: false,
-		},
-		{
-			name:     "other error type",
-			err:      errors.New("some error"),
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, IsForbidden(tt.err))
-		})
-	}
+	t.Parallel()
+	runErrorCodeTests(t, capi.ErrorCodeNotAuthorized, capi.IsForbidden)
 }
 
-func TestParseErrorResponse(t *testing.T) {
+func TestParseResponseError(t *testing.T) {
+	t.Parallel()
 	t.Run("valid error response", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"errors": [
 				{
@@ -262,7 +244,7 @@ func TestParseErrorResponse(t *testing.T) {
 			]
 		}`
 
-		errResp, err := ParseErrorResponse([]byte(jsonData))
+		errResp, err := capi.ParseResponseError([]byte(jsonData))
 		require.NoError(t, err)
 		require.NotNil(t, errResp)
 		assert.Len(t, errResp.Errors, 2)
@@ -272,49 +254,56 @@ func TestParseErrorResponse(t *testing.T) {
 	})
 
 	t.Run("invalid JSON", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{invalid json}`
 
-		errResp, err := ParseErrorResponse([]byte(jsonData))
-		assert.Error(t, err)
+		errResp, err := capi.ParseResponseError([]byte(jsonData))
+		require.Error(t, err)
 		assert.Nil(t, errResp)
 	})
 
 	t.Run("empty response", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{"errors": []}`
 
-		errResp, err := ParseErrorResponse([]byte(jsonData))
+		errResp, err := capi.ParseResponseError([]byte(jsonData))
 		require.NoError(t, err)
 		require.NotNil(t, errResp)
-		assert.Len(t, errResp.Errors, 0)
+		assert.Empty(t, errResp.Errors)
 	})
 }
 
 func TestErrorConstants(t *testing.T) {
-	assert.Equal(t, 10010, ErrNotFound.Code)
-	assert.Equal(t, "CF-ResourceNotFound", ErrNotFound.Title)
+	t.Parallel()
+	assert.Equal(t, 10010, capi.ErrNotFound.Code)
+	assert.Equal(t, "CF-ResourceNotFound", capi.ErrNotFound.Title)
 
-	assert.Equal(t, 10002, ErrUnauthorized.Code)
-	assert.Equal(t, "CF-NotAuthenticated", ErrUnauthorized.Title)
+	assert.Equal(t, 10002, capi.ErrUnauthorized.Code)
+	assert.Equal(t, "CF-NotAuthenticated", capi.ErrUnauthorized.Title)
 
-	assert.Equal(t, 10003, ErrForbidden.Code)
-	assert.Equal(t, "CF-NotAuthorized", ErrForbidden.Title)
+	assert.Equal(t, 10003, capi.ErrForbidden.Code)
+	assert.Equal(t, "CF-NotAuthorized", capi.ErrForbidden.Title)
 
-	assert.Equal(t, 10008, ErrUnprocessable.Code)
-	assert.Equal(t, "CF-UnprocessableEntity", ErrUnprocessable.Title)
+	assert.Equal(t, 10008, capi.ErrUnprocessable.Code)
+	assert.Equal(t, "CF-UnprocessableEntity", capi.ErrUnprocessable.Title)
 
-	assert.Equal(t, 10001, ErrServiceUnavailable.Code)
-	assert.Equal(t, "CF-ServiceUnavailable", ErrServiceUnavailable.Title)
+	assert.Equal(t, 10001, capi.ErrServiceUnavailable.Code)
+	assert.Equal(t, "CF-ServiceUnavailable", capi.ErrServiceUnavailable.Title)
 
-	assert.Equal(t, 10005, ErrBadRequest.Code)
-	assert.Equal(t, "CF-BadRequest", ErrBadRequest.Title)
+	assert.Equal(t, 10005, capi.ErrBadRequest.Code)
+	assert.Equal(t, "CF-BadRequest", capi.ErrBadRequest.Title)
 
-	assert.Equal(t, 10013, ErrTooManyRequests.Code)
-	assert.Equal(t, "CF-TooManyRequests", ErrTooManyRequests.Title)
+	assert.Equal(t, 10013, capi.ErrTooManyRequests.Code)
+	assert.Equal(t, "CF-TooManyRequests", capi.ErrTooManyRequests.Title)
 }
 
-func TestErrorResponse_JSONMarshaling(t *testing.T) {
-	errResp := &ErrorResponse{
-		Errors: []APIError{
+func TestResponseError_JSONMarshaling(t *testing.T) {
+	t.Parallel()
+
+	errResp := &capi.ResponseError{
+		Errors: []capi.APIError{
 			{
 				Code:   10010,
 				Title:  "CF-ResourceNotFound",
@@ -326,7 +315,8 @@ func TestErrorResponse_JSONMarshaling(t *testing.T) {
 	data, err := json.Marshal(errResp)
 	require.NoError(t, err)
 
-	var decoded ErrorResponse
+	var decoded capi.ResponseError
+
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 

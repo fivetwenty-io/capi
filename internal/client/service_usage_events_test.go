@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,15 +8,18 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServiceUsageEventsClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_usage_events/event-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_usage_events/event-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		event := capi.ServiceUsageEvent{
 			Resource: capi.Resource{
@@ -40,11 +43,11 @@ func TestServiceUsageEventsClient_Get(t *testing.T) {
 			OrganizationGUID:    "org-guid",
 		}
 
-		_ = json.NewEncoder(w).Encode(event)
+		_ = json.NewEncoder(writer).Encode(event)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	event, err := client.ServiceUsageEvents().Get(context.Background(), "event-guid")
@@ -58,11 +61,13 @@ func TestServiceUsageEventsClient_Get(t *testing.T) {
 }
 
 func TestServiceUsageEventsClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_usage_events", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "1", r.URL.Query().Get("page"))
-		assert.Equal(t, "10", r.URL.Query().Get("per_page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_usage_events", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "1", request.URL.Query().Get("page"))
+		assert.Equal(t, "10", request.URL.Query().Get("per_page"))
 
 		response := capi.ListResponse[capi.ServiceUsageEvent]{
 			Pagination: capi.Pagination{
@@ -107,11 +112,11 @@ func TestServiceUsageEventsClient_List(t *testing.T) {
 			},
 		}
 
-		_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	params := capi.NewQueryParams().WithPage(1).WithPerPage(10)
@@ -128,16 +133,18 @@ func TestServiceUsageEventsClient_List(t *testing.T) {
 }
 
 func TestServiceUsageEventsClient_PurgeAndReseed(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/service_usage_events/actions/destructively_purge_all_and_reseed", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
 
-		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte("{}"))
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_usage_events/actions/destructively_purge_all_and_reseed", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		writer.WriteHeader(http.StatusAccepted)
+		_, _ = writer.Write([]byte("{}"))
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	err = client.ServiceUsageEvents().PurgeAndReseed(context.Background())

@@ -2,44 +2,54 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/fivetwenty-io/capi/v3/pkg/cfclient"
 )
 
 func main() {
 	// Example 1: Advanced client configuration
-	fmt.Println("=== Advanced Client Configuration ===")
+	_, _ = os.Stdout.WriteString("=== Advanced Client Configuration ===\n")
+
 	advancedConfigExample()
 
 	// Example 2: Concurrent operations
-	fmt.Println("\n=== Concurrent Operations ===")
+	_, _ = os.Stdout.WriteString("\n=== Concurrent Operations ===\n")
+
 	concurrentOperationsExample()
 
 	// Example 3: Batch operations
-	fmt.Println("\n=== Batch Operations ===")
+	_, _ = os.Stdout.WriteString("\n=== Batch Operations ===\n")
+
 	batchOperationsExample()
 
 	// Example 4: Advanced error handling and retries
-	fmt.Println("\n=== Advanced Error Handling ===")
+	_, _ = os.Stdout.WriteString("\n=== Advanced Error Handling ===\n")
+
 	errorHandlingExample()
 
 	// Example 5: Streaming large datasets
-	fmt.Println("\n=== Streaming Large Datasets ===")
+	_, _ = os.Stdout.WriteString("\n=== Streaming Large Datasets ===\n")
+
 	streamingExample()
 
 	// Example 6: Custom interceptors
-	fmt.Println("\n=== Custom Interceptors ===")
+	_, _ = os.Stdout.WriteString("\n=== Custom Interceptors ===\n")
+
 	interceptorsExample()
 
 	// Example 7: Performance monitoring
-	fmt.Println("\n=== Performance Monitoring ===")
+	_, _ = os.Stdout.WriteString("\n=== Performance Monitoring ===\n")
+
 	performanceMonitoringExample()
 }
 
@@ -50,100 +60,122 @@ func advancedConfigExample() {
 		Username:      "your-username",
 		Password:      "your-password",
 		SkipTLSVerify: false,
-		HTTPTimeout:   45 * time.Second,
+		HTTPTimeout:   constants.ExtendedHTTPTimeout,
 		UserAgent:     "advanced-example/1.0.0",
-		RetryMax:      5,
+		RetryMax:      constants.DefaultRetryMax,
 		RetryWaitMin:  1 * time.Second,
-		RetryWaitMax:  10 * time.Second,
+		RetryWaitMax:  constants.DefaultRetryWaitMax,
 		Debug:         true,
 	}
 
-	client, err := cfclient.New(config)
+	ctx := context.Background()
+
+	client, err := cfclient.New(ctx, config)
 	if err != nil {
 		log.Printf("Failed to create advanced client: %v", err)
+
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultHTTPTimeout)
 	defer cancel()
 
 	// Test the configuration
 	info, err := client.GetInfo(ctx)
 	if err != nil {
 		log.Printf("Failed to get API info: %v", err)
+
 		return
 	}
 
-	fmt.Printf("Connected to CF API version %d with advanced configuration\n", info.Version)
+	_, _ = fmt.Fprintf(os.Stdout, "Connected to CF API version %d with advanced configuration\n", info.Version)
 }
 
 func concurrentOperationsExample() {
-	client, err := cfclient.NewWithPassword(
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"your-username",
 		"your-password",
 	)
 	if err != nil {
 		log.Printf("Failed to create client: %v", err)
+
 		return
 	}
-
-	ctx := context.Background()
 
 	// Get all organizations concurrently with their spaces
 	orgs, err := client.Organizations().List(ctx, nil)
 	if err != nil {
 		log.Printf("Failed to list organizations: %v", err)
+
 		return
 	}
 
-	fmt.Printf("Processing %d organizations concurrently...\n", len(orgs.Resources))
+	_, _ = fmt.Fprintf(os.Stdout, "Processing %d organizations concurrently...\n", len(orgs.Resources))
 
-	// Use worker pool pattern for concurrent operations
+	resultsChan := processOrganizationsConcurrently(client, ctx, orgs.Resources)
+	collectAndReportOrgResults(resultsChan)
+}
+
+// processOrganizationsConcurrently processes organizations using a worker pool pattern.
+func processOrganizationsConcurrently(client capi.Client, ctx context.Context, orgs []capi.Organization) <-chan OrgSpaceResult {
 	const numWorkers = 5
-	orgChan := make(chan *capi.Organization, len(orgs.Resources))
-	resultsChan := make(chan OrgSpaceResult, len(orgs.Resources))
+
+	orgChan := make(chan *capi.Organization, len(orgs))
+	resultsChan := make(chan OrgSpaceResult, len(orgs))
 
 	// Start workers
-	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
+	var waitGroup sync.WaitGroup
+	for workerIndex := range numWorkers {
+		waitGroup.Add(1)
+
 		go func(workerID int) {
-			defer wg.Done()
+			_ = workerIndex // Use the index variable
+
+			defer waitGroup.Done()
+
 			for org := range orgChan {
 				result := processOrganizationSpaces(client, ctx, org, workerID)
 				resultsChan <- result
 			}
-		}(i)
+		}(workerIndex)
 	}
 
 	// Send work to workers
 	go func() {
-		for _, org := range orgs.Resources {
+		for _, org := range orgs {
 			orgChan <- &org
 		}
+
 		close(orgChan)
 	}()
 
 	// Wait for workers to complete
 	go func() {
-		wg.Wait()
+		waitGroup.Wait()
 		close(resultsChan)
 	}()
 
-	// Collect results
+	return resultsChan
+}
+
+// collectAndReportOrgResults collects and reports the results from concurrent organization processing.
+func collectAndReportOrgResults(resultsChan <-chan OrgSpaceResult) {
 	totalSpaces := 0
+
 	for result := range resultsChan {
 		if result.Error != nil {
-			fmt.Printf("Error processing org %s: %v\n", result.OrgName, result.Error)
+			_, _ = fmt.Fprintf(os.Stdout, "Error processing org %s: %v\n", result.OrgName, result.Error)
 		} else {
-			fmt.Printf("Org %s has %d spaces (processed by worker %d)\n",
+			_, _ = fmt.Fprintf(os.Stdout, "Org %s has %d spaces (processed by worker %d)\n",
 				result.OrgName, result.SpaceCount, result.WorkerID)
 			totalSpaces += result.SpaceCount
 		}
 	}
 
-	fmt.Printf("Total spaces across all organizations: %d\n", totalSpaces)
+	_, _ = fmt.Fprintf(os.Stdout, "Total spaces across all organizations: %d\n", totalSpaces)
 }
 
 type OrgSpaceResult struct {
@@ -155,6 +187,7 @@ type OrgSpaceResult struct {
 
 func processOrganizationSpaces(client capi.Client, ctx context.Context, org *capi.Organization, workerID int) OrgSpaceResult {
 	params := capi.NewQueryParams().WithFilter("organization_guids", org.GUID)
+
 	spaces, err := client.Spaces().List(ctx, params)
 	if err != nil {
 		return OrgSpaceResult{
@@ -172,28 +205,34 @@ func processOrganizationSpaces(client capi.Client, ctx context.Context, org *cap
 }
 
 func batchOperationsExample() {
-	client, err := cfclient.NewWithPassword(
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"your-username",
 		"your-password",
 	)
 	if err != nil {
 		log.Printf("Failed to create client: %v", err)
+
 		return
 	}
 
-	ctx := context.Background()
+	operations := createBatchOperations(client, ctx)
+	results := executeBatchOperations(operations)
+	reportBatchResults(results)
+}
 
-	// Simulate batch operations (since the client doesn't have native batch support,
-	// we'll implement a pattern for handling multiple operations efficiently)
+// Operation represents a batch operation.
+type Operation struct {
+	Type string
+	Name string
+	Func func() error
+}
 
-	type Operation struct {
-		Type string
-		Name string
-		Func func() error
-	}
-
-	operations := []Operation{
+// createBatchOperations creates the batch operations to execute.
+func createBatchOperations(client capi.Client, ctx context.Context) []Operation {
+	return []Operation{
 		{
 			Type: "org",
 			Name: "batch-org-1",
@@ -201,7 +240,11 @@ func batchOperationsExample() {
 				_, err := client.Organizations().Create(ctx, &capi.OrganizationCreateRequest{
 					Name: "batch-org-1",
 				})
-				return err
+				if err != nil {
+					return fmt.Errorf("failed to create batch-org-1: %w", err)
+				}
+
+				return nil
 			},
 		},
 		{
@@ -211,7 +254,11 @@ func batchOperationsExample() {
 				_, err := client.Organizations().Create(ctx, &capi.OrganizationCreateRequest{
 					Name: "batch-org-2",
 				})
-				return err
+				if err != nil {
+					return fmt.Errorf("failed to create batch-org-2: %w", err)
+				}
+
+				return nil
 			},
 		},
 		{
@@ -221,21 +268,32 @@ func batchOperationsExample() {
 				_, err := client.Organizations().Create(ctx, &capi.OrganizationCreateRequest{
 					Name: "batch-org-3",
 				})
-				return err
+				if err != nil {
+					return fmt.Errorf("failed to create batch-org-3: %w", err)
+				}
+
+				return nil
 			},
 		},
 	}
+}
 
-	// Execute batch operations with rate limiting
-	semaphore := make(chan struct{}, 3) // Limit to 3 concurrent operations
-	var wg sync.WaitGroup
+// executeBatchOperations executes batch operations with rate limiting.
+func executeBatchOperations(operations []Operation) <-chan OperationResult {
+	semaphore := make(chan struct{}, constants.DefaultConcurrencyLimit) // Limit to 3 concurrent operations
+
+	var waitGroup sync.WaitGroup
+
 	results := make(chan OperationResult, len(operations))
 
-	for _, op := range operations {
-		wg.Add(1)
+	for _, operation := range operations {
+		waitGroup.Add(1)
+
 		go func(operation Operation) {
-			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire
+			defer waitGroup.Done()
+
+			semaphore <- struct{}{} // Acquire
+
 			defer func() { <-semaphore }() // Release
 
 			start := time.Now()
@@ -248,30 +306,38 @@ func batchOperationsExample() {
 				Duration: duration,
 				Error:    err,
 			}
-		}(op)
+		}(operation)
 	}
 
 	// Wait for completion and collect results
 	go func() {
-		wg.Wait()
+		waitGroup.Wait()
 		close(results)
 	}()
 
+	return results
+}
+
+// reportBatchResults reports the results of batch operations.
+func reportBatchResults(results <-chan OperationResult) {
 	successful := 0
 	failed := 0
+
 	for result := range results {
 		if result.Error != nil {
-			fmt.Printf("❌ %s %s failed in %v: %v\n",
+			_, _ = fmt.Fprintf(os.Stdout, "❌ %s %s failed in %v: %v\n",
 				result.Type, result.Name, result.Duration, result.Error)
+
 			failed++
 		} else {
-			fmt.Printf("✅ %s %s succeeded in %v\n",
+			_, _ = fmt.Fprintf(os.Stdout, "✅ %s %s succeeded in %v\n",
 				result.Type, result.Name, result.Duration)
+
 			successful++
 		}
 	}
 
-	fmt.Printf("Batch operations completed: %d successful, %d failed\n", successful, failed)
+	_, _ = fmt.Fprintf(os.Stdout, "Batch operations completed: %d successful, %d failed\n", successful, failed)
 }
 
 type OperationResult struct {
@@ -282,26 +348,30 @@ type OperationResult struct {
 }
 
 func errorHandlingExample() {
-	client, err := cfclient.NewWithPassword(
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"wrong-username", // Intentionally wrong credentials
 		"wrong-password",
 	)
 	if err != nil {
 		log.Printf("Failed to create client: %v", err)
+
 		return
 	}
-
-	ctx := context.Background()
 
 	// Demonstrate comprehensive error handling with retries
 	err = withExponentialBackoff(func() error {
 		_, err := client.Organizations().List(ctx, nil)
-		return err
-	}, 3, time.Second)
+		if err != nil {
+			return fmt.Errorf("failed to list organizations: %w", err)
+		}
 
+		return nil
+	}, constants.DefaultConcurrencyLimit, time.Second)
 	if err != nil {
-		fmt.Printf("Operation failed after retries: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stdout, "Operation failed after retries: %v\n", err)
 
 		// Analyze the error
 		analyzeError(err)
@@ -313,7 +383,7 @@ func errorHandlingExample() {
 
 	_, err = client.Organizations().List(shortCtx, nil)
 	if err != nil {
-		fmt.Printf("Timeout error (expected): %v\n", err)
+		_, _ = fmt.Fprintf(os.Stdout, "Timeout error (expected): %v\n", err)
 	}
 }
 
@@ -330,13 +400,14 @@ func withExponentialBackoff(operation func() error, maxRetries int, baseDelay ti
 
 		// Check if error is retryable
 		if !isRetryableError(err) {
-			fmt.Printf("Non-retryable error encountered: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stdout, "Non-retryable error encountered: %v\n", err)
+
 			return err
 		}
 
 		if attempt < maxRetries {
-			delay := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
-			fmt.Printf("Attempt %d failed, retrying in %v: %v\n", attempt+1, delay, err)
+			delay := time.Duration(math.Pow(constants.ExponentialBackoffBase, float64(attempt))) * baseDelay
+			_, _ = fmt.Fprintf(os.Stdout, "Attempt %d failed, retrying in %v: %v\n", attempt+1, delay, err)
 			time.Sleep(delay)
 		}
 	}
@@ -345,13 +416,15 @@ func withExponentialBackoff(operation func() error, maxRetries int, baseDelay ti
 }
 
 func isRetryableError(err error) bool {
-	if capiErr, ok := err.(*capi.ErrorResponse); ok {
+	capiErr := &capi.ResponseError{}
+	if errors.As(err, &capiErr) {
 		// Check if any error is retryable (5xx status codes)
 		for _, apiErr := range capiErr.Errors {
 			if apiErr.Code >= 50000 && apiErr.Code < 60000 {
 				return true
 			}
 		}
+
 		return false
 	}
 
@@ -360,55 +433,78 @@ func isRetryableError(err error) bool {
 }
 
 func analyzeError(err error) {
-	switch e := err.(type) {
-	case *capi.ErrorResponse:
-		fmt.Printf("CF API Error Analysis:\n")
-		fmt.Printf("  Error count: %d\n", len(e.Errors))
+	var responseError *capi.ResponseError
+	if !errors.As(err, &responseError) {
+		printNonAPIError(err)
 
-		if len(e.Errors) > 0 {
-			fmt.Printf("  Individual Errors:\n")
-			for _, detail := range e.Errors {
-				fmt.Printf("    - Code: %d, Title: %s, Detail: %s\n", detail.Code, detail.Title, detail.Detail)
-			}
-		}
+		return
+	}
 
-		// Provide specific guidance based on error type
-		if len(e.Errors) > 0 {
-			firstError := e.Errors[0]
-			switch {
-			case firstError.Code >= 10000 && firstError.Code < 11000:
-				fmt.Println("  💡 Check your credentials or refresh your token")
-			case firstError.Code >= 10003 && firstError.Code < 10004:
-				fmt.Println("  💡 You may lack the required permissions for this operation")
-			case firstError.Code == 10010:
-				fmt.Println("  💡 The requested resource was not found")
-			case firstError.Code >= 10008 && firstError.Code < 10009:
-				fmt.Println("  💡 The request was invalid - check required fields and formats")
-			case firstError.Code >= 50000:
-				fmt.Println("  💡 Server error - try again later or contact support")
-			}
-		}
+	printAPIErrorSummary(responseError)
 
+	if len(responseError.Errors) > 0 {
+		printIndividualErrors(responseError.Errors)
+		printErrorAdvice(responseError.Errors[0])
+	}
+}
+
+func printNonAPIError(err error) {
+	_, _ = fmt.Fprintf(os.Stdout, "Other Error: %v (type: %T)\n", err, err)
+}
+
+func printAPIErrorSummary(e *capi.ResponseError) {
+	_, _ = os.Stdout.WriteString("CF API Error Analysis:\n")
+	_, _ = fmt.Fprintf(os.Stdout, "  Error count: %d\n", len(e.Errors))
+}
+
+func printIndividualErrors(errors []capi.APIError) {
+	_, _ = os.Stdout.WriteString("  Individual Errors:\n")
+
+	for _, detail := range errors {
+		_, _ = fmt.Fprintf(os.Stdout, "    - Code: %d, Title: %s, Detail: %s\n", detail.Code, detail.Title, detail.Detail)
+	}
+}
+
+func printErrorAdvice(firstError capi.APIError) {
+	advice := getErrorAdvice(firstError.Code)
+	if advice != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "  💡 %s\n", advice)
+	}
+}
+
+func getErrorAdvice(errorCode int) string {
+	switch {
+	case errorCode >= 10000 && errorCode < 11000:
+		return "Check your credentials or refresh your token"
+	case errorCode >= 10003 && errorCode < 10004:
+		return "You may lack the required permissions for this operation"
+	case errorCode == constants.CFErrorCodeNotFound:
+		return "The requested resource was not found"
+	case errorCode >= 10008 && errorCode < 10009:
+		return "The request was invalid - check required fields and formats"
+	case errorCode >= constants.CFErrorCodeServerError:
+		return "Server error - try again later or contact support"
 	default:
-		fmt.Printf("Other Error: %v (type: %T)\n", err, err)
+		return ""
 	}
 }
 
 func streamingExample() {
-	client, err := cfclient.NewWithPassword(
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"your-username",
 		"your-password",
 	)
 	if err != nil {
 		log.Printf("Failed to create client: %v", err)
+
 		return
 	}
 
-	ctx := context.Background()
-
 	// Stream applications in batches to reduce memory usage
-	fmt.Println("Streaming applications in batches...")
+	_, _ = os.Stdout.WriteString("Streaming applications in batches...\n")
 
 	processedCount := 0
 	batchSize := 10
@@ -417,65 +513,65 @@ func streamingExample() {
 	appList, err := client.Apps().List(ctx, params)
 	if err == nil {
 		// Process each batch
-		fmt.Printf("Processing batch of %d applications...\n", len(appList.Resources))
+		_, _ = fmt.Fprintf(os.Stdout, "Processing batch of %d applications...\n", len(appList.Resources))
 
 		for range appList.Resources {
 			// Simulate processing each application
 			processedCount++
 
 			if processedCount%50 == 0 {
-				fmt.Printf("Processed %d applications so far...\n", processedCount)
+				_, _ = fmt.Fprintf(os.Stdout, "Processed %d applications so far...\n", processedCount)
 			}
 
 			// Add artificial delay to simulate processing time
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(constants.QuickPollInterval)
 		}
 	}
 
 	if err != nil {
 		log.Printf("Streaming failed: %v", err)
+
 		return
 	}
 
-	fmt.Printf("Streaming completed. Total applications processed: %d\n", processedCount)
+	_, _ = fmt.Fprintf(os.Stdout, "Streaming completed. Total applications processed: %d\n", processedCount)
 }
 
 func interceptorsExample() {
-	client, err := cfclient.NewWithPassword(
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"your-username",
 		"your-password",
 	)
 	if err != nil {
 		log.Printf("Failed to create client: %v", err)
+
 		return
 	}
 
 	// Note: This is a conceptual example. The actual client implementation
 	// would need to support interceptors. Here we show what it might look like.
 
-	fmt.Println("Demonstrating request/response interceptor concepts...")
+	_, _ = os.Stdout.WriteString("Demonstrating request/response interceptor concepts...\n")
 
 	// Conceptual request interceptor
-	requestInterceptor := func(req *http.Request) error {
-		fmt.Printf("🚀 Outgoing request: %s %s\n", req.Method, req.URL.Path)
+	requestInterceptor := func(req *http.Request) {
+		_, _ = fmt.Fprintf(os.Stdout, "🚀 Outgoing request: %s %s\n", req.Method, req.URL.Path)
 		req.Header.Set("X-Custom-Client", "advanced-example")
-		return nil
 	}
 
 	// Conceptual response interceptor
-	responseInterceptor := func(resp *http.Response) error {
-		fmt.Printf("📥 Incoming response: %d %s (took %v)\n",
+	responseInterceptor := func(resp *http.Response) {
+		_, _ = fmt.Fprintf(os.Stdout, "📥 Incoming response: %d %s (took %v)\n",
 			resp.StatusCode, resp.Status,
 			resp.Header.Get("X-Response-Time"))
-		return nil
 	}
 
 	// In a real implementation, you would add these interceptors:
 	// client.AddRequestInterceptor(requestInterceptor)
 	// client.AddResponseInterceptor(responseInterceptor)
-
-	ctx := context.Background()
 
 	// Make a request to demonstrate interceptor concepts
 	_, err = client.GetInfo(ctx)
@@ -483,32 +579,41 @@ func interceptorsExample() {
 		log.Printf("Request failed: %v", err)
 	}
 
-	fmt.Printf("Request/response interceptors would capture: %v, %v\n",
+	_, _ = fmt.Fprintf(os.Stdout, "Request/response interceptors would capture: %v, %v\n",
 		requestInterceptor != nil, responseInterceptor != nil)
 }
 
 func performanceMonitoringExample() {
-	client, err := cfclient.NewWithPassword(
+	ctx := context.Background()
+
+	client, err := cfclient.NewWithPassword(ctx,
 		"https://api.your-cf-domain.com",
 		"your-username",
 		"your-password",
 	)
 	if err != nil {
 		log.Printf("Failed to create client: %v", err)
+
 		return
 	}
 
-	ctx := context.Background()
-
-	// Performance monitoring structure
 	metrics := &PerformanceMetrics{
 		RequestCount: 0,
 		TotalTime:    0,
 		Errors:       0,
 	}
 
-	// Monitor multiple operations
-	operations := []struct {
+	operations := createMonitoringOperations(client, ctx)
+	runPerformanceTests(operations, metrics)
+	reportPerformanceMetrics(metrics)
+}
+
+// createMonitoringOperations creates the operations to monitor.
+func createMonitoringOperations(client capi.Client, ctx context.Context) []struct {
+	name string
+	fn   func() error
+} {
+	return []struct {
 		name string
 		fn   func() error
 	}{
@@ -516,31 +621,49 @@ func performanceMonitoringExample() {
 			name: "list organizations",
 			fn: func() error {
 				_, err := client.Organizations().List(ctx, nil)
-				return err
+				if err != nil {
+					return fmt.Errorf("failed to list organizations in monitoring: %w", err)
+				}
+
+				return nil
 			},
 		},
 		{
 			name: "get API info",
 			fn: func() error {
 				_, err := client.GetInfo(ctx)
-				return err
+				if err != nil {
+					return fmt.Errorf("failed to get API info in monitoring: %w", err)
+				}
+
+				return nil
 			},
 		},
 		{
 			name: "list applications",
 			fn: func() error {
-				params := capi.NewQueryParams().WithPerPage(10)
+				params := capi.NewQueryParams().WithPerPage(constants.DefaultPageSize)
 				_, err := client.Apps().List(ctx, params)
-				return err
+				if err != nil {
+					return fmt.Errorf("failed to list applications in monitoring: %w", err)
+				}
+
+				return nil
 			},
 		},
 	}
+}
 
-	fmt.Println("Running performance monitoring tests...")
+// runPerformanceTests runs the performance monitoring tests.
+func runPerformanceTests(operations []struct {
+	name string
+	fn   func() error
+}, metrics *PerformanceMetrics) {
+	_, _ = os.Stdout.WriteString("Running performance monitoring tests...\n")
 
-	for _, op := range operations {
+	for _, operation := range operations {
 		start := time.Now()
-		err := op.fn()
+		err := operation.fn()
 		duration := time.Since(start)
 
 		metrics.RequestCount++
@@ -548,19 +671,22 @@ func performanceMonitoringExample() {
 
 		if err != nil {
 			metrics.Errors++
-			fmt.Printf("❌ %s failed in %v: %v\n", op.name, duration, err)
+
+			_, _ = fmt.Fprintf(os.Stdout, "❌ %s failed in %v: %v\n", operation.name, duration, err)
 		} else {
-			fmt.Printf("✅ %s completed in %v\n", op.name, duration)
+			_, _ = fmt.Fprintf(os.Stdout, "✅ %s completed in %v\n", operation.name, duration)
 		}
 	}
+}
 
-	// Report performance metrics
-	fmt.Printf("\nPerformance Summary:\n")
-	fmt.Printf("  Total requests: %d\n", metrics.RequestCount)
-	fmt.Printf("  Total time: %v\n", metrics.TotalTime)
-	fmt.Printf("  Average time per request: %v\n", metrics.TotalTime/time.Duration(metrics.RequestCount))
-	fmt.Printf("  Error rate: %.2f%%\n", float64(metrics.Errors)/float64(metrics.RequestCount)*100)
-	fmt.Printf("  Requests per second: %.2f\n", float64(metrics.RequestCount)/metrics.TotalTime.Seconds())
+// reportPerformanceMetrics reports the performance metrics summary.
+func reportPerformanceMetrics(metrics *PerformanceMetrics) {
+	_, _ = os.Stdout.WriteString("\nPerformance Summary:\n")
+	_, _ = fmt.Fprintf(os.Stdout, "  Total requests: %d\n", metrics.RequestCount)
+	_, _ = fmt.Fprintf(os.Stdout, "  Total time: %v\n", metrics.TotalTime)
+	_, _ = fmt.Fprintf(os.Stdout, "  Average time per request: %v\n", metrics.TotalTime/time.Duration(metrics.RequestCount))
+	_, _ = fmt.Fprintf(os.Stdout, "  Error rate: %.2f%%\n", float64(metrics.Errors)/float64(metrics.RequestCount)*constants.PercentageMultiplier)
+	_, _ = fmt.Fprintf(os.Stdout, "  Requests per second: %.2f\n", float64(metrics.RequestCount)/metrics.TotalTime.Seconds())
 }
 
 type PerformanceMetrics struct {

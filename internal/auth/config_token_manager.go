@@ -2,17 +2,24 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
 
-// ConfigPersister defines the interface for persisting config changes
+// ConfigPersister defines the interface for persisting config changes.
+// Static errors for err113 compliance.
+var (
+	ErrNoConfigPersister = errors.New("no config persister configured")
+)
+
 type ConfigPersister interface {
 	UpdateAPIToken(apiDomain, token string, expiresAt time.Time, refreshToken string) error
 }
 
-// ConfigTokenManager wraps OAuth2TokenManager and automatically persists tokens to config
+// ConfigTokenManager wraps OAuth2TokenManager and automatically persists tokens to config.
 type ConfigTokenManager struct {
 	oauth2Manager   *OAuth2TokenManager
 	configPersister ConfigPersister
@@ -22,7 +29,7 @@ type ConfigTokenManager struct {
 	initialExpiry   time.Time
 }
 
-// NewConfigTokenManager creates a new config-persisting token manager
+// NewConfigTokenManager creates a new config-persisting token manager.
 func NewConfigTokenManager(config *OAuth2Config, configPersister ConfigPersister, apiDomain string, initialToken string, initialExpiry time.Time) *ConfigTokenManager {
 	oauth2Manager := NewOAuth2TokenManager(config)
 
@@ -40,7 +47,7 @@ func NewConfigTokenManager(config *OAuth2Config, configPersister ConfigPersister
 	}
 }
 
-// GetToken returns a valid access token, refreshing if necessary
+// GetToken returns a valid access token, refreshing if necessary.
 func (m *ConfigTokenManager) GetToken(ctx context.Context) (string, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -55,9 +62,10 @@ func (m *ConfigTokenManager) GetToken(ctx context.Context) (string, error) {
 	if currentToken != nil && (currentToken.AccessToken != m.initialToken || !currentToken.ExpiresAt.Equal(m.initialExpiry)) {
 		// Token was refreshed, persist it
 		go func() {
-			if persistErr := m.persistToken(currentToken); persistErr != nil {
+			persistErr := m.persistToken(currentToken)
+			if persistErr != nil {
 				// Log error but don't fail the request
-				fmt.Printf("Warning: failed to persist refreshed token: %v\n", persistErr)
+				_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to persist refreshed token: %v\n", persistErr)
 			}
 		}()
 
@@ -69,7 +77,7 @@ func (m *ConfigTokenManager) GetToken(ctx context.Context) (string, error) {
 	return token, nil
 }
 
-// RefreshToken forces a token refresh
+// RefreshToken forces a token refresh.
 func (m *ConfigTokenManager) RefreshToken(ctx context.Context) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -82,8 +90,9 @@ func (m *ConfigTokenManager) RefreshToken(ctx context.Context) error {
 	// Persist the refreshed token
 	currentToken := m.oauth2Manager.store.Get()
 	if currentToken != nil {
-		if persistErr := m.persistToken(currentToken); persistErr != nil {
-			fmt.Printf("Warning: failed to persist refreshed token: %v\n", persistErr)
+		persistErr := m.persistToken(currentToken)
+		if persistErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to persist refreshed token: %v\n", persistErr)
 		}
 
 		// Update our cached values
@@ -94,7 +103,7 @@ func (m *ConfigTokenManager) RefreshToken(ctx context.Context) error {
 	return nil
 }
 
-// SetToken manually sets the access token
+// SetToken manually sets the access token.
 func (m *ConfigTokenManager) SetToken(token string, expiresAt time.Time) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -104,16 +113,7 @@ func (m *ConfigTokenManager) SetToken(token string, expiresAt time.Time) {
 	m.initialExpiry = expiresAt
 }
 
-// persistToken saves the token to config
-func (m *ConfigTokenManager) persistToken(token *Token) error {
-	if m.configPersister == nil {
-		return fmt.Errorf("no config persister configured")
-	}
-
-	return m.configPersister.UpdateAPIToken(m.apiDomain, token.AccessToken, token.ExpiresAt, token.RefreshToken)
-}
-
-// IsTokenExpiringSoon returns true if the token expires within the given duration
+// IsTokenExpiringSoon returns true if the token expires within the given duration.
 func (m *ConfigTokenManager) IsTokenExpiringSoon(within time.Duration) bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -126,7 +126,7 @@ func (m *ConfigTokenManager) IsTokenExpiringSoon(within time.Duration) bool {
 	return time.Now().Add(within).After(token.ExpiresAt)
 }
 
-// GetTokenExpiry returns the current token's expiration time
+// GetTokenExpiry returns the current token's expiration time.
 func (m *ConfigTokenManager) GetTokenExpiry() time.Time {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -137,4 +137,18 @@ func (m *ConfigTokenManager) GetTokenExpiry() time.Time {
 	}
 
 	return token.ExpiresAt
+}
+
+// persistToken saves the token to config.
+func (m *ConfigTokenManager) persistToken(token *Token) error {
+	if m.configPersister == nil {
+		return ErrNoConfigPersister
+	}
+
+	err := m.configPersister.UpdateAPIToken(m.apiDomain, token.AccessToken, token.ExpiresAt, token.RefreshToken)
+	if err != nil {
+		return fmt.Errorf("failed to update API token: %w", err)
+	}
+
+	return nil
 }

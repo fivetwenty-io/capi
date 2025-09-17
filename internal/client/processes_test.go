@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestProcessesClient_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -56,7 +60,7 @@ func TestProcessesClient_Get(t *testing.T) {
 					},
 				},
 				Type:                         "web",
-				Command:                      stringPtr("bundle exec rackup"),
+				Command:                      StringPtr("bundle exec rackup"),
 				Instances:                    5,
 				MemoryInMB:                   256,
 				DiskInMB:                     1024,
@@ -102,30 +106,32 @@ func TestProcessesClient_Get(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "GET", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
-				_ = json.NewEncoder(w).Encode(tt.response)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "GET", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+				_ = json.NewEncoder(writer).Encode(testCase.response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			process, err := client.Processes().Get(context.Background(), tt.guid)
+			process, err := client.Processes().Get(context.Background(), testCase.guid)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), testCase.errMessage)
 				assert.Nil(t, process)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, process)
-				assert.Equal(t, tt.guid, process.GUID)
+				assert.Equal(t, testCase.guid, process.GUID)
 				assert.Equal(t, "web", process.Type)
 				assert.Equal(t, "bundle exec rackup", *process.Command)
 				assert.Equal(t, 5, process.Instances)
@@ -142,13 +148,16 @@ func TestProcessesClient_Get(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestProcessesClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/processes", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/processes", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		// Check query parameters if present
-		query := r.URL.Query()
+		query := request.URL.Query()
 		if appGuids := query.Get("app_guids"); appGuids != "" {
 			assert.Equal(t, "app-1,app-2", appGuids)
 		}
@@ -170,7 +179,7 @@ func TestProcessesClient_List(t *testing.T) {
 						UpdatedAt: time.Now(),
 					},
 					Type:       "web",
-					Command:    stringPtr("bundle exec rackup"),
+					Command:    StringPtr("bundle exec rackup"),
 					Instances:  3,
 					MemoryInMB: 256,
 					DiskInMB:   512,
@@ -182,7 +191,7 @@ func TestProcessesClient_List(t *testing.T) {
 						UpdatedAt: time.Now(),
 					},
 					Type:       "worker",
-					Command:    stringPtr("bundle exec sidekiq"),
+					Command:    StringPtr("bundle exec sidekiq"),
 					Instances:  1,
 					MemoryInMB: 512,
 					DiskInMB:   1024,
@@ -190,13 +199,13 @@ func TestProcessesClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	// Test without filters
@@ -223,13 +232,16 @@ func TestProcessesClient_List(t *testing.T) {
 }
 
 func TestProcessesClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/processes/test-process-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/processes/test-process-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var requestBody capi.ProcessUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&requestBody)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
 
 		response := capi.Process{
 			Resource: capi.Resource{
@@ -245,17 +257,17 @@ func TestProcessesClient_Update(t *testing.T) {
 			Metadata:   requestBody.Metadata,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	request := &capi.ProcessUpdateRequest{
-		Command: stringPtr("new command"),
+		Command: StringPtr("new command"),
 		Metadata: &capi.Metadata{
 			Labels: map[string]string{
 				"env": "staging",
@@ -271,7 +283,10 @@ func TestProcessesClient_Update(t *testing.T) {
 	assert.Equal(t, "staging", process.Metadata.Labels["env"])
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestProcessesClient_Scale(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -299,19 +314,22 @@ func TestProcessesClient_Scale(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "POST", r.Method)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.ProcessScaleRequest
-				err := json.NewDecoder(r.Body).Decode(&requestBody)
-				require.NoError(t, err)
+
+				err := json.NewDecoder(request.Body).Decode(&requestBody)
+				assert.NoError(t, err)
 
 				response := capi.Process{
 					Resource: capi.Resource{
-						GUID:      tt.guid,
+						GUID:      testCase.guid,
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
 					},
@@ -321,31 +339,34 @@ func TestProcessesClient_Scale(t *testing.T) {
 				if requestBody.Instances != nil {
 					response.Instances = *requestBody.Instances
 				}
+
 				if requestBody.MemoryInMB != nil {
 					response.MemoryInMB = *requestBody.MemoryInMB
 				}
+
 				if requestBody.DiskInMB != nil {
 					response.DiskInMB = *requestBody.DiskInMB
 				}
+
 				if requestBody.LogRateLimitInBytesPerSecond != nil {
 					response.LogRateLimitInBytesPerSecond = requestBody.LogRateLimitInBytesPerSecond
 				}
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusAccepted)
-				_ = json.NewEncoder(w).Encode(response)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusAccepted)
+				_ = json.NewEncoder(writer).Encode(response)
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			process, err := client.Processes().Scale(context.Background(), tt.guid, tt.request)
+			process, err := client.Processes().Scale(context.Background(), testCase.guid, testCase.request)
 			require.NoError(t, err)
 			require.NotNil(t, process)
-			assert.Equal(t, tt.guid, process.GUID)
+			assert.Equal(t, testCase.guid, process.GUID)
 
-			switch tt.name {
+			switch testCase.name {
 			case "scale instances and resources":
 				assert.Equal(t, 10, process.Instances)
 				assert.Equal(t, 512, process.MemoryInMB)
@@ -358,10 +379,13 @@ func TestProcessesClient_Scale(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestProcessesClient_GetStats(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/processes/test-process-guid/stats", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/processes/test-process-guid/stats", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		isolationSegment := "default"
 		response := capi.ProcessStats{
@@ -417,13 +441,13 @@ func TestProcessesClient_GetStats(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	stats, err := client.Processes().GetStats(context.Background(), "test-process-guid")
@@ -438,7 +462,7 @@ func TestProcessesClient_GetStats(t *testing.T) {
 	assert.Equal(t, 0, instance0.Index)
 	assert.Equal(t, "RUNNING", instance0.State)
 	assert.NotNil(t, instance0.Usage)
-	assert.Equal(t, 0.15, instance0.Usage.CPU)
+	assert.InDelta(t, 0.15, instance0.Usage.CPU, 1e-6)
 	assert.Equal(t, int64(134217728), instance0.Usage.Mem)
 	assert.Equal(t, "10.0.0.1", instance0.Host)
 	assert.Len(t, instance0.InstancePorts, 1)
@@ -452,7 +476,10 @@ func TestProcessesClient_GetStats(t *testing.T) {
 	assert.Equal(t, "RUNNING", instance1.State)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestProcessesClient_TerminateInstance(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		guid         string
@@ -487,15 +514,17 @@ func TestProcessesClient_TerminateInstance(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, tt.expectedPath, r.URL.Path)
-				assert.Equal(t, "DELETE", r.Method)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(tt.statusCode)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-				if tt.wantErr {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				assert.Equal(t, testCase.expectedPath, request.URL.Path)
+				assert.Equal(t, "DELETE", request.Method)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(testCase.statusCode)
+
+				if testCase.wantErr {
 					response := map[string]interface{}{
 						"errors": []map[string]interface{}{
 							{
@@ -505,18 +534,18 @@ func TestProcessesClient_TerminateInstance(t *testing.T) {
 							},
 						},
 					}
-					_ = json.NewEncoder(w).Encode(response)
+					_ = json.NewEncoder(writer).Encode(response)
 				}
 			}))
 			defer server.Close()
 
-			client, err := New(&capi.Config{APIEndpoint: server.URL})
+			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			err = client.Processes().TerminateInstance(context.Background(), tt.guid, tt.index)
+			err = client.Processes().TerminateInstance(context.Background(), testCase.guid, testCase.index)
 
-			if tt.wantErr {
-				assert.Error(t, err)
+			if testCase.wantErr {
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "CF-ResourceNotFound")
 			} else {
 				assert.NoError(t, err)
@@ -525,11 +554,7 @@ func TestProcessesClient_TerminateInstance(t *testing.T) {
 	}
 }
 
-// Helper functions
-func stringPtr(s string) *string {
-	return &s
-}
-
+// Helper functions.
 func intPtr(i int) *int {
 	return &i
 }

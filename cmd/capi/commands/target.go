@@ -13,16 +13,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TargetInfo represents the current target information
+// TargetInfo represents the current target information.
 type TargetInfo struct {
-	API          string `json:"api,omitempty" yaml:"api,omitempty"`
-	Endpoint     string `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-	User         string `json:"user,omitempty" yaml:"user,omitempty"`
+	API          string `json:"api,omitempty"          yaml:"api,omitempty"`
+	Endpoint     string `json:"endpoint,omitempty"     yaml:"endpoint,omitempty"`
+	User         string `json:"user,omitempty"         yaml:"user,omitempty"`
 	Organization string `json:"organization,omitempty" yaml:"organization,omitempty"`
-	Space        string `json:"space,omitempty" yaml:"space,omitempty"`
+	Space        string `json:"space,omitempty"        yaml:"space,omitempty"`
 }
 
-// NewTargetCommand creates the target command
+// NewTargetCommand creates the target command.
 func NewTargetCommand() *cobra.Command {
 	var (
 		orgName   string
@@ -56,21 +56,10 @@ func NewTargetCommand() *cobra.Command {
 
 			// Target organization
 			if orgName != "" {
-				orgsClient := client.Organizations()
-				params := capi.NewQueryParams()
-				params.WithFilter("names", orgName)
-				orgs, err := orgsClient.List(ctx, params)
+				err := targetOrganization(ctx, client, orgName, apiConfig)
 				if err != nil {
-					return fmt.Errorf("failed to find organization: %w", err)
+					return err
 				}
-				if len(orgs.Resources) == 0 {
-					return fmt.Errorf("organization '%s' not found", orgName)
-				}
-
-				org := orgs.Resources[0]
-				apiConfig.Organization = org.Name
-				apiConfig.OrganizationGUID = org.GUID
-				fmt.Printf("Targeted organization: %s\n", org.Name)
 
 				// Clear space if only org is being targeted
 				if spaceName == "" {
@@ -78,24 +67,14 @@ func NewTargetCommand() *cobra.Command {
 					apiConfig.SpaceGUID = ""
 
 					// List available spaces
-					spacesClient := client.Spaces()
-					spaceParams := capi.NewQueryParams()
-					spaceParams.WithFilter("organization_guids", org.GUID)
-					spaces, err := spacesClient.List(ctx, spaceParams)
-					if err == nil && len(spaces.Resources) > 0 {
-						fmt.Println("\nAvailable spaces:")
-						for _, space := range spaces.Resources {
-							fmt.Printf("  - %s\n", space.Name)
-						}
-						fmt.Println("\nUse 'capi target -s <space>' to target a space")
-					}
+					listAvailableSpaces(ctx, client, apiConfig.OrganizationGUID)
 				}
 			}
 
 			// Target space (requires organization to be set)
 			if spaceName != "" {
 				if apiConfig.OrganizationGUID == "" {
-					return fmt.Errorf("organization must be targeted first")
+					return ErrOrganizationMustBeTargeted
 				}
 
 				spacesClient := client.Spaces()
@@ -107,18 +86,19 @@ func NewTargetCommand() *cobra.Command {
 					return fmt.Errorf("failed to find space: %w", err)
 				}
 				if len(spaces.Resources) == 0 {
-					return fmt.Errorf("space '%s' not found in organization", spaceName)
+					return fmt.Errorf("space '%s' not found in organization: %w", spaceName, ErrSpaceNotFound)
 				}
 
 				space := spaces.Resources[0]
 				apiConfig.Space = space.Name
 				apiConfig.SpaceGUID = space.GUID
-				fmt.Printf("Targeted space: %s\n", space.Name)
+				_, _ = fmt.Fprintf(os.Stdout, "Targeted space: %s\n", space.Name)
 			}
 
 			// Update config and save
 			config.APIs[config.CurrentAPI] = apiConfig
-			if err := saveConfigStruct(config); err != nil {
+			err = saveConfigStruct(config)
+			if err != nil {
 				return fmt.Errorf("failed to save configuration: %w", err)
 			}
 
@@ -133,17 +113,60 @@ func NewTargetCommand() *cobra.Command {
 	return cmd
 }
 
+// targetOrganization targets the specified organization and updates the config.
+func targetOrganization(ctx context.Context, client capi.Client, orgName string, apiConfig *APIConfig) error {
+	orgsClient := client.Organizations()
+	params := capi.NewQueryParams()
+	params.WithFilter("names", orgName)
+
+	orgs, err := orgsClient.List(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to find organization: %w", err)
+	}
+
+	if len(orgs.Resources) == 0 {
+		return fmt.Errorf("organization '%s': %w", orgName, ErrOrganizationNotFound)
+	}
+
+	org := orgs.Resources[0]
+	apiConfig.Organization = org.Name
+	apiConfig.OrganizationGUID = org.GUID
+	_, _ = fmt.Fprintf(os.Stdout, "Targeted organization: %s\n", org.Name)
+
+	return nil
+}
+
+// listAvailableSpaces lists available spaces for the targeted organization.
+func listAvailableSpaces(ctx context.Context, client capi.Client, orgGUID string) {
+	spacesClient := client.Spaces()
+	spaceParams := capi.NewQueryParams()
+	spaceParams.WithFilter("organization_guids", orgGUID)
+
+	spaces, err := spacesClient.List(ctx, spaceParams)
+	if err == nil && len(spaces.Resources) > 0 {
+		_, _ = os.Stdout.WriteString("\nAvailable spaces:\n")
+
+		for _, space := range spaces.Resources {
+			_, _ = fmt.Fprintf(os.Stdout, "  - %s\n", space.Name)
+		}
+
+		_, _ = os.Stdout.WriteString("\nUse 'capi target -s <space>' to target a space\n")
+	}
+}
+
 func showTarget() error {
 	config := loadConfig()
 
 	if config.CurrentAPI == "" || len(config.APIs) == 0 {
-		fmt.Println("No API targeted. Use 'capi apis add' to add an API endpoint.")
+		_, _ = os.Stdout.WriteString("No API targeted. Use 'capi apis add' to add an API endpoint.\n")
+
 		return nil
 	}
 
 	apiConfig, exists := config.APIs[config.CurrentAPI]
 	if !exists {
-		fmt.Printf("Current API '%s' not found in configuration.\n", config.CurrentAPI)
+		_, _ = fmt.Fprintf(os.Stdout, "Current API '%s' not found in configuration.\n", config.CurrentAPI)
+
 		return nil
 	}
 
@@ -156,23 +179,40 @@ func showTarget() error {
 	if apiConfig.Username != "" {
 		targetInfo.User = apiConfig.Username
 	}
+
 	if apiConfig.Organization != "" {
 		targetInfo.Organization = apiConfig.Organization
 	}
+
 	if apiConfig.Space != "" {
 		targetInfo.Space = apiConfig.Space
 	}
 
-	// Output results
+	return outputTargetInfo(targetInfo)
+}
+
+func outputTargetInfo(targetInfo TargetInfo) error {
 	output := viper.GetString("output")
 	switch output {
-	case "json":
+	case OutputFormatJSON:
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(targetInfo)
-	case "yaml":
+
+		err := encoder.Encode(targetInfo)
+		if err != nil {
+			return fmt.Errorf("failed to encode target info as JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
-		return encoder.Encode(targetInfo)
+
+		err := encoder.Encode(targetInfo)
+		if err != nil {
+			return fmt.Errorf("failed to encode target info as YAML: %w", err)
+		}
+
+		return nil
 	default:
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header("Property", "Value")
@@ -183,9 +223,11 @@ func showTarget() error {
 		if targetInfo.User != "" {
 			_ = table.Append("User", targetInfo.User)
 		}
+
 		if targetInfo.Organization != "" {
 			_ = table.Append("Organization", targetInfo.Organization)
 		}
+
 		if targetInfo.Space != "" {
 			_ = table.Append("Space", targetInfo.Space)
 		}

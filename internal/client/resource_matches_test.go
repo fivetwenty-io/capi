@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -7,18 +7,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestResourceMatchesClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/resource_matches", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/resource_matches", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var req capi.ResourceMatchesRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.Len(t, req.Resources, 2)
 		assert.Equal(t, "file1.txt", req.Resources[0].Path)
 		assert.Equal(t, "checksum1", req.Resources[0].SHA1)
@@ -37,13 +41,13 @@ func TestResourceMatchesClient_Create(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	response, err := client.ResourceMatches().Create(context.Background(), &capi.ResourceMatchesRequest{
@@ -72,12 +76,15 @@ func TestResourceMatchesClient_Create(t *testing.T) {
 }
 
 func TestResourceMatchesClient_CreateEmpty(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/resource_matches", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/resource_matches", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var req capi.ResourceMatchesRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		_ = json.NewDecoder(request.Body).Decode(&req)
 		assert.Len(t, req.Resources, 2)
 
 		// Mock response - no files match
@@ -85,13 +92,13 @@ func TestResourceMatchesClient_CreateEmpty(t *testing.T) {
 			Resources: []capi.ResourceMatch{},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client, err := New(&capi.Config{APIEndpoint: server.URL})
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
 	response, err := client.ResourceMatches().Create(context.Background(), &capi.ResourceMatchesRequest{
@@ -112,5 +119,5 @@ func TestResourceMatchesClient_CreateEmpty(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Len(t, response.Resources, 0)
+	assert.Empty(t, response.Resources)
 }

@@ -3,24 +3,33 @@ package capi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 )
 
-// CacheEntry represents a cached item
+// CacheEntry represents a cached item.
+// Static errors for err113 compliance.
+var (
+	ErrKeyNotFound  = errors.New("key not found")
+	ErrEntryExpired = errors.New("entry expired")
+)
+
 type CacheEntry struct {
 	Data      []byte
 	ExpiresAt time.Time
 	ETag      string
 }
 
-// IsExpired checks if the cache entry has expired
+// IsExpired checks if the cache entry has expired.
 func (e *CacheEntry) IsExpired() bool {
 	return time.Now().After(e.ExpiresAt)
 }
 
-// Cache defines the interface for cache implementations
+// Cache defines the interface for cache implementations.
 type Cache interface {
 	// Get retrieves an item from the cache
 	Get(ctx context.Context, key string) (*CacheEntry, error)
@@ -38,14 +47,14 @@ type Cache interface {
 	Has(ctx context.Context, key string) bool
 }
 
-// MemoryCache implements an in-memory cache
+// MemoryCache implements an in-memory cache.
 type MemoryCache struct {
 	mu      sync.RWMutex
 	items   map[string]*CacheEntry
 	maxSize int
 }
 
-// NewMemoryCache creates a new in-memory cache
+// NewMemoryCache creates a new in-memory cache.
 func NewMemoryCache(maxSize int) *MemoryCache {
 	return &MemoryCache{
 		items:   make(map[string]*CacheEntry),
@@ -53,25 +62,25 @@ func NewMemoryCache(maxSize int) *MemoryCache {
 	}
 }
 
-// Get retrieves an item from the cache
+// Get retrieves an item from the cache.
 func (c *MemoryCache) Get(ctx context.Context, key string) (*CacheEntry, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	entry, exists := c.items[key]
 	if !exists {
-		return nil, fmt.Errorf("key not found: %s", key)
+		return nil, fmt.Errorf("%w: %s", ErrKeyNotFound, key)
 	}
 
 	if entry.IsExpired() {
 		// Don't return expired entries
-		return nil, fmt.Errorf("entry expired: %s", key)
+		return nil, fmt.Errorf("%w: %s", ErrEntryExpired, key)
 	}
 
 	return entry, nil
 }
 
-// Set stores an item in the cache
+// Set stores an item in the cache.
 func (c *MemoryCache) Set(ctx context.Context, key string, entry *CacheEntry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -79,42 +88,49 @@ func (c *MemoryCache) Set(ctx context.Context, key string, entry *CacheEntry) er
 	// Simple size management - remove oldest entry if at capacity
 	if c.maxSize > 0 && len(c.items) >= c.maxSize {
 		// Find and remove the oldest entry
-		var oldestKey string
-		var oldestTime time.Time
+		var (
+			oldestKey  string
+			oldestTime time.Time
+		)
+
 		for k, v := range c.items {
 			if oldestTime.IsZero() || v.ExpiresAt.Before(oldestTime) {
 				oldestKey = k
 				oldestTime = v.ExpiresAt
 			}
 		}
+
 		if oldestKey != "" {
 			delete(c.items, oldestKey)
 		}
 	}
 
 	c.items[key] = entry
+
 	return nil
 }
 
-// Delete removes an item from the cache
+// Delete removes an item from the cache.
 func (c *MemoryCache) Delete(ctx context.Context, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	delete(c.items, key)
+
 	return nil
 }
 
-// Clear removes all items from the cache
+// Clear removes all items from the cache.
 func (c *MemoryCache) Clear(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.items = make(map[string]*CacheEntry)
+
 	return nil
 }
 
-// Has checks if a key exists in the cache
+// Has checks if a key exists in the cache.
 func (c *MemoryCache) Has(ctx context.Context, key string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -127,7 +143,7 @@ func (c *MemoryCache) Has(ctx context.Context, key string) bool {
 	return !entry.IsExpired()
 }
 
-// Cleanup removes expired entries from the cache
+// Cleanup removes expired entries from the cache.
 func (c *MemoryCache) Cleanup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -139,7 +155,7 @@ func (c *MemoryCache) Cleanup() {
 	}
 }
 
-// StartCleanupRoutine starts a background routine to clean up expired entries
+// StartCleanupRoutine starts a background routine to clean up expired entries.
 func (c *MemoryCache) StartCleanupRoutine(ctx context.Context, interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
@@ -156,7 +172,7 @@ func (c *MemoryCache) StartCleanupRoutine(ctx context.Context, interval time.Dur
 	}()
 }
 
-// CacheOptions configures caching behavior
+// CacheOptions configures caching behavior.
 type CacheOptions struct {
 	// TTL is the default time-to-live for cache entries
 	TTL time.Duration
@@ -171,24 +187,24 @@ type CacheOptions struct {
 	CleanupInterval time.Duration
 }
 
-// DefaultCacheOptions returns default cache options
+// DefaultCacheOptions returns default cache options.
 func DefaultCacheOptions() *CacheOptions {
 	return &CacheOptions{
-		TTL:             5 * time.Minute,
-		MaxSize:         1000,
+		TTL:             constants.DefaultCacheTTL,
+		MaxSize:         constants.DefaultCacheSize,
 		EnableETags:     true,
 		CleanupInterval: 1 * time.Minute,
 	}
 }
 
-// CacheManager manages caching for the API client
+// CacheManager manages caching for the API client.
 type CacheManager struct {
 	cache   Cache
 	options *CacheOptions
 	stats   *CacheStats
 }
 
-// CacheStats tracks cache statistics
+// CacheStats tracks cache statistics.
 type CacheStats struct {
 	Hits    int64
 	Misses  int64
@@ -197,7 +213,7 @@ type CacheStats struct {
 	mu      sync.RWMutex
 }
 
-// GetHitRate returns the cache hit rate
+// GetHitRate returns the cache hit rate.
 func (s *CacheStats) GetHitRate() float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -206,14 +222,16 @@ func (s *CacheStats) GetHitRate() float64 {
 	if total == 0 {
 		return 0
 	}
+
 	return float64(s.Hits) / float64(total)
 }
 
-// NewCacheManager creates a new cache manager
+// NewCacheManager creates a new cache manager.
 func NewCacheManager(cache Cache, options *CacheOptions) *CacheManager {
 	if options == nil {
 		options = DefaultCacheOptions()
 	}
+
 	if cache == nil {
 		cache = NewMemoryCache(options.MaxSize)
 	}
@@ -232,25 +250,29 @@ func NewCacheManager(cache Cache, options *CacheOptions) *CacheManager {
 	return manager
 }
 
-// GetCacheKey generates a cache key for a request
+// GetCacheKey generates a cache key for a request.
 func (m *CacheManager) GetCacheKey(method, path string, params interface{}) string {
 	key := fmt.Sprintf("%s:%s", method, path)
+
 	if params != nil {
-		if data, err := json.Marshal(params); err == nil {
+		data, err := json.Marshal(params)
+		if err == nil {
 			key = fmt.Sprintf("%s:%s", key, string(data))
 		}
 	}
+
 	return key
 }
 
-// Get retrieves an item from the cache
+// Get retrieves an item from the cache.
 func (m *CacheManager) Get(ctx context.Context, key string) ([]byte, error) {
 	entry, err := m.cache.Get(ctx, key)
 	if err != nil {
 		m.stats.mu.Lock()
 		m.stats.Misses++
 		m.stats.mu.Unlock()
-		return nil, err
+
+		return nil, fmt.Errorf("failed to get cached entry: %w", err)
 	}
 
 	m.stats.mu.Lock()
@@ -260,7 +282,7 @@ func (m *CacheManager) Get(ctx context.Context, key string) ([]byte, error) {
 	return entry.Data, nil
 }
 
-// Set stores an item in the cache
+// Set stores an item in the cache.
 func (m *CacheManager) Set(ctx context.Context, key string, data []byte, ttl time.Duration) error {
 	if ttl == 0 {
 		ttl = m.options.TTL
@@ -275,10 +297,15 @@ func (m *CacheManager) Set(ctx context.Context, key string, data []byte, ttl tim
 	m.stats.Sets++
 	m.stats.mu.Unlock()
 
-	return m.cache.Set(ctx, key, entry)
+	err := m.cache.Set(ctx, key, entry)
+	if err != nil {
+		return fmt.Errorf("failed to set cache entry: %w", err)
+	}
+
+	return nil
 }
 
-// SetWithETag stores an item in the cache with an ETag
+// SetWithETag stores an item in the cache with an ETag.
 func (m *CacheManager) SetWithETag(ctx context.Context, key string, data []byte, etag string, ttl time.Duration) error {
 	if ttl == 0 {
 		ttl = m.options.TTL
@@ -294,36 +321,56 @@ func (m *CacheManager) SetWithETag(ctx context.Context, key string, data []byte,
 	m.stats.Sets++
 	m.stats.mu.Unlock()
 
-	return m.cache.Set(ctx, key, entry)
+	err := m.cache.Set(ctx, key, entry)
+	if err != nil {
+		return fmt.Errorf("failed to set cache entry: %w", err)
+	}
+
+	return nil
 }
 
-// Delete removes an item from the cache
+// Delete removes an item from the cache.
 func (m *CacheManager) Delete(ctx context.Context, key string) error {
 	m.stats.mu.Lock()
 	m.stats.Deletes++
 	m.stats.mu.Unlock()
 
-	return m.cache.Delete(ctx, key)
+	err := m.cache.Delete(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to delete cache entry: %w", err)
+	}
+
+	return nil
 }
 
-// Clear removes all items from the cache
+// Clear removes all items from the cache.
 func (m *CacheManager) Clear(ctx context.Context) error {
-	return m.cache.Clear(ctx)
+	err := m.cache.Clear(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to clear cache: %w", err)
+	}
+
+	return nil
 }
 
-// GetStats returns cache statistics
+// GetStats returns cache statistics.
 func (m *CacheManager) GetStats() *CacheStats {
 	return m.stats
 }
 
-// InvalidatePattern removes all cache entries matching a pattern
+// InvalidatePattern removes all cache entries matching a pattern.
 func (m *CacheManager) InvalidatePattern(ctx context.Context, pattern string) error {
 	// This is a simplified implementation
 	// In a production system, you might want to use a more sophisticated pattern matching
-	return m.cache.Clear(ctx)
+	err := m.cache.Clear(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to clear cache for pattern invalidation: %w", err)
+	}
+
+	return nil
 }
 
-// CachingPolicy defines when to cache responses
+// CachingPolicy defines when to cache responses.
 type CachingPolicy struct {
 	// CacheGET enables caching for GET requests
 	CacheGET bool
@@ -347,13 +394,13 @@ type CachingPolicy struct {
 	IncludePaths []string
 }
 
-// DefaultCachingPolicy returns a default caching policy
+// DefaultCachingPolicy returns a default caching policy.
 func DefaultCachingPolicy() *CachingPolicy {
 	return &CachingPolicy{
 		CacheGET:    true,
 		CachePOST:   false,
 		CacheErrors: false,
-		MinTTL:      30 * time.Second,
+		MinTTL:      constants.CacheMinTTL,
 		MaxTTL:      1 * time.Hour,
 		ExcludePaths: []string{
 			"/v3/jobs",
@@ -362,7 +409,7 @@ func DefaultCachingPolicy() *CachingPolicy {
 	}
 }
 
-// ShouldCache determines if a response should be cached
+// ShouldCache determines if a response should be cached.
 func (p *CachingPolicy) ShouldCache(method, path string, statusCode int) bool {
 	// Check if the method is cacheable
 	switch method {
@@ -397,6 +444,7 @@ func (p *CachingPolicy) ShouldCache(method, path string, statusCode int) bool {
 				return true
 			}
 		}
+
 		return false
 	}
 

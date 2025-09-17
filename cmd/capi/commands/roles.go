@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"os"
 
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -13,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// NewRolesCommand creates the roles command group
+// NewRolesCommand creates the roles command group.
 func NewRolesCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "roles",
@@ -51,98 +52,135 @@ func newRolesListCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
-
-			params := capi.NewQueryParams()
-			params.PerPage = perPage
-
-			// Apply filters
-			if userGUID != "" {
-				params.WithFilter("user_guids", userGUID)
-			}
-			if orgGUID != "" {
-				params.WithFilter("organization_guids", orgGUID)
-			}
-			if spaceGUID != "" {
-				params.WithFilter("space_guids", spaceGUID)
-			}
-			if roleType != "" {
-				params.WithFilter("types", roleType)
-			}
+			params := buildRoleListParams(perPage, userGUID, orgGUID, spaceGUID, roleType)
 
 			roles, err := client.Roles().List(ctx, params)
 			if err != nil {
 				return fmt.Errorf("failed to list roles: %w", err)
 			}
 
-			// Fetch all pages if requested
-			allRoles := roles.Resources
-			if allPages && roles.Pagination.TotalPages > 1 {
-				for page := 2; page <= roles.Pagination.TotalPages; page++ {
-					params.Page = page
-					moreRoles, err := client.Roles().List(ctx, params)
-					if err != nil {
-						return fmt.Errorf("failed to fetch page %d: %w", page, err)
-					}
-					allRoles = append(allRoles, moreRoles.Resources...)
-				}
+			allRoles, err := fetchAllRolePages(ctx, client, params, roles, allPages)
+			if err != nil {
+				return err
 			}
 
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(allRoles)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(allRoles)
-			default:
-				if len(allRoles) == 0 {
-					fmt.Println("No roles found")
-					return nil
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-				table.Header("GUID", "Type", "User GUID", "Organization GUID", "Space GUID", "Created", "Updated")
-
-				for _, role := range allRoles {
-					orgGUID := ""
-					if role.Relationships.Organization != nil {
-						orgGUID = role.Relationships.Organization.Data.GUID
-					}
-
-					spaceGUID := ""
-					if role.Relationships.Space != nil {
-						spaceGUID = role.Relationships.Space.Data.GUID
-					}
-
-					_ = table.Append([]string{
-						role.GUID,
-						role.Type,
-						role.Relationships.User.Data.GUID,
-						orgGUID,
-						spaceGUID,
-						role.CreatedAt.Format("2006-01-02 15:04:05"),
-						role.UpdatedAt.Format("2006-01-02 15:04:05"),
-					})
-				}
-
-				_ = table.Render()
-			}
-
-			return nil
+			return renderRoles(allRoles)
 		},
 	}
 
 	cmd.Flags().BoolVar(&allPages, "all-pages", false, "fetch all pages")
-	cmd.Flags().IntVar(&perPage, "per-page", 50, "number of results per page")
+	cmd.Flags().IntVar(&perPage, "per-page", constants.StandardPageSize, "number of results per page")
 	cmd.Flags().StringVar(&userGUID, "user", "", "filter by user GUID")
 	cmd.Flags().StringVar(&orgGUID, "org", "", "filter by organization GUID")
 	cmd.Flags().StringVar(&spaceGUID, "space", "", "filter by space GUID")
 	cmd.Flags().StringVar(&roleType, "type", "", "filter by role type")
 
 	return cmd
+}
+
+func buildRoleListParams(perPage int, userGUID, orgGUID, spaceGUID, roleType string) *capi.QueryParams {
+	params := capi.NewQueryParams()
+	params.PerPage = perPage
+
+	if userGUID != "" {
+		params.WithFilter("user_guids", userGUID)
+	}
+
+	if orgGUID != "" {
+		params.WithFilter("organization_guids", orgGUID)
+	}
+
+	if spaceGUID != "" {
+		params.WithFilter("space_guids", spaceGUID)
+	}
+
+	if roleType != "" {
+		params.WithFilter("types", roleType)
+	}
+
+	return params
+}
+
+func fetchAllRolePages(ctx context.Context, client capi.Client, params *capi.QueryParams, roles *capi.ListResponse[capi.Role], allPages bool) ([]capi.Role, error) {
+	allRoles := roles.Resources
+	if allPages && roles.Pagination.TotalPages > 1 {
+		for page := 2; page <= roles.Pagination.TotalPages; page++ {
+			params.Page = page
+
+			moreRoles, err := client.Roles().List(ctx, params)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch page %d: %w", page, err)
+			}
+
+			allRoles = append(allRoles, moreRoles.Resources...)
+		}
+	}
+
+	return allRoles, nil
+}
+
+func renderRoles(allRoles []capi.Role) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(allRoles)
+		if err != nil {
+			return fmt.Errorf("failed to encode roles as JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(allRoles)
+		if err != nil {
+			return fmt.Errorf("failed to encode roles as YAML: %w", err)
+		}
+
+		return nil
+	default:
+		return renderRolesTable(allRoles)
+	}
+}
+
+func renderRolesTable(allRoles []capi.Role) error {
+	if len(allRoles) == 0 {
+		_, _ = os.Stdout.WriteString("No roles found\n")
+
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header("GUID", "Type", "User GUID", "Organization GUID", "Space GUID", "Created", "Updated")
+
+	for _, role := range allRoles {
+		orgGUID := ""
+		if role.Relationships.Organization != nil {
+			orgGUID = role.Relationships.Organization.Data.GUID
+		}
+
+		spaceGUID := ""
+		if role.Relationships.Space != nil {
+			spaceGUID = role.Relationships.Space.Data.GUID
+		}
+
+		_ = table.Append([]string{
+			role.GUID,
+			role.Type,
+			role.Relationships.User.Data.GUID,
+			orgGUID,
+			spaceGUID,
+			role.CreatedAt.Format("2006-01-02 15:04:05"),
+			role.UpdatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	_ = table.Render()
+
+	return nil
 }
 
 func newRolesGetCommand() *cobra.Command {
@@ -169,12 +207,14 @@ func newRolesGetCommand() *cobra.Command {
 			// Output results
 			output := viper.GetString("output")
 			switch output {
-			case "json":
+			case OutputFormatJSON:
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
+
 				return encoder.Encode(role)
-			case "yaml":
+			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
+
 				return encoder.Encode(role)
 			default:
 				table := tablewriter.NewWriter(os.Stdout)
@@ -195,7 +235,7 @@ func newRolesGetCommand() *cobra.Command {
 				_ = table.Append("Created", role.CreatedAt.Format("2006-01-02 15:04:05"))
 				_ = table.Append("Updated", role.UpdatedAt.Format("2006-01-02 15:04:05"))
 
-				fmt.Printf("Role details:\n\n")
+				_, _ = os.Stdout.WriteString("Role details:\n\n")
 				_ = table.Render()
 			}
 
@@ -220,7 +260,7 @@ func newRolesCreateCommand() *cobra.Command {
 			roleType := args[0]
 
 			if userGUID == "" {
-				return fmt.Errorf("user GUID is required")
+				return ErrUserGUIDRequired
 			}
 
 			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
@@ -229,61 +269,14 @@ func newRolesCreateCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
-
-			// Build relationships
-			relationships := capi.RoleRelationships{
-				User: capi.Relationship{
-					Data: &capi.RelationshipData{GUID: userGUID},
-				},
-			}
-
-			if orgGUID != "" {
-				relationships.Organization = &capi.Relationship{
-					Data: &capi.RelationshipData{GUID: orgGUID},
-				}
-			}
-
-			if spaceGUID != "" {
-				relationships.Space = &capi.Relationship{
-					Data: &capi.RelationshipData{GUID: spaceGUID},
-				}
-			}
-
-			request := &capi.RoleCreateRequest{
-				Type:          roleType,
-				Relationships: relationships,
-			}
+			request := buildRoleCreateRequest(roleType, userGUID, orgGUID, spaceGUID)
 
 			role, err := client.Roles().Create(ctx, request)
 			if err != nil {
 				return fmt.Errorf("failed to create role: %w", err)
 			}
 
-			// Output results
-			output := viper.GetString("output")
-			switch output {
-			case "json":
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
-				return encoder.Encode(role)
-			case "yaml":
-				encoder := yaml.NewEncoder(os.Stdout)
-				return encoder.Encode(role)
-			default:
-				fmt.Printf("Created role: %s\n", role.GUID)
-				fmt.Printf("  Type:      %s\n", role.Type)
-				fmt.Printf("  User GUID: %s\n", role.Relationships.User.Data.GUID)
-
-				if role.Relationships.Organization != nil {
-					fmt.Printf("  Org GUID:  %s\n", role.Relationships.Organization.Data.GUID)
-				}
-
-				if role.Relationships.Space != nil {
-					fmt.Printf("  Space GUID: %s\n", role.Relationships.Space.Data.GUID)
-				}
-			}
-
-			return nil
+			return renderCreatedRole(role)
 		},
 	}
 
@@ -293,6 +286,70 @@ func newRolesCreateCommand() *cobra.Command {
 	_ = cmd.MarkFlagRequired("user")
 
 	return cmd
+}
+
+func buildRoleCreateRequest(roleType, userGUID, orgGUID, spaceGUID string) *capi.RoleCreateRequest {
+	relationships := capi.RoleRelationships{
+		User: capi.Relationship{
+			Data: &capi.RelationshipData{GUID: userGUID},
+		},
+	}
+
+	if orgGUID != "" {
+		relationships.Organization = &capi.Relationship{
+			Data: &capi.RelationshipData{GUID: orgGUID},
+		}
+	}
+
+	if spaceGUID != "" {
+		relationships.Space = &capi.Relationship{
+			Data: &capi.RelationshipData{GUID: spaceGUID},
+		}
+	}
+
+	return &capi.RoleCreateRequest{
+		Type:          roleType,
+		Relationships: relationships,
+	}
+}
+
+func renderCreatedRole(role *capi.Role) error {
+	output := viper.GetString("output")
+	switch output {
+	case OutputFormatJSON:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+
+		err := encoder.Encode(role)
+		if err != nil {
+			return fmt.Errorf("failed to encode role as JSON: %w", err)
+		}
+
+		return nil
+	case OutputFormatYAML:
+		encoder := yaml.NewEncoder(os.Stdout)
+
+		err := encoder.Encode(role)
+		if err != nil {
+			return fmt.Errorf("failed to encode role as YAML: %w", err)
+		}
+
+		return nil
+	default:
+		_, _ = fmt.Fprintf(os.Stdout, "Created role: %s\n", role.GUID)
+		_, _ = fmt.Fprintf(os.Stdout, "  Type:      %s\n", role.Type)
+		_, _ = fmt.Fprintf(os.Stdout, "  User GUID: %s\n", role.Relationships.User.Data.GUID)
+
+		if role.Relationships.Organization != nil {
+			_, _ = fmt.Fprintf(os.Stdout, "  Org GUID:  %s\n", role.Relationships.Organization.Data.GUID)
+		}
+
+		if role.Relationships.Space != nil {
+			_, _ = fmt.Fprintf(os.Stdout, "  Space GUID: %s\n", role.Relationships.Space.Data.GUID)
+		}
+	}
+
+	return nil
 }
 
 func newRolesDeleteCommand() *cobra.Command {
@@ -316,7 +373,7 @@ func newRolesDeleteCommand() *cobra.Command {
 				return fmt.Errorf("failed to delete role: %w", err)
 			}
 
-			fmt.Printf("Role %s deleted successfully\n", roleGUID)
+			_, _ = fmt.Fprintf(os.Stdout, "Role %s deleted successfully\n", roleGUID)
 
 			return nil
 		},

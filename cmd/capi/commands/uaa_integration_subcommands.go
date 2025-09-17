@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUAAIntegrationCommand creates the integration sub-command group
+// NewUAAIntegrationCommand creates the integration sub-command group.
 func NewUAAIntegrationCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "integration",
@@ -36,11 +36,13 @@ This command group provides utilities for:
 func createIntegrationCompatibilityCommand() *cobra.Command {
 	cmd := createUsersCompatibilityCommand()
 	cmd.Use = "compatibility"
+
 	return cmd
 }
 
 func createIntegrationCFCommand() *cobra.Command {
 	cmd := createUsersCFIntegrationCommand()
 	cmd.Use = "cf"
+
 	return cmd
 }

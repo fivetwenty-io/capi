@@ -6,83 +6,150 @@ import (
 	"path/filepath"
 
 	"github.com/fivetwenty-io/capi/v3/cmd/capi/commands"
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-)
-
-var rootCmd = &cobra.Command{
-	Use:   "capi",
-	Short: "Cloud Foundry API v3 CLI",
-	Long: `A command-line interface for interacting with Cloud Foundry API v3.
-	
-This CLI provides comprehensive access to Cloud Foundry resources including
-applications, spaces, organizations, services, and more.`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+// BuildInfo holds build-time information set via ldflags.
+type BuildInfo struct {
+	Version string
+	Commit  string
+	Date    string
 }
 
-func init() {
-	cobra.OnInitialize(initConfig)
+// buildInfo encapsulates build-time variables set via ldflags.
+type buildInfo struct {
+	version string // Set by ldflags during build
+	commit  string // Set by ldflags during build
+	date    string // Set by ldflags during build
+}
 
-	// Global flags
-	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is $HOME/.capi/config.yml)")
-	rootCmd.PersistentFlags().StringP("api", "a", "", "API endpoint URL")
-	rootCmd.PersistentFlags().StringP("token", "t", "", "authentication token")
-	rootCmd.PersistentFlags().String("output", "table", "output format (table, json, yaml)")
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().Bool("no-color", false, "disable colored output")
-	rootCmd.PersistentFlags().Bool("skip-ssl-validation", false, "skip SSL certificate validation")
+// getBuildInfo returns the build information from ldflags.
+func getBuildInfo() BuildInfo {
+	info := buildInfo{
+		version: getBuildVersion(),
+		commit:  getBuildCommit(),
+		date:    getBuildDate(),
+	}
 
-	// Bind flags to viper
-	_ = viper.BindPFlag("api", rootCmd.PersistentFlags().Lookup("api"))
-	_ = viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token"))
-	_ = viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
-	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
-	_ = viper.BindPFlag("no-color", rootCmd.PersistentFlags().Lookup("no-color"))
-	_ = viper.BindPFlag("skip-ssl-validation", rootCmd.PersistentFlags().Lookup("skip-ssl-validation"))
+	return BuildInfo{
+		Version: info.version,
+		Commit:  info.commit,
+		Date:    info.date,
+	}
+}
 
-	// Add commands
-	rootCmd.AddCommand(commands.NewVersionCommand(version, commit, date))
-	rootCmd.AddCommand(commands.NewLoginCommand())
-	rootCmd.AddCommand(commands.NewLogoutCommand())
-	rootCmd.AddCommand(commands.NewTokenCommand())
-	rootCmd.AddCommand(commands.NewConfigCommand())
-	rootCmd.AddCommand(commands.NewAPIsCommand())
-	rootCmd.AddCommand(commands.NewOrgsCommand())
-	rootCmd.AddCommand(commands.NewSpacesCommand())
-	rootCmd.AddCommand(commands.NewAppsCommand())
-	rootCmd.AddCommand(commands.NewServicesCommand())
-	rootCmd.AddCommand(commands.NewDomainsCommand())
-	rootCmd.AddCommand(commands.NewRoutesCommand())
-	rootCmd.AddCommand(commands.NewSecurityGroupsCommand())
-	rootCmd.AddCommand(commands.NewBuildpacksCommand())
-	rootCmd.AddCommand(commands.NewStacksCommand())
-	rootCmd.AddCommand(commands.NewUAACommand())
-	rootCmd.AddCommand(commands.NewRolesCommand())
-	rootCmd.AddCommand(commands.NewJobsCommand())
-	rootCmd.AddCommand(commands.NewTargetCommand())
-	rootCmd.AddCommand(commands.NewInfoCommand())
+// Build-time variables set via ldflags - these must be var for ldflags to work.
+//
+//nolint:gochecknoglobals // These variables must be global for ldflags to work
+var (
+	version = "dev"     // Set by ldflags during build
+	commit  = "none"    // Set by ldflags during build
+	date    = "unknown" // Set by ldflags during build
+)
 
-	// Add new API v3 commands
-	rootCmd.AddCommand(commands.NewOrgQuotasCommand())
-	rootCmd.AddCommand(commands.NewSpaceQuotasCommand())
-	rootCmd.AddCommand(commands.NewSidecarsCommand())
-	rootCmd.AddCommand(commands.NewRevisionsCommand())
-	rootCmd.AddCommand(commands.NewEnvVarGroupsCommand())
-	rootCmd.AddCommand(commands.NewAppUsageEventsCommand())
-	rootCmd.AddCommand(commands.NewServiceUsageEventsCommand())
-	rootCmd.AddCommand(commands.NewAuditEventsCommand())
-	rootCmd.AddCommand(commands.NewResourceMatchesCommand())
-	rootCmd.AddCommand(commands.NewIsolationSegmentsCommand())
-	rootCmd.AddCommand(commands.NewFeatureFlagsCommand())
-	rootCmd.AddCommand(commands.NewManifestsCommand())
-	rootCmd.AddCommand(commands.NewAdminCommand())
+// getBuildVersion returns the build version.
+func getBuildVersion() string {
+	return version
+}
+
+// getBuildCommit returns the build commit.
+func getBuildCommit() string {
+	return commit
+}
+
+// getBuildDate returns the build date.
+func getBuildDate() string {
+	return date
+}
+
+// newRootCommand creates and configures the root command.
+func newRootCommand() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "capi",
+		Short: "Cloud Foundry API v3 CLI",
+		Long: `A command-line interface for interacting with Cloud Foundry API v3.
+
+This CLI provides comprehensive access to Cloud Foundry resources including
+applications, spaces, organizations, services, and more.`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+
+	setupGlobalFlags(rootCmd)
+	bindFlagsToViper(rootCmd)
+	addAllCommands(rootCmd)
+
+	return rootCmd
+}
+
+func setupGlobalFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringP("config", "c", "", "config file (default is $HOME/.capi/config.yml)")
+	cmd.PersistentFlags().StringP("api", "a", "", "API endpoint URL")
+	cmd.PersistentFlags().StringP("token", "t", "", "authentication token")
+	cmd.PersistentFlags().String("output", "table", "output format (table, json, yaml)")
+	cmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	cmd.PersistentFlags().Bool("no-color", false, "disable colored output")
+	cmd.PersistentFlags().Bool("skip-ssl-validation", false, "skip SSL certificate validation")
+}
+
+func bindFlagsToViper(cmd *cobra.Command) {
+	_ = viper.BindPFlag("api", cmd.PersistentFlags().Lookup("api"))
+	_ = viper.BindPFlag("token", cmd.PersistentFlags().Lookup("token"))
+	_ = viper.BindPFlag("output", cmd.PersistentFlags().Lookup("output"))
+	_ = viper.BindPFlag("verbose", cmd.PersistentFlags().Lookup("verbose"))
+	_ = viper.BindPFlag("no-color", cmd.PersistentFlags().Lookup("no-color"))
+	_ = viper.BindPFlag("skip-ssl-validation", cmd.PersistentFlags().Lookup("skip-ssl-validation"))
+}
+
+func addAllCommands(cmd *cobra.Command) {
+	addCoreCommands(cmd)
+	addResourceCommands(cmd)
+	addAPIv3Commands(cmd)
+}
+
+func addCoreCommands(cmd *cobra.Command) {
+	buildInfo := getBuildInfo()
+	cmd.AddCommand(commands.NewVersionCommand(buildInfo.Version, buildInfo.Commit, buildInfo.Date))
+	cmd.AddCommand(commands.NewLoginCommand())
+	cmd.AddCommand(commands.NewLogoutCommand())
+	cmd.AddCommand(commands.NewTokenCommand())
+	cmd.AddCommand(commands.NewConfigCommand())
+	cmd.AddCommand(commands.NewAPIsCommand())
+	cmd.AddCommand(commands.NewTargetCommand())
+	cmd.AddCommand(commands.NewInfoCommand())
+}
+
+func addResourceCommands(cmd *cobra.Command) {
+	cmd.AddCommand(commands.NewOrgsCommand())
+	cmd.AddCommand(commands.NewSpacesCommand())
+	cmd.AddCommand(commands.NewAppsCommand())
+	cmd.AddCommand(commands.NewServicesCommand())
+	cmd.AddCommand(commands.NewDomainsCommand())
+	cmd.AddCommand(commands.NewRoutesCommand())
+	cmd.AddCommand(commands.NewSecurityGroupsCommand())
+	cmd.AddCommand(commands.NewBuildpacksCommand())
+	cmd.AddCommand(commands.NewStacksCommand())
+	cmd.AddCommand(commands.NewUAACommand())
+	cmd.AddCommand(commands.NewRolesCommand())
+	cmd.AddCommand(commands.NewJobsCommand())
+}
+
+func addAPIv3Commands(cmd *cobra.Command) {
+	cmd.AddCommand(commands.NewOrgQuotasCommand())
+	cmd.AddCommand(commands.NewSpaceQuotasCommand())
+	cmd.AddCommand(commands.NewSidecarsCommand())
+	cmd.AddCommand(commands.NewRevisionsCommand())
+	cmd.AddCommand(commands.NewEnvVarGroupsCommand())
+	cmd.AddCommand(commands.NewAppUsageEventsCommand())
+	cmd.AddCommand(commands.NewServiceUsageEventsCommand())
+	cmd.AddCommand(commands.NewAuditEventsCommand())
+	cmd.AddCommand(commands.NewResourceMatchesCommand())
+	cmd.AddCommand(commands.NewIsolationSegmentsCommand())
+	cmd.AddCommand(commands.NewFeatureFlagsCommand())
+	cmd.AddCommand(commands.NewManifestsCommand())
+	cmd.AddCommand(commands.NewAdminCommand())
 }
 
 func initConfig() {
@@ -101,7 +168,9 @@ func initConfig() {
 
 		// Create config directory if it doesn't exist
 		configDir := filepath.Join(home, ".capi")
-		if err := os.MkdirAll(configDir, 0750); err != nil {
+
+		err = os.MkdirAll(configDir, constants.ConfigDirPerm)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating config directory: %v\n", err)
 		}
 
@@ -116,7 +185,8 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// If a config file is found, read it in
-	if err := viper.ReadInConfig(); err == nil {
+	err := viper.ReadInConfig()
+	if err == nil {
 		if viper.GetBool("verbose") {
 			fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 		}
@@ -124,7 +194,12 @@ func initConfig() {
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	cobra.OnInitialize(initConfig)
+
+	rootCmd := newRootCommand()
+
+	err := rootCmd.Execute()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

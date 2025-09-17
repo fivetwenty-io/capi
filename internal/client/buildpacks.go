@@ -13,19 +13,19 @@ import (
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
-// BuildpacksClient implements capi.BuildpacksClient
+// BuildpacksClient implements capi.BuildpacksClient.
 type BuildpacksClient struct {
 	httpClient *http.Client
 }
 
-// NewBuildpacksClient creates a new buildpacks client
+// NewBuildpacksClient creates a new buildpacks client.
 func NewBuildpacksClient(httpClient *http.Client) *BuildpacksClient {
 	return &BuildpacksClient{
 		httpClient: httpClient,
 	}
 }
 
-// Create implements capi.BuildpacksClient.Create
+// Create implements capi.BuildpacksClient.Create.
 func (c *BuildpacksClient) Create(ctx context.Context, request *capi.BuildpackCreateRequest) (*capi.Buildpack, error) {
 	path := "/v3/buildpacks"
 
@@ -35,16 +35,18 @@ func (c *BuildpacksClient) Create(ctx context.Context, request *capi.BuildpackCr
 	}
 
 	var buildpack capi.Buildpack
-	if err := json.Unmarshal(resp.Body, &buildpack); err != nil {
+
+	err = json.Unmarshal(resp.Body, &buildpack)
+	if err != nil {
 		return nil, fmt.Errorf("parsing buildpack response: %w", err)
 	}
 
 	return &buildpack, nil
 }
 
-// Get implements capi.BuildpacksClient.Get
+// Get implements capi.BuildpacksClient.Get.
 func (c *BuildpacksClient) Get(ctx context.Context, guid string) (*capi.Buildpack, error) {
-	path := fmt.Sprintf("/v3/buildpacks/%s", guid)
+	path := "/v3/buildpacks/" + guid
 
 	resp, err := c.httpClient.Get(ctx, path, nil)
 	if err != nil {
@@ -52,14 +54,16 @@ func (c *BuildpacksClient) Get(ctx context.Context, guid string) (*capi.Buildpac
 	}
 
 	var buildpack capi.Buildpack
-	if err := json.Unmarshal(resp.Body, &buildpack); err != nil {
+
+	err = json.Unmarshal(resp.Body, &buildpack)
+	if err != nil {
 		return nil, fmt.Errorf("parsing buildpack: %w", err)
 	}
 
 	return &buildpack, nil
 }
 
-// List implements capi.BuildpacksClient.List
+// List implements capi.BuildpacksClient.List.
 func (c *BuildpacksClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Buildpack], error) {
 	path := "/v3/buildpacks"
 
@@ -74,16 +78,18 @@ func (c *BuildpacksClient) List(ctx context.Context, params *capi.QueryParams) (
 	}
 
 	var list capi.ListResponse[capi.Buildpack]
-	if err := json.Unmarshal(resp.Body, &list); err != nil {
+
+	err = json.Unmarshal(resp.Body, &list)
+	if err != nil {
 		return nil, fmt.Errorf("parsing buildpacks list: %w", err)
 	}
 
 	return &list, nil
 }
 
-// Update implements capi.BuildpacksClient.Update
+// Update implements capi.BuildpacksClient.Update.
 func (c *BuildpacksClient) Update(ctx context.Context, guid string, request *capi.BuildpackUpdateRequest) (*capi.Buildpack, error) {
-	path := fmt.Sprintf("/v3/buildpacks/%s", guid)
+	path := "/v3/buildpacks/" + guid
 
 	resp, err := c.httpClient.Patch(ctx, path, request)
 	if err != nil {
@@ -91,16 +97,18 @@ func (c *BuildpacksClient) Update(ctx context.Context, guid string, request *cap
 	}
 
 	var buildpack capi.Buildpack
-	if err := json.Unmarshal(resp.Body, &buildpack); err != nil {
+
+	err = json.Unmarshal(resp.Body, &buildpack)
+	if err != nil {
 		return nil, fmt.Errorf("parsing buildpack: %w", err)
 	}
 
 	return &buildpack, nil
 }
 
-// Delete implements capi.BuildpacksClient.Delete
+// Delete implements capi.BuildpacksClient.Delete.
 func (c *BuildpacksClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
-	path := fmt.Sprintf("/v3/buildpacks/%s", guid)
+	path := "/v3/buildpacks/" + guid
 
 	resp, err := c.httpClient.Delete(ctx, path)
 	if err != nil {
@@ -108,19 +116,22 @@ func (c *BuildpacksClient) Delete(ctx context.Context, guid string) (*capi.Job, 
 	}
 
 	var job capi.Job
-	if err := json.Unmarshal(resp.Body, &job); err != nil {
+
+	err = json.Unmarshal(resp.Body, &job)
+	if err != nil {
 		return nil, fmt.Errorf("parsing job response: %w", err)
 	}
 
 	return &job, nil
 }
 
-// Upload implements capi.BuildpacksClient.Upload
+// Upload implements capi.BuildpacksClient.Upload.
 func (c *BuildpacksClient) Upload(ctx context.Context, guid string, bits io.Reader) (*capi.Buildpack, error) {
 	path := fmt.Sprintf("/v3/buildpacks/%s/upload", guid)
 
 	// Create a buffer to store our multipart form
 	var buf bytes.Buffer
+
 	writer := multipart.NewWriter(&buf)
 
 	// Create a form file field
@@ -130,12 +141,14 @@ func (c *BuildpacksClient) Upload(ctx context.Context, guid string, bits io.Read
 	}
 
 	// Copy the bits to the form field
-	if _, err := io.Copy(part, bits); err != nil {
+	_, err = io.Copy(part, bits)
+	if err != nil {
 		return nil, fmt.Errorf("copying bits to form: %w", err)
 	}
 
 	// Close the writer to finalize the form
-	if err := writer.Close(); err != nil {
+	err = writer.Close()
+	if err != nil {
 		return nil, fmt.Errorf("closing multipart writer: %w", err)
 	}
 
@@ -146,7 +159,9 @@ func (c *BuildpacksClient) Upload(ctx context.Context, guid string, bits io.Read
 	}
 
 	var buildpack capi.Buildpack
-	if err := json.Unmarshal(resp.Body, &buildpack); err != nil {
+
+	err = json.Unmarshal(resp.Body, &buildpack)
+	if err != nil {
 		return nil, fmt.Errorf("parsing buildpack response: %w", err)
 	}
 

@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
@@ -15,121 +16,40 @@ import (
 )
 
 func TestRolesClient_Create(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/roles", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-
-		var request capi.RoleCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
-
-		assert.Equal(t, "organization_auditor", request.Type)
-		assert.Equal(t, "user-guid", request.Relationships.User.Data.GUID)
-		assert.Equal(t, "org-guid", request.Relationships.Organization.Data.GUID)
-
-		now := time.Now()
-		role := capi.Role{
-			Resource: capi.Resource{
-				GUID:      "role-guid",
-				CreatedAt: now,
-				UpdatedAt: now,
-			},
-			Type:          request.Type,
-			Relationships: request.Relationships,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(role)
-	}))
-	defer server.Close()
-
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	roles := NewRolesClient(client.httpClient)
-
-	request := &capi.RoleCreateRequest{
-		Type: "organization_auditor",
-		Relationships: capi.RoleRelationships{
+	t.Parallel()
+	RunRoleCreateTest(t, "organization role create", "organization_auditor", "user-guid", "org-guid", "", "organization_auditor",
+		capi.RoleRelationships{
 			User: capi.Relationship{
-				Data: &capi.RelationshipData{
-					GUID: "user-guid",
-				},
+				Data: &capi.RelationshipData{GUID: "user-guid"},
 			},
 			Organization: &capi.Relationship{
-				Data: &capi.RelationshipData{
-					GUID: "org-guid",
-				},
+				Data: &capi.RelationshipData{GUID: "org-guid"},
 			},
 		},
-	}
-
-	role, err := roles.Create(context.Background(), request)
-	require.NoError(t, err)
-	assert.NotNil(t, role)
-	assert.Equal(t, "role-guid", role.GUID)
-	assert.Equal(t, "organization_auditor", role.Type)
+	)
 }
 
 func TestRolesClient_CreateSpaceRole(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/roles", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
-
-		var request capi.RoleCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
-		require.NoError(t, err)
-
-		assert.Equal(t, "space_developer", request.Type)
-		assert.Equal(t, "user-guid", request.Relationships.User.Data.GUID)
-		assert.Equal(t, "space-guid", request.Relationships.Space.Data.GUID)
-
-		now := time.Now()
-		role := capi.Role{
-			Resource: capi.Resource{
-				GUID:      "role-guid",
-				CreatedAt: now,
-				UpdatedAt: now,
-			},
-			Type:          request.Type,
-			Relationships: request.Relationships,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(role)
-	}))
-	defer server.Close()
-
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	roles := NewRolesClient(client.httpClient)
-
-	request := &capi.RoleCreateRequest{
-		Type: "space_developer",
-		Relationships: capi.RoleRelationships{
+	t.Parallel()
+	RunRoleCreateTest(t, "space role create", "space_developer", "user-guid", "", "space-guid", "space_developer",
+		capi.RoleRelationships{
 			User: capi.Relationship{
-				Data: &capi.RelationshipData{
-					GUID: "user-guid",
-				},
+				Data: &capi.RelationshipData{GUID: "user-guid"},
 			},
 			Space: &capi.Relationship{
-				Data: &capi.RelationshipData{
-					GUID: "space-guid",
-				},
+				Data: &capi.RelationshipData{GUID: "space-guid"},
 			},
 		},
-	}
-
-	role, err := roles.Create(context.Background(), request)
-	require.NoError(t, err)
-	assert.NotNil(t, role)
-	assert.Equal(t, "role-guid", role.GUID)
-	assert.Equal(t, "space_developer", role.Type)
+	)
 }
 
 func TestRolesClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/roles/role-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/roles/role-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		now := time.Now()
 		role := capi.Role{
@@ -153,13 +73,13 @@ func TestRolesClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(role)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(role)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	roles := NewRolesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	roles := NewRolesClient(httpClient)
 
 	role, err := roles.Get(context.Background(), "role-guid")
 	require.NoError(t, err)
@@ -168,12 +88,16 @@ func TestRolesClient_Get(t *testing.T) {
 	assert.Equal(t, "organization_manager", role.Type)
 }
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestRolesClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/roles", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "organization_auditor,organization_manager", r.URL.Query().Get("types"))
-		assert.Equal(t, "org-guid", r.URL.Query().Get("organization_guids"))
+	t.Parallel()
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/roles", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "organization_auditor,organization_manager", request.URL.Query().Get("types"))
+		assert.Equal(t, "org-guid", request.URL.Query().Get("organization_guids"))
 
 		now := time.Now()
 		response := capi.ListResponse[capi.Role]{
@@ -227,13 +151,13 @@ func TestRolesClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	roles := NewRolesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	roles := NewRolesClient(httpClient)
 
 	params := &capi.QueryParams{
 		Filters: map[string][]string{
@@ -254,34 +178,40 @@ func TestRolesClient_List(t *testing.T) {
 }
 
 func TestRolesClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/roles/role-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNoContent)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/roles/role-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	roles := NewRolesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	roles := NewRolesClient(httpClient)
 
 	err := roles.Delete(context.Background(), "role-guid")
 	require.NoError(t, err)
 }
 
 func TestRolesClient_GetNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/roles/role-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+	t.Parallel()
 
-		w.WriteHeader(http.StatusNotFound)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/roles/role-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		writer.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	roles := NewRolesClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	roles := NewRolesClient(httpClient)
 
 	role, err := roles.Get(context.Background(), "role-guid")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, role)
 }

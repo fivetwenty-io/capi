@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
@@ -15,13 +16,16 @@ import (
 )
 
 func TestUsersClient_Create_WithGUID(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/users", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/users", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var req capi.UserCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&req)
+		assert.NoError(t, err)
 		assert.Equal(t, "user-guid", req.GUID)
 
 		user := capi.User{
@@ -40,14 +44,14 @@ func TestUsersClient_Create_WithGUID(t *testing.T) {
 			Origin:           "uaa",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(user)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(user)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	users := NewUsersClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	users := NewUsersClient(httpClient)
 
 	req := &capi.UserCreateRequest{
 		GUID: "user-guid",
@@ -62,13 +66,16 @@ func TestUsersClient_Create_WithGUID(t *testing.T) {
 }
 
 func TestUsersClient_Create_WithUsernameAndOrigin(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/users", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/users", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		var req capi.UserCreateRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&req)
+		assert.NoError(t, err)
 		assert.Equal(t, "test-user", req.Username)
 		assert.Equal(t, "ldap", req.Origin)
 
@@ -92,14 +99,14 @@ func TestUsersClient_Create_WithUsernameAndOrigin(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(user)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(user)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	users := NewUsersClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	users := NewUsersClient(httpClient)
 
 	req := &capi.UserCreateRequest{
 		Username: "test-user",
@@ -119,9 +126,11 @@ func TestUsersClient_Create_WithUsernameAndOrigin(t *testing.T) {
 }
 
 func TestUsersClient_Get(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/users/user-guid", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/users/user-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		user := capi.User{
 			Resource: capi.Resource{
@@ -147,13 +156,13 @@ func TestUsersClient_Get(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(user)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(user)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	users := NewUsersClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	users := NewUsersClient(httpClient)
 
 	user, err := users.Get(context.Background(), "user-guid")
 	require.NoError(t, err)
@@ -165,11 +174,13 @@ func TestUsersClient_Get(t *testing.T) {
 }
 
 func TestUsersClient_List(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/users", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
-		assert.Equal(t, "test-user", r.URL.Query().Get("usernames"))
-		assert.Equal(t, "2", r.URL.Query().Get("per_page"))
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/users", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+		assert.Equal(t, "test-user", request.URL.Query().Get("usernames"))
+		assert.Equal(t, "2", request.URL.Query().Get("per_page"))
 
 		response := capi.ListResponse[capi.User]{
 			Pagination: capi.Pagination{
@@ -216,13 +227,13 @@ func TestUsersClient_List(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(response)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	users := NewUsersClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	users := NewUsersClient(httpClient)
 
 	params := &capi.QueryParams{
 		PerPage: 2,
@@ -237,18 +248,21 @@ func TestUsersClient_List(t *testing.T) {
 	assert.Equal(t, 2, list.Pagination.TotalResults)
 	assert.Len(t, list.Resources, 2)
 	assert.Equal(t, "test-user", list.Resources[0].Username)
-	assert.Equal(t, "", list.Resources[1].Username) // UAA client
+	assert.Empty(t, list.Resources[1].Username) // UAA client
 	assert.Equal(t, "client-id", list.Resources[1].PresentationName)
 }
 
 func TestUsersClient_Update(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/users/user-guid", r.URL.Path)
-		assert.Equal(t, "PATCH", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/users/user-guid", request.URL.Path)
+		assert.Equal(t, "PATCH", request.Method)
 
 		var req capi.UserUpdateRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
+
+		err := json.NewDecoder(request.Body).Decode(&req)
+		assert.NoError(t, err)
 		assert.Equal(t, "staging", req.Metadata.Labels["environment"])
 		assert.Equal(t, "updated note", req.Metadata.Annotations["note"])
 
@@ -276,13 +290,13 @@ func TestUsersClient_Update(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(user)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(user)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	users := NewUsersClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	users := NewUsersClient(httpClient)
 
 	req := &capi.UserUpdateRequest{
 		Metadata: &capi.Metadata{
@@ -304,9 +318,11 @@ func TestUsersClient_Update(t *testing.T) {
 }
 
 func TestUsersClient_Delete(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/users/user-guid", r.URL.Path)
-		assert.Equal(t, "DELETE", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/users/user-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -323,15 +339,15 @@ func TestUsersClient_Delete(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
-	client := &Client{httpClient: internalhttp.NewClient(server.URL, nil)}
-	users := NewUsersClient(client.httpClient)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	users := NewUsersClient(httpClient)
 
 	job, err := users.Delete(context.Background(), "user-guid")
 	require.NoError(t, err)

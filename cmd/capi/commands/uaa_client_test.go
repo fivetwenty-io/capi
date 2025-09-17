@@ -1,12 +1,16 @@
+//nolint:testpackage // Need access to internal types
 package commands
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUAAClientWrapper_IsAuthenticated(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config *Config
@@ -41,17 +45,21 @@ func TestUAAClientWrapper_IsAuthenticated(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			wrapper := &UAAClientWrapper{
-				config: tt.config,
+				config: testCase.config,
 			}
-			assert.Equal(t, tt.want, wrapper.IsAuthenticated())
+			assert.Equal(t, testCase.want, wrapper.IsAuthenticated())
 		})
 	}
 }
 
 func TestUAAClientWrapper_GetToken(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		config   *Config
@@ -79,17 +87,21 @@ func TestUAAClientWrapper_GetToken(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			wrapper := &UAAClientWrapper{
-				config: tt.config,
+				config: testCase.config,
 			}
-			assert.Equal(t, tt.expected, wrapper.GetToken())
+			assert.Equal(t, testCase.expected, wrapper.GetToken())
 		})
 	}
 }
 
 func TestUAAClientWrapper_SetToken(t *testing.T) {
+	t.Parallel()
+
 	config := &Config{}
 	wrapper := &UAAClientWrapper{
 		config: config,
@@ -100,6 +112,8 @@ func TestUAAClientWrapper_SetToken(t *testing.T) {
 }
 
 func TestUAAClientWrapper_InferUAAEndpoint(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		cfAPIURL    string
@@ -127,20 +141,24 @@ func TestUAAClientWrapper_InferUAAEndpoint(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			wrapper := &UAAClientWrapper{
 				config: &Config{
-					API: tt.cfAPIURL,
+					API: testCase.cfAPIURL,
 				},
 			}
-			url := wrapper.inferUAAEndpointFromAPI(tt.cfAPIURL)
-			assert.Equal(t, tt.expectedURL, url)
+			url := wrapper.inferUAAEndpointFromAPI(testCase.cfAPIURL)
+			assert.Equal(t, testCase.expectedURL, url)
 		})
 	}
 }
 
 func TestUAAClientWrapper_Endpoint(t *testing.T) {
+	t.Parallel()
+
 	wrapper := &UAAClientWrapper{
 		endpoint: "https://uaa.example.com",
 	}
@@ -148,12 +166,14 @@ func TestUAAClientWrapper_Endpoint(t *testing.T) {
 }
 
 func TestNewUAAClient_NoEndpoint(t *testing.T) {
+	t.Parallel()
+
 	config := &Config{
 		// No UAA endpoint or CF API endpoint
 	}
 
 	client, err := NewUAAClient(config)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, client)
 	assert.Contains(t, err.Error(), "no UAA endpoint configured")
 }

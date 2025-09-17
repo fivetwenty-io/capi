@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/constants"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// MockClient implements capi.Client for testing
+// MockClient implements capi.Client for testing.
 type MockClient struct {
 	mock.Mock
 }
@@ -20,33 +21,117 @@ type MockClient struct {
 func (m *MockClient) GetInfo(ctx context.Context) (*capi.Info, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("mock error in GetInfo: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.Info), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		info, ok := args.Get(0).(*capi.Info)
+		if !ok {
+			return nil, constants.ErrInvalidTypeAssertion
+		}
+
+		return info, fmt.Errorf("mock error in GetInfo: %w", err)
+	}
+
+	info, ok := args.Get(0).(*capi.Info)
+	if !ok {
+		return nil, constants.ErrInvalidTypeAssertion
+	}
+
+	return info, nil
 }
 
 func (m *MockClient) GetRootInfo(ctx context.Context) (*capi.RootInfo, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("mock error in GetRootInfo: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.RootInfo), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		rootInfo, ok := args.Get(0).(*capi.RootInfo)
+		if !ok {
+			return nil, constants.ErrInvalidTypeAssertion
+		}
+
+		return rootInfo, fmt.Errorf("mock error in GetRootInfo: %w", err)
+	}
+
+	rootInfo, ok := args.Get(0).(*capi.RootInfo)
+	if !ok {
+		return nil, constants.ErrInvalidTypeAssertion
+	}
+
+	return rootInfo, nil
 }
 
 func (m *MockClient) GetUsageSummary(ctx context.Context) (*capi.UsageSummary, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("GetUsageSummary failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.UsageSummary), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		usageSummary, ok := args.Get(0).(*capi.UsageSummary)
+		if !ok {
+			return nil, constants.ErrInvalidTypeAssertion
+		}
+
+		return usageSummary, fmt.Errorf("GetUsageSummary failed: %w", err)
+	}
+
+	summary, ok := args.Get(0).(*capi.UsageSummary)
+	if !ok {
+		return nil, fmt.Errorf("%w", constants.ErrUnexpectedMockReturnType)
+	}
+
+	return summary, nil
 }
 
 func (m *MockClient) ClearBuildpackCache(ctx context.Context) (*capi.Job, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("ClearBuildpackCache failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.Job), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		job, ok := args.Get(0).(*capi.Job)
+		if !ok {
+			return nil, fmt.Errorf("ClearBuildpackCache failed: %w", err)
+		}
+
+		return job, fmt.Errorf("ClearBuildpackCache failed: %w", err)
+	}
+
+	job, ok := args.Get(0).(*capi.Job)
+	if !ok {
+		return nil, fmt.Errorf("%w", constants.ErrUnexpectedMockReturnType)
+	}
+
+	return job, nil
 }
 
 func (m *MockClient) Apps() capi.AppsClient {
@@ -54,7 +139,13 @@ func (m *MockClient) Apps() capi.AppsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.AppsClient)
+
+	client, ok := args.Get(0).(capi.AppsClient)
+	if !ok {
+		return nil
+	}
+
+	return client
 }
 
 func (m *MockClient) Organizations() capi.OrganizationsClient {
@@ -62,7 +153,13 @@ func (m *MockClient) Organizations() capi.OrganizationsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.OrganizationsClient)
+
+	client, ok := args.Get(0).(capi.OrganizationsClient)
+	if !ok {
+		return nil
+	}
+
+	return client
 }
 
 func (m *MockClient) Spaces() capi.SpacesClient {
@@ -70,7 +167,13 @@ func (m *MockClient) Spaces() capi.SpacesClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.SpacesClient)
+
+	client, ok := args.Get(0).(capi.SpacesClient)
+	if !ok {
+		return nil
+	}
+
+	return client
 }
 
 func (m *MockClient) Domains() capi.DomainsClient {
@@ -78,7 +181,10 @@ func (m *MockClient) Domains() capi.DomainsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.DomainsClient)
+
+	client, _ := args.Get(0).(capi.DomainsClient)
+
+	return client
 }
 
 func (m *MockClient) Routes() capi.RoutesClient {
@@ -86,7 +192,10 @@ func (m *MockClient) Routes() capi.RoutesClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.RoutesClient)
+
+	client, _ := args.Get(0).(capi.RoutesClient)
+
+	return client
 }
 
 func (m *MockClient) ServiceBrokers() capi.ServiceBrokersClient {
@@ -94,7 +203,10 @@ func (m *MockClient) ServiceBrokers() capi.ServiceBrokersClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ServiceBrokersClient)
+
+	client, _ := args.Get(0).(capi.ServiceBrokersClient)
+
+	return client
 }
 
 func (m *MockClient) ServiceOfferings() capi.ServiceOfferingsClient {
@@ -102,7 +214,10 @@ func (m *MockClient) ServiceOfferings() capi.ServiceOfferingsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ServiceOfferingsClient)
+
+	client, _ := args.Get(0).(capi.ServiceOfferingsClient)
+
+	return client
 }
 
 func (m *MockClient) ServicePlans() capi.ServicePlansClient {
@@ -110,7 +225,10 @@ func (m *MockClient) ServicePlans() capi.ServicePlansClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ServicePlansClient)
+
+	client, _ := args.Get(0).(capi.ServicePlansClient)
+
+	return client
 }
 
 func (m *MockClient) ServiceInstances() capi.ServiceInstancesClient {
@@ -118,7 +236,10 @@ func (m *MockClient) ServiceInstances() capi.ServiceInstancesClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ServiceInstancesClient)
+
+	client, _ := args.Get(0).(capi.ServiceInstancesClient)
+
+	return client
 }
 
 func (m *MockClient) ServiceCredentialBindings() capi.ServiceCredentialBindingsClient {
@@ -126,7 +247,10 @@ func (m *MockClient) ServiceCredentialBindings() capi.ServiceCredentialBindingsC
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ServiceCredentialBindingsClient)
+
+	client, _ := args.Get(0).(capi.ServiceCredentialBindingsClient)
+
+	return client
 }
 
 func (m *MockClient) ServiceRouteBindings() capi.ServiceRouteBindingsClient {
@@ -134,7 +258,10 @@ func (m *MockClient) ServiceRouteBindings() capi.ServiceRouteBindingsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ServiceRouteBindingsClient)
+
+	client, _ := args.Get(0).(capi.ServiceRouteBindingsClient)
+
+	return client
 }
 
 func (m *MockClient) Builds() capi.BuildsClient {
@@ -142,7 +269,10 @@ func (m *MockClient) Builds() capi.BuildsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.BuildsClient)
+
+	client, _ := args.Get(0).(capi.BuildsClient)
+
+	return client
 }
 
 func (m *MockClient) Buildpacks() capi.BuildpacksClient {
@@ -150,7 +280,10 @@ func (m *MockClient) Buildpacks() capi.BuildpacksClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.BuildpacksClient)
+
+	client, _ := args.Get(0).(capi.BuildpacksClient)
+
+	return client
 }
 
 func (m *MockClient) Deployments() capi.DeploymentsClient {
@@ -158,7 +291,10 @@ func (m *MockClient) Deployments() capi.DeploymentsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.DeploymentsClient)
+
+	client, _ := args.Get(0).(capi.DeploymentsClient)
+
+	return client
 }
 
 func (m *MockClient) Droplets() capi.DropletsClient {
@@ -166,7 +302,10 @@ func (m *MockClient) Droplets() capi.DropletsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.DropletsClient)
+
+	client, _ := args.Get(0).(capi.DropletsClient)
+
+	return client
 }
 
 func (m *MockClient) Packages() capi.PackagesClient {
@@ -174,7 +313,10 @@ func (m *MockClient) Packages() capi.PackagesClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.PackagesClient)
+
+	client, _ := args.Get(0).(capi.PackagesClient)
+
+	return client
 }
 
 func (m *MockClient) Processes() capi.ProcessesClient {
@@ -182,7 +324,10 @@ func (m *MockClient) Processes() capi.ProcessesClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ProcessesClient)
+
+	client, _ := args.Get(0).(capi.ProcessesClient)
+
+	return client
 }
 
 func (m *MockClient) Tasks() capi.TasksClient {
@@ -190,7 +335,10 @@ func (m *MockClient) Tasks() capi.TasksClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.TasksClient)
+
+	client, _ := args.Get(0).(capi.TasksClient)
+
+	return client
 }
 
 func (m *MockClient) Stacks() capi.StacksClient {
@@ -198,7 +346,10 @@ func (m *MockClient) Stacks() capi.StacksClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.StacksClient)
+
+	client, _ := args.Get(0).(capi.StacksClient)
+
+	return client
 }
 
 func (m *MockClient) Users() capi.UsersClient {
@@ -206,7 +357,10 @@ func (m *MockClient) Users() capi.UsersClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.UsersClient)
+
+	client, _ := args.Get(0).(capi.UsersClient)
+
+	return client
 }
 
 func (m *MockClient) Roles() capi.RolesClient {
@@ -214,7 +368,10 @@ func (m *MockClient) Roles() capi.RolesClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.RolesClient)
+
+	client, _ := args.Get(0).(capi.RolesClient)
+
+	return client
 }
 
 func (m *MockClient) SecurityGroups() capi.SecurityGroupsClient {
@@ -222,7 +379,10 @@ func (m *MockClient) SecurityGroups() capi.SecurityGroupsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.SecurityGroupsClient)
+
+	client, _ := args.Get(0).(capi.SecurityGroupsClient)
+
+	return client
 }
 
 func (m *MockClient) IsolationSegments() capi.IsolationSegmentsClient {
@@ -230,7 +390,10 @@ func (m *MockClient) IsolationSegments() capi.IsolationSegmentsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.IsolationSegmentsClient)
+
+	client, _ := args.Get(0).(capi.IsolationSegmentsClient)
+
+	return client
 }
 
 func (m *MockClient) FeatureFlags() capi.FeatureFlagsClient {
@@ -238,7 +401,10 @@ func (m *MockClient) FeatureFlags() capi.FeatureFlagsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.FeatureFlagsClient)
+
+	client, _ := args.Get(0).(capi.FeatureFlagsClient)
+
+	return client
 }
 
 func (m *MockClient) Jobs() capi.JobsClient {
@@ -246,7 +412,10 @@ func (m *MockClient) Jobs() capi.JobsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.JobsClient)
+
+	client, _ := args.Get(0).(capi.JobsClient)
+
+	return client
 }
 
 func (m *MockClient) OrganizationQuotas() capi.OrganizationQuotasClient {
@@ -254,7 +423,10 @@ func (m *MockClient) OrganizationQuotas() capi.OrganizationQuotasClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.OrganizationQuotasClient)
+
+	client, _ := args.Get(0).(capi.OrganizationQuotasClient)
+
+	return client
 }
 
 func (m *MockClient) SpaceQuotas() capi.SpaceQuotasClient {
@@ -262,7 +434,10 @@ func (m *MockClient) SpaceQuotas() capi.SpaceQuotasClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.SpaceQuotasClient)
+
+	client, _ := args.Get(0).(capi.SpaceQuotasClient)
+
+	return client
 }
 
 func (m *MockClient) Sidecars() capi.SidecarsClient {
@@ -270,7 +445,10 @@ func (m *MockClient) Sidecars() capi.SidecarsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.SidecarsClient)
+
+	client, _ := args.Get(0).(capi.SidecarsClient)
+
+	return client
 }
 
 func (m *MockClient) Revisions() capi.RevisionsClient {
@@ -278,7 +456,10 @@ func (m *MockClient) Revisions() capi.RevisionsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.RevisionsClient)
+
+	client, _ := args.Get(0).(capi.RevisionsClient)
+
+	return client
 }
 
 func (m *MockClient) EnvironmentVariableGroups() capi.EnvironmentVariableGroupsClient {
@@ -286,7 +467,10 @@ func (m *MockClient) EnvironmentVariableGroups() capi.EnvironmentVariableGroupsC
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.EnvironmentVariableGroupsClient)
+
+	client, _ := args.Get(0).(capi.EnvironmentVariableGroupsClient)
+
+	return client
 }
 
 func (m *MockClient) AppUsageEvents() capi.AppUsageEventsClient {
@@ -294,7 +478,10 @@ func (m *MockClient) AppUsageEvents() capi.AppUsageEventsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.AppUsageEventsClient)
+
+	client, _ := args.Get(0).(capi.AppUsageEventsClient)
+
+	return client
 }
 
 func (m *MockClient) ServiceUsageEvents() capi.ServiceUsageEventsClient {
@@ -302,7 +489,10 @@ func (m *MockClient) ServiceUsageEvents() capi.ServiceUsageEventsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ServiceUsageEventsClient)
+
+	client, _ := args.Get(0).(capi.ServiceUsageEventsClient)
+
+	return client
 }
 
 func (m *MockClient) AuditEvents() capi.AuditEventsClient {
@@ -310,7 +500,10 @@ func (m *MockClient) AuditEvents() capi.AuditEventsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.AuditEventsClient)
+
+	client, _ := args.Get(0).(capi.AuditEventsClient)
+
+	return client
 }
 
 func (m *MockClient) ResourceMatches() capi.ResourceMatchesClient {
@@ -318,7 +511,10 @@ func (m *MockClient) ResourceMatches() capi.ResourceMatchesClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ResourceMatchesClient)
+
+	client, _ := args.Get(0).(capi.ResourceMatchesClient)
+
+	return client
 }
 
 func (m *MockClient) Manifests() capi.ManifestsClient {
@@ -326,10 +522,13 @@ func (m *MockClient) Manifests() capi.ManifestsClient {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(capi.ManifestsClient)
+
+	client, _ := args.Get(0).(capi.ManifestsClient)
+
+	return client
 }
 
-// MockAppsClient implements capi.AppsClient for testing
+// MockAppsClient implements capi.AppsClient for testing.
 type MockAppsClient struct {
 	mock.Mock
 }
@@ -337,179 +536,459 @@ type MockAppsClient struct {
 func (m *MockAppsClient) Create(ctx context.Context, request *capi.AppCreateRequest) (*capi.App, error) {
 	args := m.Called(ctx, request)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("mock error: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.App), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		result, _ := args.Get(0).(*capi.App)
+
+		return result, fmt.Errorf("mock error: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.App)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) Get(ctx context.Context, guid string) (*capi.App, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("mock error: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.App), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		result, _ := args.Get(0).(*capi.App)
+
+		return result, fmt.Errorf("mock error: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.App)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.App], error) {
 	args := m.Called(ctx, params)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, fmt.Errorf("list apps failed: %w", args.Error(1))
 	}
-	return args.Get(0).(*capi.ListResponse[capi.App]), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		result, _ := args.Get(0).(*capi.ListResponse[capi.App])
+
+		return result, fmt.Errorf("list apps failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.ListResponse[capi.App])
+
+	return result, nil
 }
 
 func (m *MockAppsClient) Update(ctx context.Context, guid string, request *capi.AppUpdateRequest) (*capi.App, error) {
 	args := m.Called(ctx, guid, request)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, fmt.Errorf("update app failed: %w", args.Error(1))
 	}
-	return args.Get(0).(*capi.App), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		result, _ := args.Get(0).(*capi.App)
+
+		return result, fmt.Errorf("update app failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.App)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) Delete(ctx context.Context, guid string) error {
 	args := m.Called(ctx, guid)
-	return args.Error(0)
+
+	err := args.Error(0)
+	if err != nil {
+		return fmt.Errorf("delete app failed: %w", err)
+	}
+
+	return nil
 }
 
 func (m *MockAppsClient) GetCurrentDroplet(ctx context.Context, guid string) (*capi.Droplet, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get current droplet failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.Droplet), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		result, _ := args.Get(0).(*capi.Droplet)
+
+		return result, fmt.Errorf("get current droplet failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.Droplet)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) SetCurrentDroplet(ctx context.Context, guid string, dropletGUID string) (*capi.Relationship, error) {
 	args := m.Called(ctx, guid, dropletGUID)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("set current droplet failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.Relationship), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("set current droplet failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.Relationship)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) GetEnv(ctx context.Context, guid string) (*capi.AppEnvironment, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get app environment failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.AppEnvironment), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("get app environment failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.AppEnvironment)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) GetEnvVars(ctx context.Context, guid string) (map[string]interface{}, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get env vars failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(map[string]interface{}), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("get env vars failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(map[string]interface{})
+
+	return result, nil
 }
 
 func (m *MockAppsClient) UpdateEnvVars(ctx context.Context, guid string, vars map[string]interface{}) (map[string]interface{}, error) {
 	args := m.Called(ctx, guid, vars)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("update env vars failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(map[string]interface{}), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("update env vars failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(map[string]interface{})
+
+	return result, nil
 }
 
 func (m *MockAppsClient) GetPermissions(ctx context.Context, guid string) (*capi.AppPermissions, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get permissions failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.AppPermissions), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("get permissions failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.AppPermissions)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) GetSSHEnabled(ctx context.Context, guid string) (*capi.AppSSHEnabled, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get SSH enabled failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.AppSSHEnabled), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("get SSH enabled failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.AppSSHEnabled)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) Start(ctx context.Context, guid string) (*capi.App, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("start app failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.App), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("start app failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.App)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) Stop(ctx context.Context, guid string) (*capi.App, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("stop app failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.App), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("stop app failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.App)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) Restart(ctx context.Context, guid string) (*capi.App, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("restart app failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.App), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("restart app failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.App)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) Restage(ctx context.Context, guid string) (*capi.Build, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("restage app failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.Build), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("restage app failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.Build)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) ClearBuildpackCache(ctx context.Context, guid string) error {
 	args := m.Called(ctx, guid)
-	return args.Error(0)
+
+	err := args.Error(0)
+	if err != nil {
+		return fmt.Errorf("clear buildpack cache failed: %w", err)
+	}
+
+	return nil
 }
 
 func (m *MockAppsClient) GetManifest(ctx context.Context, guid string) (string, error) {
 	args := m.Called(ctx, guid)
-	return args.String(0), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return "", fmt.Errorf("get manifest failed: %w", err)
+	}
+
+	return args.String(0), nil
 }
 
 func (m *MockAppsClient) GetRecentLogs(ctx context.Context, guid string, lines int) (*capi.AppLogs, error) {
 	args := m.Called(ctx, guid, lines)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get recent logs failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.AppLogs), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("get recent logs failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.AppLogs)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) StreamLogs(ctx context.Context, guid string) (<-chan capi.LogMessage, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("stream logs failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(<-chan capi.LogMessage), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("stream logs failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(<-chan capi.LogMessage)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) GetFeatures(ctx context.Context, guid string) (*capi.AppFeatures, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get features failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.AppFeatures), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("get features failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.AppFeatures)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) GetFeature(ctx context.Context, guid, featureName string) (*capi.AppFeature, error) {
 	args := m.Called(ctx, guid, featureName)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("get feature failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.AppFeature), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("get feature failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.AppFeature)
+
+	return result, nil
 }
 
 func (m *MockAppsClient) UpdateFeature(ctx context.Context, guid, featureName string, request *capi.AppFeatureUpdateRequest) (*capi.AppFeature, error) {
 	args := m.Called(ctx, guid, featureName, request)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("update feature failed: %w", err)
+		}
+
+		return nil, nil
 	}
-	return args.Get(0).(*capi.AppFeature), args.Error(1)
+
+	err := args.Error(1)
+	if err != nil {
+		return nil, fmt.Errorf("update feature failed: %w", err)
+	}
+
+	result, _ := args.Get(0).(*capi.AppFeature)
+
+	return result, nil
 }
 
 func TestBatchExecutor_Execute(t *testing.T) {
+	t.Parallel()
+
 	mockClient := &MockClient{}
 	mockApps := &MockAppsClient{}
 	mockClient.On("Apps").Return(mockApps)
@@ -552,9 +1031,9 @@ func TestBatchExecutor_Execute(t *testing.T) {
 	// Check results
 	for _, result := range results {
 		assert.True(t, result.Success)
-		assert.NoError(t, result.Error)
+		require.NoError(t, result.Error)
 		assert.NotNil(t, result.Data)
-		assert.True(t, result.Duration > 0)
+		assert.Positive(t, result.Duration)
 	}
 
 	mockClient.AssertExpectations(t)
@@ -562,6 +1041,8 @@ func TestBatchExecutor_Execute(t *testing.T) {
 }
 
 func TestBatchExecutor_WithCallback(t *testing.T) {
+	t.Parallel()
+
 	mockClient := &MockClient{}
 	mockApps := &MockAppsClient{}
 	mockClient.On("Apps").Return(mockApps)
@@ -575,8 +1056,10 @@ func TestBatchExecutor_WithCallback(t *testing.T) {
 	}
 	mockApps.On("Get", mock.Anything, "app-guid").Return(app, nil)
 
-	var callbackCalled bool
-	var callbackResult *capi.BatchResult
+	var (
+		callbackCalled bool
+		callbackResult *capi.BatchResult
+	)
 
 	operation := capi.BatchOperation{
 		ID:       "op1",
@@ -602,6 +1085,8 @@ func TestBatchExecutor_WithCallback(t *testing.T) {
 }
 
 func TestBatchExecutor_WithError(t *testing.T) {
+	t.Parallel()
+
 	mockClient := &MockClient{}
 	mockApps := &MockAppsClient{}
 	mockClient.On("Apps").Return(mockApps)
@@ -609,7 +1094,7 @@ func TestBatchExecutor_WithError(t *testing.T) {
 	executor := capi.NewBatchExecutor(mockClient, 1)
 	ctx := context.Background()
 
-	mockApps.On("Get", mock.Anything, "app-guid").Return(nil, fmt.Errorf("app not found"))
+	mockApps.On("Get", mock.Anything, "app-guid").Return(nil, capi.ErrAppNotFound)
 
 	operation := capi.BatchOperation{
 		ID:       "op1",
@@ -624,7 +1109,7 @@ func TestBatchExecutor_WithError(t *testing.T) {
 
 	result := results[0]
 	assert.False(t, result.Success)
-	assert.Error(t, result.Error)
+	require.Error(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "app not found")
 
 	mockClient.AssertExpectations(t)
@@ -632,6 +1117,8 @@ func TestBatchExecutor_WithError(t *testing.T) {
 }
 
 func TestBatchBuilder(t *testing.T) {
+	t.Parallel()
+
 	builder := capi.NewBatchBuilder()
 
 	req1 := &capi.AppCreateRequest{
@@ -666,6 +1153,8 @@ func TestBatchBuilder(t *testing.T) {
 }
 
 func TestBatchExecutor_Timeout(t *testing.T) {
+	t.Parallel()
+
 	mockClient := &MockClient{}
 	executor := capi.NewBatchExecutor(mockClient, 1)
 	executor.SetTimeout(1 * time.Millisecond)
@@ -685,5 +1174,5 @@ func TestBatchExecutor_Timeout(t *testing.T) {
 
 	result := results[0]
 	assert.False(t, result.Success)
-	assert.Error(t, result.Error)
+	require.Error(t, result.Error)
 }

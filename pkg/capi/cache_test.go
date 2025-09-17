@@ -11,6 +11,8 @@ import (
 )
 
 func TestMemoryCache_SetAndGet(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	ctx := context.Background()
 
@@ -32,15 +34,19 @@ func TestMemoryCache_SetAndGet(t *testing.T) {
 }
 
 func TestMemoryCache_GetNonExistent(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	ctx := context.Background()
 
 	_, err := cache.Get(ctx, "nonexistent")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "key not found")
 }
 
 func TestMemoryCache_GetExpired(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	ctx := context.Background()
 
@@ -54,11 +60,13 @@ func TestMemoryCache_GetExpired(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = cache.Get(ctx, "key1")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "entry expired")
 }
 
 func TestMemoryCache_Delete(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	ctx := context.Background()
 
@@ -81,11 +89,13 @@ func TestMemoryCache_Delete(t *testing.T) {
 }
 
 func TestMemoryCache_Clear(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	ctx := context.Background()
 
 	// Add multiple entries
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		entry := &capi.CacheEntry{
 			Data:      []byte("test data"),
 			ExpiresAt: time.Now().Add(1 * time.Hour),
@@ -109,11 +119,13 @@ func TestMemoryCache_Clear(t *testing.T) {
 }
 
 func TestMemoryCache_MaxSize(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(2)
 	ctx := context.Background()
 
 	// Add entries up to max size
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		entry := &capi.CacheEntry{
 			Data:      []byte("test data"),
 			ExpiresAt: time.Now().Add(time.Duration(i+1) * time.Hour),
@@ -124,15 +136,19 @@ func TestMemoryCache_MaxSize(t *testing.T) {
 	// The cache should have evicted the oldest entry
 	// Since we can't easily check internal state, we verify behavior
 	has := 0
-	for i := 0; i < 3; i++ {
+
+	for i := range 3 {
 		if cache.Has(ctx, string(rune('a'+i))) {
 			has++
 		}
 	}
+
 	assert.LessOrEqual(t, has, 2)
 }
 
 func TestMemoryCache_Cleanup(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	ctx := context.Background()
 
@@ -159,6 +175,8 @@ func TestMemoryCache_Cleanup(t *testing.T) {
 }
 
 func TestCacheManager_GetCacheKey(t *testing.T) {
+	t.Parallel()
+
 	manager := capi.NewCacheManager(nil, nil)
 
 	// Test with no params
@@ -174,6 +192,8 @@ func TestCacheManager_GetCacheKey(t *testing.T) {
 }
 
 func TestCacheManager_SetAndGet(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	manager := capi.NewCacheManager(cache, nil)
 	ctx := context.Background()
@@ -198,6 +218,8 @@ func TestCacheManager_SetAndGet(t *testing.T) {
 }
 
 func TestCacheManager_SetWithETag(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	manager := capi.NewCacheManager(cache, nil)
 	ctx := context.Background()
@@ -217,13 +239,15 @@ func TestCacheManager_SetWithETag(t *testing.T) {
 }
 
 func TestCacheManager_Miss(t *testing.T) {
+	t.Parallel()
+
 	cache := capi.NewMemoryCache(10)
 	manager := capi.NewCacheManager(cache, nil)
 	ctx := context.Background()
 
 	// Try to get non-existent key
 	_, err := manager.Get(ctx, "nonexistent")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Check stats
 	stats := manager.GetStats()
@@ -232,20 +256,24 @@ func TestCacheManager_Miss(t *testing.T) {
 }
 
 func TestCacheStats_GetHitRate(t *testing.T) {
+	t.Parallel()
+
 	stats := &capi.CacheStats{
 		Hits:   75,
 		Misses: 25,
 	}
 
 	hitRate := stats.GetHitRate()
-	assert.Equal(t, 0.75, hitRate)
+	assert.InDelta(t, 0.75, hitRate, 0.0001)
 
 	// Test with no requests
 	emptyStats := &capi.CacheStats{}
-	assert.Equal(t, 0.0, emptyStats.GetHitRate())
+	assert.InDelta(t, 0.0, emptyStats.GetHitRate(), 0.0001)
 }
 
 func TestCachingPolicy_ShouldCache(t *testing.T) {
+	t.Parallel()
+
 	policy := capi.DefaultCachingPolicy()
 
 	// Test GET requests (should cache)

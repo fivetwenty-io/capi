@@ -1,3 +1,4 @@
+//nolint:testpackage // Need access to internal types
 package commands
 
 import (
@@ -7,6 +8,8 @@ import (
 )
 
 func TestCreateUsersCurlCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersCurlCommand()
 	assert.Equal(t, "curl <path>", cmd.Use)
 	assert.Equal(t, "Direct UAA API access", cmd.Short)
@@ -21,6 +24,8 @@ func TestCreateUsersCurlCommand(t *testing.T) {
 }
 
 func TestCreateUsersUserinfoCommand(t *testing.T) {
+	t.Parallel()
+
 	cmd := createUsersUserinfoCommand()
 	assert.Equal(t, "userinfo", cmd.Use)
 	assert.Equal(t, "Display current user claims", cmd.Short)

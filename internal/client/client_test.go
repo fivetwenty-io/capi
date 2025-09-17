@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -7,69 +7,84 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	. "github.com/fivetwenty-io/capi/v3/internal/client"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestNew(t *testing.T) {
+	t.Parallel()
 	t.Run("requires API endpoint", func(t *testing.T) {
+		t.Parallel()
+
 		config := &capi.Config{}
-		_, err := New(config)
-		assert.Error(t, err)
+		_, err := New(context.Background(), config)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "API endpoint is required")
 	})
 
 	t.Run("creates client with access token", func(t *testing.T) {
+		t.Parallel()
+
 		config := &capi.Config{
 			APIEndpoint: "https://api.example.com",
 			AccessToken: "test-token",
 		}
 
-		client, err := New(config)
+		client, err := New(context.Background(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 	})
 
 	t.Run("creates client with client credentials", func(t *testing.T) {
+		t.Parallel()
+
 		config := &capi.Config{
 			APIEndpoint:  "https://api.example.com",
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
 		}
 
-		client, err := New(config)
+		client, err := New(context.Background(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 	})
 
 	t.Run("creates client with username/password", func(t *testing.T) {
+		t.Parallel()
+
 		config := &capi.Config{
 			APIEndpoint: "https://api.example.com",
 			Username:    "user",
 			Password:    "pass",
 		}
 
-		client, err := New(config)
+		client, err := New(context.Background(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 	})
 
 	t.Run("creates client without authentication", func(t *testing.T) {
+		t.Parallel()
+
 		config := &capi.Config{
 			APIEndpoint: "https://api.example.com",
 		}
 
-		client, err := New(config)
+		client, err := New(context.Background(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 	})
 }
 
 func TestClient_GetInfo(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/info", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/info", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		info := capi.Info{
 			Build:       "1.2.3",
@@ -83,8 +98,8 @@ func TestClient_GetInfo(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(info)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(info)
 	}))
 	defer server.Close()
 
@@ -92,7 +107,7 @@ func TestClient_GetInfo(t *testing.T) {
 		APIEndpoint: server.URL,
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	require.NoError(t, err)
 
 	info, err := client.GetInfo(context.Background())
@@ -104,26 +119,28 @@ func TestClient_GetInfo(t *testing.T) {
 }
 
 func TestClient_GetRootInfo(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		rootInfo := capi.RootInfo{
 			Links: capi.Links{
 				"self": capi.Link{
-					Href: r.Host,
+					Href: request.Host,
 				},
 				"cloud_controller_v2": capi.Link{
-					Href: r.Host + "/v2",
+					Href: request.Host + "/v2",
 				},
 				"cloud_controller_v3": capi.Link{
-					Href: r.Host + "/v3",
+					Href: request.Host + "/v3",
 				},
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(rootInfo)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(rootInfo)
 	}))
 	defer server.Close()
 
@@ -131,7 +148,7 @@ func TestClient_GetRootInfo(t *testing.T) {
 		APIEndpoint: server.URL,
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	require.NoError(t, err)
 
 	rootInfo, err := client.GetRootInfo(context.Background())
@@ -141,9 +158,11 @@ func TestClient_GetRootInfo(t *testing.T) {
 }
 
 func TestClient_GetUsageSummary(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/info/usage_summary", r.URL.Path)
-		assert.Equal(t, "GET", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/info/usage_summary", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
 
 		summary := capi.UsageSummary{
 			UsageSummary: capi.UsageSummaryData{
@@ -152,13 +171,13 @@ func TestClient_GetUsageSummary(t *testing.T) {
 			},
 			Links: capi.Links{
 				"self": capi.Link{
-					Href: r.Host + "/v3/info/usage_summary",
+					Href: request.Host + "/v3/info/usage_summary",
 				},
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(summary)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(summary)
 	}))
 	defer server.Close()
 
@@ -166,7 +185,7 @@ func TestClient_GetUsageSummary(t *testing.T) {
 		APIEndpoint: server.URL,
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	require.NoError(t, err)
 
 	summary, err := client.GetUsageSummary(context.Background())
@@ -177,9 +196,11 @@ func TestClient_GetUsageSummary(t *testing.T) {
 }
 
 func TestClient_ClearBuildpackCache(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/admin/actions/clear_buildpack_cache", r.URL.Path)
-		assert.Equal(t, "POST", r.Method)
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/admin/actions/clear_buildpack_cache", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
 
 		job := capi.Job{
 			Resource: capi.Resource{
@@ -189,9 +210,9 @@ func TestClient_ClearBuildpackCache(t *testing.T) {
 			State:     "PROCESSING",
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(job)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -199,7 +220,7 @@ func TestClient_ClearBuildpackCache(t *testing.T) {
 		APIEndpoint: server.URL,
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	require.NoError(t, err)
 
 	job, err := client.ClearBuildpackCache(context.Background())
@@ -211,11 +232,13 @@ func TestClient_ClearBuildpackCache(t *testing.T) {
 }
 
 func TestClient_ResourceAccessors(t *testing.T) {
+	t.Parallel()
+
 	config := &capi.Config{
 		APIEndpoint: "https://api.example.com",
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	require.NoError(t, err)
 
 	// Test that all accessors return their respective clients (or nil for now)
