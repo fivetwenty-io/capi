@@ -293,7 +293,9 @@ func MetricsRequestInterceptor(collector *MetricsCollector) RequestInterceptor {
 		if req.Metadata == nil {
 			req.Metadata = make(map[string]interface{})
 		}
+
 		req.Metadata["start_time"] = time.Now()
+
 		return nil
 	}
 }

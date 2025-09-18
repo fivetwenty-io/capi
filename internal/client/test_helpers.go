@@ -371,7 +371,6 @@ func RunAppActionTests(t *testing.T, tests []TestAppActionOperation) {
 func RunErrorTypeTests(t *testing.T, testName string, targetErrorCode int, checkFunction func(error) bool) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-
 		tests := []struct {
 			name     string
 			err      error
@@ -624,7 +623,6 @@ func RunCreateTestsSimple[TRequest, TResponse any](
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				assert.Equal(t, testCase.expectedPath, request.URL.Path)
 				assert.Equal(t, "POST", request.Method)
@@ -681,7 +679,6 @@ func RunGetTestsSimple[TResponse any](
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				assert.Equal(t, testCase.expectedPath, request.URL.Path)
 				assert.Equal(t, "GET", request.Method)
@@ -727,7 +724,6 @@ func RunShareWithTest(
 	t.Helper()
 
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, relationshipPath, request.URL.Path)
 			assert.Equal(t, "POST", request.Method)
@@ -777,7 +773,6 @@ func RunListTestSimple[TResource any](
 	t.Helper()
 
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "GET", request.Method)
@@ -826,7 +821,6 @@ func RunQuotaCreateTest[TRequest, TResponse any](
 	t.Helper()
 
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "POST", request.Method)
@@ -871,7 +865,6 @@ func RunRoleCreateTest(
 	t.Helper()
 
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, "/v3/roles", request.URL.Path)
 			assert.Equal(t, "POST", request.Method)
@@ -938,7 +931,6 @@ func RunServiceListTest[TResource any](
 ) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "GET", request.Method)
@@ -988,7 +980,6 @@ func RunJobDeleteTest(
 ) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "DELETE", request.Method)
@@ -1071,7 +1062,6 @@ func RunSimpleListTest[TResource any](
 ) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "GET", request.Method)
@@ -1146,7 +1136,6 @@ func uploadMultipartFile(ctx context.Context, httpClient *internalhttp.Client, p
 func RunCreateTestWithValidation(t *testing.T, testName, expectedPath string, statusCode int, response interface{}, wantErr bool, errMessage string, testFunc func(*Client) error) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "POST", request.Method)
@@ -1175,7 +1164,6 @@ func RunCreateTestWithValidation(t *testing.T, testName, expectedPath string, st
 func RunGetTestWithValidation(t *testing.T, testName, guid, expectedPath string, statusCode int, response interface{}, wantErr bool, errMessage string, testFunc func(*Client, string) error) {
 	t.Helper()
 	t.Run(testName, func(t *testing.T) {
-
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "GET", request.Method)
