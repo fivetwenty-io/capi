@@ -357,9 +357,17 @@ type SecurityGroupGloballyEnabled struct {
 	Staging bool `json:"staging" yaml:"staging"`
 }
 
-// SecurityGroupRule represents a security group rule.
+// SecurityGroupRule defines a network rule for a security group.
+// IPv6 security groups can be configured if cc.enable_ipv6 is set to true.
+// For 'icmp' protocol, only IPv4 addresses are allowed in Destination.
+// For 'icmpv6' protocol, only IPv6 addresses are allowed in Destination.
 type SecurityGroupRule struct {
-	Protocol    string  `json:"protocol"              yaml:"protocol"`
+	Protocol string `json:"protocol" yaml:"protocol"`
+	// Destination where the rule applies. Must be a singular valid CIDR, IP address,
+	// or IP address range unless cc.security_groups.enable_comma_delimited_destinations
+	// is enabled. Then, the destination can be a comma-delimited string of CIDRs,
+	// IP addresses, or IP address ranges. Octets within IPv4 destinations cannot
+	// contain leading zeros; eg. 10.0.0.0/24 is valid, but 010.00.000.0/24 is not.
 	Destination string  `json:"destination"           yaml:"destination"`
 	Ports       *string `json:"ports,omitempty"       yaml:"ports,omitempty"`
 	Type        *int    `json:"type,omitempty"        yaml:"type,omitempty"`

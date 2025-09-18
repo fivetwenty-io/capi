@@ -96,6 +96,11 @@ func TestClient_GetInfo(t *testing.T) {
 				Minimum:     "1.0.0",
 				Recommended: "2.0.0",
 			},
+			RateLimits: capi.RateLimits{
+				Enabled:                true,
+				GeneralLimit:           2000,
+				ResetIntervalInMinutes: 30,
+			},
 		}
 
 		writer.Header().Set("Content-Type", "application/json")
@@ -116,6 +121,9 @@ func TestClient_GetInfo(t *testing.T) {
 	assert.Equal(t, "1.2.3", info.Build)
 	assert.Equal(t, "Test CF", info.Name)
 	assert.Equal(t, 3, info.Version)
+	assert.True(t, info.RateLimits.Enabled)
+	assert.Equal(t, 2000, info.RateLimits.GeneralLimit)
+	assert.Equal(t, 30, info.RateLimits.ResetIntervalInMinutes)
 }
 
 func TestClient_GetRootInfo(t *testing.T) {

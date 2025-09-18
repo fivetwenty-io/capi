@@ -203,6 +203,7 @@ type Info struct {
 	Description string                 `json:"description" yaml:"description"`
 	Name        string                 `json:"name"        yaml:"name"`
 	Version     int                    `json:"version"     yaml:"version"`
+	RateLimits  RateLimits             `json:"rate_limits" yaml:"rate_limits"`
 	Links       Links                  `json:"links"       yaml:"links"`
 	CFOnK8s     bool                   `json:"cf_on_k8s"   yaml:"cf_on_k8s"`
 }
@@ -211,6 +212,13 @@ type Info struct {
 type CLIVersion struct {
 	Minimum     string `json:"minimum"     yaml:"minimum"`
 	Recommended string `json:"recommended" yaml:"recommended"`
+}
+
+// RateLimits represents rate limiting configuration.
+type RateLimits struct {
+	Enabled                bool `json:"enabled"                   yaml:"enabled"`
+	GeneralLimit           int  `json:"general_limit"             yaml:"general_limit"`
+	ResetIntervalInMinutes int  `json:"reset_interval_in_minutes" yaml:"reset_interval_in_minutes"`
 }
 
 // RootInfo represents the root / response.
