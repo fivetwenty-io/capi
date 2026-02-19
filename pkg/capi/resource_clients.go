@@ -336,6 +336,7 @@ type ProcessesClient interface {
 	Update(ctx context.Context, guid string, request *ProcessUpdateRequest) (*Process, error)
 	Scale(ctx context.Context, guid string, request *ProcessScaleRequest) (*Process, error)
 	GetStats(ctx context.Context, guid string) (*ProcessStats, error)
+	ListInstances(ctx context.Context, guid string) (*ListResponse[ProcessInstance], error)
 	TerminateInstance(ctx context.Context, guid string, index int) error
 }
 

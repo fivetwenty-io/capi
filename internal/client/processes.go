@@ -120,6 +120,25 @@ func (c *ProcessesClient) GetStats(ctx context.Context, guid string) (*capi.Proc
 	return &stats, nil
 }
 
+// ListInstances retrieves the instances for a process.
+func (c *ProcessesClient) ListInstances(ctx context.Context, guid string) (*capi.ListResponse[capi.ProcessInstance], error) {
+	path := fmt.Sprintf("/v3/processes/%s/process_instances", guid)
+
+	resp, err := c.httpClient.Get(ctx, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("listing process instances: %w", err)
+	}
+
+	var result capi.ListResponse[capi.ProcessInstance]
+
+	err = json.Unmarshal(resp.Body, &result)
+	if err != nil {
+		return nil, fmt.Errorf("parsing process instances response: %w", err)
+	}
+
+	return &result, nil
+}
+
 // TerminateInstance terminates a specific instance of a process.
 func (c *ProcessesClient) TerminateInstance(ctx context.Context, guid string, index int) error {
 	path := fmt.Sprintf("/v3/processes/%s/instances/%d", guid, index)

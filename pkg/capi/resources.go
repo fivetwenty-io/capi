@@ -855,6 +855,13 @@ type ProcessScaleRequest struct {
 	LogRateLimitInBytesPerSecond *int `json:"log_rate_limit_in_bytes_per_second,omitempty" yaml:"log_rate_limit_in_bytes_per_second,omitempty"`
 }
 
+// ProcessInstance represents a process instance from the process_instances endpoint.
+type ProcessInstance struct {
+	Index int    `json:"index" yaml:"index"`
+	State string `json:"state" yaml:"state"` // "RUNNING", "CRASHED", "STARTING", "STOPPING", "DOWN"
+	Since int    `json:"since" yaml:"since"` // Seconds since the instance entered its current state
+}
+
 // ProcessStats represents statistics for a process.
 type ProcessStats struct {
 	Pagination *Pagination          `json:"pagination" yaml:"pagination"`
@@ -962,14 +969,15 @@ type TaskUpdateRequest struct {
 type Stack struct {
 	Resource
 
-	Name             string    `json:"name"               yaml:"name"`
-	Description      string    `json:"description"        yaml:"description"`
-	State            string    `json:"state"              yaml:"state"` // "ACTIVE", "RESTRICTED", "DEPRECATED", "DISABLED"
-	BuildRootfsImage string    `json:"build_rootfs_image" yaml:"build_rootfs_image"`
-	RunRootfsImage   string    `json:"run_rootfs_image"   yaml:"run_rootfs_image"`
-	Default          bool      `json:"default"            yaml:"default"`
-	Metadata         *Metadata `json:"metadata,omitempty" yaml:"metadata,omitempty"`
-	Links            Links     `json:"links,omitempty"    yaml:"links,omitempty"`
+	Name             string    `json:"name"                   yaml:"name"`
+	Description      string    `json:"description"            yaml:"description"`
+	State            string    `json:"state"                  yaml:"state"` // "ACTIVE", "RESTRICTED", "DEPRECATED", "DISABLED"
+	StateReason      string    `json:"state_reason,omitempty" yaml:"state_reason,omitempty"`
+	BuildRootfsImage string    `json:"build_rootfs_image"     yaml:"build_rootfs_image"`
+	RunRootfsImage   string    `json:"run_rootfs_image"       yaml:"run_rootfs_image"`
+	Default          bool      `json:"default"                yaml:"default"`
+	Metadata         *Metadata `json:"metadata,omitempty"     yaml:"metadata,omitempty"`
+	Links            Links     `json:"links,omitempty"        yaml:"links,omitempty"`
 }
 
 // StackCreateRequest is the request for creating a stack.
@@ -980,6 +988,8 @@ type StackCreateRequest struct {
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	// State sets the stack state; valid values: "ACTIVE", "RESTRICTED", "DEPRECATED", "DISABLED".
 	State string `json:"state,omitempty" yaml:"state,omitempty"`
+	// StateReason is optional plain text describing the stack state change.
+	StateReason string `json:"state_reason,omitempty" yaml:"state_reason,omitempty"`
 	// BuildRootfsImage and RunRootfsImage point to OCI images used for staging and running.
 	BuildRootfsImage string `json:"build_rootfs_image,omitempty" yaml:"build_rootfs_image,omitempty"`
 	RunRootfsImage   string `json:"run_rootfs_image,omitempty"   yaml:"run_rootfs_image,omitempty"`
@@ -991,6 +1001,8 @@ type StackCreateRequest struct {
 type StackUpdateRequest struct {
 	// State updates the stack state; valid values: "ACTIVE", "RESTRICTED", "DEPRECATED", "DISABLED".
 	State *string `json:"state,omitempty" yaml:"state,omitempty"`
+	// StateReason is optional plain text describing the stack state change.
+	StateReason *string `json:"state_reason,omitempty" yaml:"state_reason,omitempty"`
 	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
