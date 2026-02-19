@@ -1231,17 +1231,18 @@ type ServicePlanVisibilityApplyRequest struct {
 type ServiceInstance struct {
 	Resource
 
-	Name             string                        `json:"name"                        yaml:"name"`
-	Type             string                        `json:"type"                        yaml:"type"` // "managed" or "user-provided"
-	Tags             []string                      `json:"tags"                        yaml:"tags"`
-	MaintenanceInfo  *ServiceInstanceMaintenance   `json:"maintenance_info,omitempty"  yaml:"maintenance_info,omitempty"`
-	UpgradeAvailable bool                          `json:"upgrade_available"           yaml:"upgrade_available"`
-	DashboardURL     *string                       `json:"dashboard_url,omitempty"     yaml:"dashboard_url,omitempty"`
-	LastOperation    *ServiceInstanceLastOperation `json:"last_operation"              yaml:"last_operation"`
-	SyslogDrainURL   *string                       `json:"syslog_drain_url,omitempty"  yaml:"syslog_drain_url,omitempty"`  // For user-provided
-	RouteServiceURL  *string                       `json:"route_service_url,omitempty" yaml:"route_service_url,omitempty"` // For user-provided
-	Relationships    ServiceInstanceRelationships  `json:"relationships"               yaml:"relationships"`
-	Metadata         *Metadata                     `json:"metadata,omitempty"          yaml:"metadata,omitempty"`
+	Name                   string                                 `json:"name"                               yaml:"name"`
+	Type                   string                                 `json:"type"                               yaml:"type"` // "managed" or "user-provided"
+	Tags                   []string                               `json:"tags"                               yaml:"tags"`
+	MaintenanceInfo        *ServiceInstanceMaintenance            `json:"maintenance_info,omitempty"         yaml:"maintenance_info,omitempty"`
+	UpgradeAvailable       bool                                   `json:"upgrade_available"                  yaml:"upgrade_available"`
+	DashboardURL           *string                                `json:"dashboard_url,omitempty"            yaml:"dashboard_url,omitempty"`
+	BrokerProvidedMetadata *ServiceInstanceBrokerProvidedMetadata `json:"broker_provided_metadata,omitempty" yaml:"broker_provided_metadata,omitempty"` // For managed instances
+	LastOperation          *ServiceInstanceLastOperation          `json:"last_operation"                     yaml:"last_operation"`
+	SyslogDrainURL         *string                                `json:"syslog_drain_url,omitempty"         yaml:"syslog_drain_url,omitempty"`  // For user-provided
+	RouteServiceURL        *string                                `json:"route_service_url,omitempty"        yaml:"route_service_url,omitempty"` // For user-provided
+	Relationships          ServiceInstanceRelationships           `json:"relationships"                      yaml:"relationships"`
+	Metadata               *Metadata                              `json:"metadata,omitempty"                 yaml:"metadata,omitempty"`
 }
 
 // ServiceInstanceMaintenance represents maintenance information for a service instance.
@@ -1257,6 +1258,13 @@ type ServiceInstanceLastOperation struct {
 	Description string     `json:"description" yaml:"description"`
 	CreatedAt   *time.Time `json:"created_at"  yaml:"created_at"`
 	UpdatedAt   *time.Time `json:"updated_at"  yaml:"updated_at"`
+}
+
+// ServiceInstanceBrokerProvidedMetadata represents metadata provided by the service broker
+// about a managed service instance.
+type ServiceInstanceBrokerProvidedMetadata struct {
+	Attributes map[string]interface{} `json:"attributes,omitempty" yaml:"attributes,omitempty"` // Broker-specific key-value pairs that MAY imply behavior changes
+	Labels     map[string]interface{} `json:"labels,omitempty"     yaml:"labels,omitempty"`     // Broker-specified key-value pairs for attributes
 }
 
 // ServiceInstanceRelationships represents service instance relationships.
