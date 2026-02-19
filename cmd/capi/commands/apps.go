@@ -285,6 +285,7 @@ func extractBuildpacks(app capi.App) string {
 	}
 
 	var bpStrs []string
+
 	for _, bp := range bps {
 		if bpStr, ok := bp.(string); ok {
 			bpStrs = append(bpStrs, bpStr)
@@ -2070,7 +2071,7 @@ func handleEmptyProcesses(appName string) error {
 
 // collectAllStatistics collects statistics for all processes.
 func collectAllStatistics(ctx context.Context, client capi.Client, processes []capi.Process) []InstanceStat {
-	var allStats []InstanceStat
+	allStats := make([]InstanceStat, 0, len(processes))
 
 	for _, process := range processes {
 		stats := collectProcessStatistics(ctx, client, process)

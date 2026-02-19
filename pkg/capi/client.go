@@ -189,7 +189,8 @@ type Config struct {
 	FetchAPILinksOnInit bool
 }
 
-// NewClient creates a new CF API client
+// NewClient creates a new CF API client.
+//
 // Deprecated: Use github.com/fivetwenty-io/capi/v3/pkg/cfclient.New instead.
 func NewClient(config *Config) (Client, error) {
 	return nil, ErrDeprecatedClientConstructor

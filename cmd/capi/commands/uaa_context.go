@@ -46,8 +46,11 @@ func createUsersContextCommand() *cobra.Command {
 
 			// Test connection and get server info with caching
 			ctx := context.Background()
-			var serverInfo map[string]interface{}
-			var connectionError error
+
+			var (
+				serverInfo      map[string]interface{}
+				connectionError error
+			)
 
 			err = uaaClient.TestConnection(ctx)
 			if err != nil {
@@ -55,6 +58,7 @@ func createUsersContextCommand() *cobra.Command {
 			} else {
 				_ = WithPerformanceTracking("get-server-info", func() error {
 					var infoErr error
+
 					serverInfo, infoErr = CachedServerInfo(uaaClient)
 
 					return infoErr
@@ -97,6 +101,7 @@ func createUsersTargetCommand() *cobra.Command {
 
 			// Update configuration
 			viper.Set("uaa_endpoint", targetURL)
+
 			config := loadConfig()
 			config.UAAEndpoint = targetURL
 
@@ -107,6 +112,7 @@ func createUsersTargetCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
+
 			err = uaaClient.TestConnection(ctx)
 			if err != nil {
 				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to connect to UAA at %s: %v\n", targetURL, err)
@@ -145,6 +151,7 @@ func createUsersInfoCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
+
 			serverInfo, err := uaaClient.GetServerInfo(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to get server info: %w", err)
@@ -197,6 +204,7 @@ func createUsersVersionCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
+
 			serverInfo, err := uaaClient.GetServerInfo(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to get server info: %w", err)
@@ -204,6 +212,7 @@ func createUsersVersionCommand() *cobra.Command {
 
 			// Extract version information
 			version := Unknown
+
 			if app, ok := serverInfo["app"].(map[string]interface{}); ok {
 				if v, ok := app["version"].(string); ok && v != "" {
 					version = v
@@ -244,6 +253,7 @@ func createUsersVersionCommand() *cobra.Command {
 				table.Header("Property", "Value")
 				_ = table.Append("Version", version)
 				_ = table.Append("Endpoint", GetEffectiveUAAEndpoint(config))
+
 				err := table.Render()
 				if err != nil {
 					return fmt.Errorf("failed to render table: %w", err)

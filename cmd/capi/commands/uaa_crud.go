@@ -264,8 +264,10 @@ user attributes including groups, metadata, and authentication information.`,
 
 			// Get user by username with caching
 			var user *uaa.User
+
 			err = WithPerformanceTracking("get-user", func() error {
 				var getUserErr error
+
 				user, getUserErr = CachedUserLookup(uaaClient, username)
 
 				return getUserErr

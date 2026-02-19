@@ -276,7 +276,9 @@ func createPurgeAndReseedCommand(config PurgeReseedConfig) *cobra.Command {
 			if !force {
 				_, _ = fmt.Fprintf(os.Stdout, "This will purge all existing %s and reseed with current state.\n", config.EntityType)
 				_, _ = os.Stdout.WriteString("This action cannot be undone. Continue? (y/N): ")
+
 				var response string
+
 				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					_, _ = os.Stdout.WriteString("Cancelled\n")
@@ -768,7 +770,9 @@ func createDeleteCommand(config DeleteConfig) *cobra.Command {
 
 			if !force {
 				_, _ = fmt.Fprintf(os.Stdout, "Really delete %s '%s'? (y/N): ", config.EntityType, nameOrGUID)
+
 				var response string
+
 				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					_, _ = os.Stdout.WriteString("Cancelled\n")

@@ -119,6 +119,7 @@ func handleSpaceQuotasPagination(ctx context.Context, client capi.Client, params
 	handler := &PaginationHandler[capi.SpaceQuotaV3]{
 		FetchPage: func(ctx context.Context, params *capi.QueryParams, page int) ([]capi.SpaceQuotaV3, *capi.Pagination, error) {
 			params.Page = page
+
 			moreQuotas, err := client.SpaceQuotas().List(ctx, params)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to list space quotas: %w", err)
@@ -216,13 +217,16 @@ func newSpaceQuotasGetCommand() *cobra.Command {
 				// If not found by GUID, try by name
 				params := capi.NewQueryParams()
 				params.WithFilter("names", nameOrGUID)
+
 				quotas, err := quotaClient.List(ctx, params)
 				if err != nil {
 					return fmt.Errorf("failed to find space quota: %w", err)
 				}
+
 				if len(quotas.Resources) == 0 {
 					return fmt.Errorf("space quota '%s': %w", nameOrGUID, ErrSpaceQuotaNotFound)
 				}
+
 				quota = &quotas.Resources[0]
 			}
 
@@ -526,6 +530,7 @@ func newSpaceQuotasCreateCommand() *cobra.Command {
 			if config.name == "" {
 				return ErrQuotaNameRequired
 			}
+
 			if config.orgName == "" {
 				return ErrOrganizationNameRequired
 			}
@@ -749,6 +754,7 @@ func newSpaceQuotasDeleteCommand() *cobra.Command {
 			if !ok {
 				return nil, constants.ErrInvalidClientType
 			}
+
 			err := capiClient.SpaceQuotas().Delete(ctx, guid)
 			if err != nil {
 				return nil, fmt.Errorf("failed to delete space quota: %w", err)
@@ -884,76 +890,91 @@ func newSpaceQuotasRemoveCommand() *cobra.Command {
 		Short: "Remove quota from space",
 		Long:  "Remove a space quota from a specific space",
 		Args:  cobra.ExactArgs(constants.TwoArgumentsMax),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			quotaNameOrGUID := args[0]
-			spaceNameOrGUID := args[1]
-
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-			quotaClient := client.SpaceQuotas()
-			spacesClient := client.Spaces()
-
-			// Find quota
-			var quotaGUID string
-			var quotaName string
-			quota, err := quotaClient.Get(ctx, quotaNameOrGUID)
-			if err != nil {
-				// Try by name
-				params := capi.NewQueryParams()
-				params.WithFilter("names", quotaNameOrGUID)
-				quotas, err := quotaClient.List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to find space quota: %w", err)
-				}
-				if len(quotas.Resources) == 0 {
-					return fmt.Errorf("space quota '%s': %w", quotaNameOrGUID, ErrSpaceQuotaNotFound)
-				}
-				quotaGUID = quotas.Resources[0].GUID
-				quotaName = quotas.Resources[0].Name
-			} else {
-				quotaGUID = quota.GUID
-				quotaName = quota.Name
-			}
-
-			// Find space
-			var spaceGUID string
-			var spaceName string
-			space, err := spacesClient.Get(ctx, spaceNameOrGUID)
-			if err != nil {
-				// Try by name
-				params := capi.NewQueryParams()
-				params.WithFilter("names", spaceNameOrGUID)
-				// Add org filter if targeted
-				if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
-					params.WithFilter("organization_guids", orgGUID)
-				}
-				spaces, err := spacesClient.List(ctx, params)
-				if err != nil {
-					return fmt.Errorf("failed to find space: %w", err)
-				}
-				if len(spaces.Resources) == 0 {
-					return fmt.Errorf("space '%s': %w", spaceNameOrGUID, ErrSpaceNotFound)
-				}
-				spaceGUID = spaces.Resources[0].GUID
-				spaceName = spaces.Resources[0].Name
-			} else {
-				spaceGUID = space.GUID
-				spaceName = space.Name
-			}
-
-			// Remove quota from space
-			err = quotaClient.RemoveFromSpace(ctx, quotaGUID, spaceGUID)
-			if err != nil {
-				return fmt.Errorf("failed to remove quota from space: %w", err)
-			}
-
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully removed quota '%s' from space '%s'\n", quotaName, spaceName)
-
-			return nil
-		},
+		RunE:  runSpaceQuotasRemove,
 	}
+}
+
+func runSpaceQuotasRemove(cmd *cobra.Command, args []string) error {
+	quotaNameOrGUID := args[0]
+	spaceNameOrGUID := args[1]
+
+	client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	quotaClient := client.SpaceQuotas()
+	spacesClient := client.Spaces()
+
+	// Find quota
+	var (
+		quotaGUID string
+		quotaName string
+	)
+
+	quota, err := quotaClient.Get(ctx, quotaNameOrGUID)
+	if err != nil {
+		// Try by name
+		params := capi.NewQueryParams()
+		params.WithFilter("names", quotaNameOrGUID)
+
+		quotas, err := quotaClient.List(ctx, params)
+		if err != nil {
+			return fmt.Errorf("failed to find space quota: %w", err)
+		}
+
+		if len(quotas.Resources) == 0 {
+			return fmt.Errorf("space quota '%s': %w", quotaNameOrGUID, ErrSpaceQuotaNotFound)
+		}
+
+		quotaGUID = quotas.Resources[0].GUID
+		quotaName = quotas.Resources[0].Name
+	} else {
+		quotaGUID = quota.GUID
+		quotaName = quota.Name
+	}
+
+	// Find space
+	var (
+		spaceGUID string
+		spaceName string
+	)
+
+	space, err := spacesClient.Get(ctx, spaceNameOrGUID)
+	if err != nil {
+		// Try by name
+		params := capi.NewQueryParams()
+		params.WithFilter("names", spaceNameOrGUID)
+
+		// Add org filter if targeted
+		if orgGUID := viper.GetString("organization_guid"); orgGUID != "" {
+			params.WithFilter("organization_guids", orgGUID)
+		}
+
+		spaces, err := spacesClient.List(ctx, params)
+		if err != nil {
+			return fmt.Errorf("failed to find space: %w", err)
+		}
+
+		if len(spaces.Resources) == 0 {
+			return fmt.Errorf("space '%s': %w", spaceNameOrGUID, ErrSpaceNotFound)
+		}
+
+		spaceGUID = spaces.Resources[0].GUID
+		spaceName = spaces.Resources[0].Name
+	} else {
+		spaceGUID = space.GUID
+		spaceName = space.Name
+	}
+
+	// Remove quota from space
+	err = quotaClient.RemoveFromSpace(ctx, quotaGUID, spaceGUID)
+	if err != nil {
+		return fmt.Errorf("failed to remove quota from space: %w", err)
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "Successfully removed quota '%s' from space '%s'\n", quotaName, spaceName)
+
+	return nil
 }

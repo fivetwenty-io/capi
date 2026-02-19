@@ -218,6 +218,7 @@ to display the actual secret value.`,
 					displayClient.ClientSecret = Masked
 					client = &displayClient
 				}
+
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
 
@@ -229,6 +230,7 @@ to display the actual secret value.`,
 					displayClient.ClientSecret = Masked
 					client = &displayClient
 				}
+
 				encoder := yaml.NewEncoder(os.Stdout)
 
 				return encoder.Encode(client)
@@ -277,6 +279,7 @@ Client secrets are never displayed in list operations for security.`,
 
 			// Convert sort order string to enum
 			var uaaSortOrder uaa.SortOrder
+
 			switch strings.ToLower(sortOrder) {
 			case Descending, "desc":
 				uaaSortOrder = uaa.SortDescending
@@ -552,10 +555,12 @@ to enter it securely.`,
 				if err != nil {
 					return fmt.Errorf("failed to write prompt: %w", err)
 				}
+
 				secretBytes, err := term.ReadPassword(syscall.Stdin)
 				if err != nil {
 					return fmt.Errorf("failed to read client secret: %w", err)
 				}
+
 				secret = string(secretBytes)
 				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
 			}
@@ -616,11 +621,14 @@ func createUsersDeleteClientCommand() *cobra.Command {
 				if client.DisplayName != "" {
 					_, _ = fmt.Fprintf(os.Stdout, " (%s)", client.DisplayName)
 				}
+
 				_, err := os.Stdout.WriteString("? [y/N]: ")
 				if err != nil {
 					return fmt.Errorf("failed to write prompt: %w", err)
 				}
+
 				var response string
+
 				_, _ = fmt.Scanln(&response)
 				if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
 					_, _ = os.Stdout.WriteString("Client deletion cancelled\n")

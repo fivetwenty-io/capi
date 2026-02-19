@@ -172,6 +172,7 @@ func newManifestsGenerateCommand() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to write manifest file: %w", err)
 				}
+
 				_, _ = fmt.Fprintf(os.Stdout, "Manifest written to %s\n", outputFile)
 			} else {
 				_, err := os.Stdout.Write(manifestContent)

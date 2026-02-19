@@ -172,56 +172,7 @@ interaction is required. The client authenticates using its own credentials.`,
   export UAA_CLIENT_SECRET=admin-secret
   capi uaa get-client-credentials-token`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return constants.ErrNoUAAConfigured
-			}
-
-			// Prompt for required fields if not provided
-			if clientID == "" {
-				log.Print("Client ID: ")
-				_, _ = fmt.Scanln(&clientID)
-			}
-			if clientSecret == "" {
-				log.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(syscall.Stdin)
-				if err != nil {
-					return fmt.Errorf("failed to read client secret: %w", err)
-				}
-				clientSecret = string(secretBytes)
-				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
-			}
-
-			// Create UAA client with client credentials authentication
-			authOpt := uaa.WithClientCredentials(clientID, clientSecret, uaa.TokenFormat(tokenFormat))
-			client, err := uaa.New(config.UAAEndpoint, authOpt)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			// Get token
-			ctx := context.Background()
-			token, err := client.Token(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to get client credentials token: %w", err)
-			}
-
-			// Store tokens in config
-			config.UAAToken = token.AccessToken
-			if token.RefreshToken != "" {
-				config.UAARefreshToken = token.RefreshToken
-			}
-			config.UAAClientID = clientID
-
-			// Save configuration
-			err = saveConfigStruct(config)
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
-			}
-
-			// Display token information
-			return displayTokenInfo(token, "Client Credentials Grant")
+			return runGetClientCredentialsToken(clientID, clientSecret, tokenFormat)
 		},
 	}
 
@@ -230,6 +181,66 @@ interaction is required. The client authenticates using its own credentials.`,
 	cmd.Flags().IntVar(&tokenFormat, "token-format", 0, "Token format (0=opaque, 1=JWT)")
 
 	return cmd
+}
+
+func runGetClientCredentialsToken(clientID, clientSecret string, tokenFormat int) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	// Prompt for required fields if not provided
+	if clientID == "" {
+		log.Print("Client ID: ")
+
+		_, _ = fmt.Scanln(&clientID)
+	}
+
+	if clientSecret == "" {
+		log.Print("Client Secret: ")
+
+		secretBytes, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read client secret: %w", err)
+		}
+
+		clientSecret = string(secretBytes)
+		_, _ = os.Stdout.WriteString("\n") // Add newline after password input
+	}
+
+	// Create UAA client with client credentials authentication
+	authOpt := uaa.WithClientCredentials(clientID, clientSecret, uaa.TokenFormat(tokenFormat))
+
+	client, err := uaa.New(config.UAAEndpoint, authOpt)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	// Get token
+	ctx := context.Background()
+
+	token, err := client.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client credentials token: %w", err)
+	}
+
+	// Store tokens in config
+	config.UAAToken = token.AccessToken
+	if token.RefreshToken != "" {
+		config.UAARefreshToken = token.RefreshToken
+	}
+
+	config.UAAClientID = clientID
+
+	// Save configuration
+	err = saveConfigStruct(config)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
+	}
+
+	// Display token information
+	return displayTokenInfo(token, "Client Credentials Grant")
 }
 
 // createUsersGetPasswordTokenCommand creates the password token command.
@@ -248,70 +259,7 @@ This grant type allows exchanging a user's username and password for an access t
 Note: This grant type should only be used by trusted clients as it requires
 handling user credentials directly.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return constants.ErrNoUAAConfigured
-			}
-
-			// Prompt for required fields if not provided
-			if clientID == "" {
-				log.Print("Client ID: ")
-				_, _ = fmt.Scanln(&clientID)
-			}
-			if clientSecret == "" {
-				log.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(syscall.Stdin)
-				if err != nil {
-					return fmt.Errorf("failed to read client secret: %w", err)
-				}
-				clientSecret = string(secretBytes)
-				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
-			}
-			if username == "" {
-				log.Print("Username: ")
-				_, _ = fmt.Scanln(&username)
-			}
-			if password == "" {
-				log.Print("Password: ")
-				passwordBytes, err := term.ReadPassword(syscall.Stdin)
-				if err != nil {
-					return fmt.Errorf("failed to read password: %w", err)
-				}
-				password = string(passwordBytes)
-				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
-			}
-
-			// Create UAA client with password credentials authentication
-			authOpt := uaa.WithPasswordCredentials(clientID, clientSecret, username, password, uaa.TokenFormat(tokenFormat))
-			client, err := uaa.New(config.UAAEndpoint, authOpt)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			// Get token
-			ctx := context.Background()
-			token, err := client.Token(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to get password token: %w", err)
-			}
-
-			// Store tokens in config
-			config.UAAToken = token.AccessToken
-			if token.RefreshToken != "" {
-				config.UAARefreshToken = token.RefreshToken
-			}
-			config.UAAClientID = clientID
-			config.Username = username
-
-			// Save configuration
-			err = saveConfigStruct(config)
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
-			}
-
-			// Display token information
-			return displayTokenInfo(token, "Password Grant")
+			return runGetPasswordToken(clientID, clientSecret, username, password, tokenFormat)
 		},
 	}
 
@@ -322,6 +270,85 @@ handling user credentials directly.`,
 	cmd.Flags().IntVar(&tokenFormat, "token-format", 0, "Token format (0=opaque, 1=JWT)")
 
 	return cmd
+}
+
+func runGetPasswordToken(clientID, clientSecret, username, password string, tokenFormat int) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	// Prompt for required fields if not provided
+	if clientID == "" {
+		log.Print("Client ID: ")
+
+		_, _ = fmt.Scanln(&clientID)
+	}
+
+	if clientSecret == "" {
+		log.Print("Client Secret: ")
+
+		secretBytes, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read client secret: %w", err)
+		}
+
+		clientSecret = string(secretBytes)
+		_, _ = os.Stdout.WriteString("\n") // Add newline after password input
+	}
+
+	if username == "" {
+		log.Print("Username: ")
+
+		_, _ = fmt.Scanln(&username)
+	}
+
+	if password == "" {
+		log.Print("Password: ")
+
+		passwordBytes, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read password: %w", err)
+		}
+
+		password = string(passwordBytes)
+		_, _ = os.Stdout.WriteString("\n") // Add newline after password input
+	}
+
+	// Create UAA client with password credentials authentication
+	authOpt := uaa.WithPasswordCredentials(clientID, clientSecret, username, password, uaa.TokenFormat(tokenFormat))
+
+	client, err := uaa.New(config.UAAEndpoint, authOpt)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	// Get token
+	ctx := context.Background()
+
+	token, err := client.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get password token: %w", err)
+	}
+
+	// Store tokens in config
+	config.UAAToken = token.AccessToken
+	if token.RefreshToken != "" {
+		config.UAARefreshToken = token.RefreshToken
+	}
+
+	config.UAAClientID = clientID
+	config.Username = username
+
+	// Save configuration
+	err = saveConfigStruct(config)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
+	}
+
+	// Display token information
+	return displayTokenInfo(token, "Password Grant")
 }
 
 // createUsersRefreshTokenCommand creates the refresh token command.
@@ -340,67 +367,7 @@ This command uses a previously obtained refresh token to get a new access token.
 If no refresh token is provided, it will attempt to use the one stored in the
 current configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadConfig()
-
-			if GetEffectiveUAAEndpoint(config) == "" {
-				return constants.ErrNoUAAConfigured
-			}
-
-			// Use stored values if not provided via flags
-			if clientID == "" {
-				clientID = config.UAAClientID
-			}
-			if refreshToken == "" {
-				refreshToken = config.UAARefreshToken
-			}
-
-			// Prompt for required fields if not available
-			if clientID == "" {
-				log.Print("Client ID: ")
-				_, _ = fmt.Scanln(&clientID)
-			}
-			if clientSecret == "" {
-				log.Print("Client Secret: ")
-				secretBytes, err := term.ReadPassword(syscall.Stdin)
-				if err != nil {
-					return fmt.Errorf("failed to read client secret: %w", err)
-				}
-				clientSecret = string(secretBytes)
-				_, _ = os.Stdout.WriteString("\n") // Add newline after password input
-			}
-			if refreshToken == "" {
-				return constants.ErrNoRefreshToken
-			}
-
-			// Create UAA client with refresh token authentication
-			authOpt := uaa.WithRefreshToken(clientID, clientSecret, refreshToken, uaa.TokenFormat(tokenFormat))
-			client, err := uaa.New(config.UAAEndpoint, authOpt)
-			if err != nil {
-				return fmt.Errorf("failed to create UAA client: %w", err)
-			}
-
-			// Get new token
-			ctx := context.Background()
-			token, err := client.Token(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to refresh token: %w", err)
-			}
-
-			// Store new tokens in config
-			config.UAAToken = token.AccessToken
-			if token.RefreshToken != "" {
-				config.UAARefreshToken = token.RefreshToken
-			}
-			config.UAAClientID = clientID
-
-			// Save configuration
-			err = saveConfigStruct(config)
-			if err != nil {
-				_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
-			}
-
-			// Display token information
-			return displayTokenInfo(token, "Refresh Token Grant")
+			return runRefreshToken(clientID, clientSecret, refreshToken, tokenFormat)
 		},
 	}
 
@@ -410,6 +377,79 @@ current configuration.`,
 	cmd.Flags().IntVar(&tokenFormat, "token-format", 0, "Token format (0=opaque, 1=JWT)")
 
 	return cmd
+}
+
+func runRefreshToken(clientID, clientSecret, refreshToken string, tokenFormat int) error {
+	config := loadConfig()
+
+	if GetEffectiveUAAEndpoint(config) == "" {
+		return constants.ErrNoUAAConfigured
+	}
+
+	// Use stored values if not provided via flags
+	if clientID == "" {
+		clientID = config.UAAClientID
+	}
+
+	if refreshToken == "" {
+		refreshToken = config.UAARefreshToken
+	}
+
+	// Prompt for required fields if not available
+	if clientID == "" {
+		log.Print("Client ID: ")
+
+		_, _ = fmt.Scanln(&clientID)
+	}
+
+	if clientSecret == "" {
+		log.Print("Client Secret: ")
+
+		secretBytes, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read client secret: %w", err)
+		}
+
+		clientSecret = string(secretBytes)
+		_, _ = os.Stdout.WriteString("\n") // Add newline after password input
+	}
+
+	if refreshToken == "" {
+		return constants.ErrNoRefreshToken
+	}
+
+	// Create UAA client with refresh token authentication
+	authOpt := uaa.WithRefreshToken(clientID, clientSecret, refreshToken, uaa.TokenFormat(tokenFormat))
+
+	client, err := uaa.New(config.UAAEndpoint, authOpt)
+	if err != nil {
+		return fmt.Errorf("failed to create UAA client: %w", err)
+	}
+
+	// Get new token
+	ctx := context.Background()
+
+	token, err := client.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to refresh token: %w", err)
+	}
+
+	// Store new tokens in config
+	config.UAAToken = token.AccessToken
+	if token.RefreshToken != "" {
+		config.UAARefreshToken = token.RefreshToken
+	}
+
+	config.UAAClientID = clientID
+
+	// Save configuration
+	err = saveConfigStruct(config)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "Warning: Failed to save token to configuration: %v\n", err)
+	}
+
+	// Display token information
+	return displayTokenInfo(token, "Refresh Token Grant")
 }
 
 // createUsersGetTokenKeyCommand creates the get token key command.

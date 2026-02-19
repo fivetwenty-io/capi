@@ -522,6 +522,7 @@ func newRoutesUnshareCommand() *cobra.Command {
 			if err != nil {
 				// Try to find by URL
 				params := capi.NewQueryParams()
+
 				routes, err := client.Routes().List(ctx, params)
 				if err != nil {
 					return fmt.Errorf("failed to list routes: %w", err)
@@ -575,6 +576,7 @@ func newRoutesTransferCommand() *cobra.Command {
 			if err != nil {
 				// Try to find by URL
 				params := capi.NewQueryParams()
+
 				routes, err := client.Routes().List(ctx, params)
 				if err != nil {
 					return fmt.Errorf("failed to list routes: %w", err)

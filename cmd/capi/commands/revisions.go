@@ -46,6 +46,7 @@ func newRevisionsGetCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
+
 			revision, err := client.Revisions().Get(ctx, revisionGUID)
 			if err != nil {
 				return fmt.Errorf("failed to get revision: %w", err)
@@ -232,6 +233,7 @@ func newRevisionsGetEnvCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
+
 			envVars, err := client.Revisions().GetEnvironmentVariables(ctx, revisionGUID)
 			if err != nil {
 				return fmt.Errorf("failed to get revision environment variables: %w", err)

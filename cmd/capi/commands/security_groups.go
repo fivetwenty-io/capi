@@ -274,13 +274,16 @@ func newSecurityGroupsGetCommand() *cobra.Command {
 				// If not found by GUID, try by name
 				params := capi.NewQueryParams()
 				params.WithFilter("names", nameOrGUID)
+
 				groups, err := client.SecurityGroups().List(ctx, params)
 				if err != nil {
 					return fmt.Errorf("failed to find security group: %w", err)
 				}
+
 				if len(groups.Resources) == 0 {
 					return fmt.Errorf("security group '%s': %w", nameOrGUID, ErrSecurityGroupNotFound)
 				}
+
 				securityGroup = &groups.Resources[0]
 			}
 
@@ -348,12 +351,14 @@ func newSecurityGroupsCreateCommand() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("invalid rules file: %w", err)
 				}
+
 				rulesContent, err := os.ReadFile(filepath.Clean(rulesFile))
 				if err != nil {
 					return fmt.Errorf("failed to read rules file: %w", err)
 				}
 
 				var rules []capi.SecurityGroupRule
+
 				err = json.Unmarshal(rulesContent, &rules)
 				if err != nil {
 					return fmt.Errorf("failed to parse rules JSON: %w", err)
@@ -548,10 +553,12 @@ func newSecurityGroupsDeleteCommand() *cobra.Command {
 			if !ok {
 				return nil, constants.ErrInvalidClientType
 			}
+
 			job, err := capiClient.SecurityGroups().Delete(ctx, guid)
 			if err != nil {
 				return nil, fmt.Errorf("failed to delete security group: %w", err)
 			}
+
 			if job != nil {
 				return &job.GUID, nil
 			}
@@ -618,6 +625,7 @@ func newSecurityGroupsBindCommand() *cobra.Command {
 			if len(spaceNames) == 0 {
 				return ErrAtLeastOneSpaceRequired
 			}
+
 			if !running && !staging {
 				return ErrMustSpecifyRunningOrStaging
 			}
@@ -635,6 +643,7 @@ func newSecurityGroupsBindCommand() *cobra.Command {
 			}
 
 			orgGUID := viper.GetString("organization_guid")
+
 			spaceGUIDs, err := findSpaceGUIDs(ctx, client, spaceNames, orgGUID)
 			if err != nil {
 				return err
@@ -692,6 +701,7 @@ func newSecurityGroupsUnbindCommand() *cobra.Command {
 			if spaceName == "" {
 				return ErrSpaceNameRequired
 			}
+
 			if !running && !staging {
 				return ErrMustSpecifyRunningOrStaging
 			}
@@ -709,6 +719,7 @@ func newSecurityGroupsUnbindCommand() *cobra.Command {
 			}
 
 			orgGUID := viper.GetString("organization_guid")
+
 			space, err := findSpaceByName(ctx, client, spaceName, orgGUID)
 			if err != nil {
 				return err

@@ -310,6 +310,7 @@ func newStacksGetCommand() *cobra.Command {
 				_ = table.Append("Run Image", stack.RunRootfsImage)
 				_ = table.Append("Created", stack.CreatedAt.Format("2006-01-02 15:04:05"))
 				_ = table.Append("Updated", stack.UpdatedAt.Format("2006-01-02 15:04:05"))
+
 				err := table.Render()
 				if err != nil {
 					return fmt.Errorf("failed to render table: %w", err)

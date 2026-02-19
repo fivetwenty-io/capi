@@ -298,6 +298,7 @@ func newIsolationSegmentsCreateCommand() *cobra.Command {
 			if !ok {
 				return "", "", constants.ErrInvalidClientType
 			}
+
 			segment, err := capiClient.IsolationSegments().Create(ctx, createReq)
 			if err != nil {
 				return "", "", fmt.Errorf("failed to create isolation segment: %w", err)
@@ -320,6 +321,7 @@ func newIsolationSegmentsUpdateCommand() *cobra.Command {
 			if !ok {
 				return "", constants.ErrInvalidClientType
 			}
+
 			segmentsClient := capiClient.IsolationSegments()
 
 			updateReq := &capi.IsolationSegmentUpdateRequest{}
@@ -358,6 +360,7 @@ func newIsolationSegmentsDeleteCommand() *cobra.Command {
 			if !ok {
 				return nil, constants.ErrInvalidClientType
 			}
+
 			err := capiClient.IsolationSegments().Delete(ctx, guid)
 			if err != nil {
 				return nil, fmt.Errorf("failed to delete isolation segment: %w", err)

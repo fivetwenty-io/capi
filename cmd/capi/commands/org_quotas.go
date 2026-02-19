@@ -736,6 +736,7 @@ func newOrgQuotasDeleteCommand() *cobra.Command {
 			if !ok {
 				return nil, constants.ErrInvalidClientType
 			}
+
 			err := capiClient.OrganizationQuotas().Delete(ctx, guid)
 			if err != nil {
 				return nil, fmt.Errorf("failed to delete organization quota: %w", err)

@@ -243,6 +243,7 @@ func newAPIsDeleteCommand() *cobra.Command {
 
 						break
 					}
+
 					_, _ = fmt.Fprintf(os.Stdout, "API '%s' deleted. Current API switched to '%s'\n", domain, config.CurrentAPI)
 				} else {
 					config.CurrentAPI = ""

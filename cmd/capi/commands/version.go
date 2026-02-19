@@ -47,6 +47,7 @@ func NewVersionCommand(version, commit, date string) *cobra.Command {
 				_ = table.Append("Version", version)
 				_ = table.Append("Commit", commit)
 				_ = table.Append("Built", date)
+
 				err := table.Render()
 				if err != nil {
 					return fmt.Errorf("failed to render table: %w", err)

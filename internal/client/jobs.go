@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/constants"
@@ -116,10 +117,13 @@ func formatJobErrors(job *capi.Job) string {
 	}
 
 	// Multiple errors
-	result := "multiple errors:"
+	var errBuilder strings.Builder
+
+	errBuilder.WriteString("multiple errors:")
+
 	for i, err := range job.Errors {
-		result += fmt.Sprintf("\n  %d. %s", i+1, err.Detail)
+		fmt.Fprintf(&errBuilder, "\n  %d. %s", i+1, err.Detail)
 	}
 
-	return result
+	return errBuilder.String()
 }

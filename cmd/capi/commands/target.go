@@ -34,75 +34,7 @@ func NewTargetCommand() *cobra.Command {
 		Short: "Set or show the targeted organization and space",
 		Long:  "Set or display the currently targeted Cloud Foundry organization and space",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// If no flags provided, show current target
-			if orgName == "" && spaceName == "" {
-				return showTarget()
-			}
-
-			// Create client
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-
-			// Get current API config
-			config := loadConfig()
-			apiConfig, err := getCurrentAPIConfig()
-			if err != nil {
-				return err
-			}
-
-			// Target organization
-			if orgName != "" {
-				err := targetOrganization(ctx, client, orgName, apiConfig)
-				if err != nil {
-					return err
-				}
-
-				// Clear space if only org is being targeted
-				if spaceName == "" {
-					apiConfig.Space = ""
-					apiConfig.SpaceGUID = ""
-
-					// List available spaces
-					listAvailableSpaces(ctx, client, apiConfig.OrganizationGUID)
-				}
-			}
-
-			// Target space (requires organization to be set)
-			if spaceName != "" {
-				if apiConfig.OrganizationGUID == "" {
-					return ErrOrganizationMustBeTargeted
-				}
-
-				spacesClient := client.Spaces()
-				spaceParams := capi.NewQueryParams()
-				spaceParams.WithFilter("names", spaceName)
-				spaceParams.WithFilter("organization_guids", apiConfig.OrganizationGUID)
-				spaces, err := spacesClient.List(ctx, spaceParams)
-				if err != nil {
-					return fmt.Errorf("failed to find space: %w", err)
-				}
-				if len(spaces.Resources) == 0 {
-					return fmt.Errorf("space '%s' not found in organization: %w", spaceName, ErrSpaceNotFound)
-				}
-
-				space := spaces.Resources[0]
-				apiConfig.Space = space.Name
-				apiConfig.SpaceGUID = space.GUID
-				_, _ = fmt.Fprintf(os.Stdout, "Targeted space: %s\n", space.Name)
-			}
-
-			// Update config and save
-			config.APIs[config.CurrentAPI] = apiConfig
-			err = saveConfigStruct(config)
-			if err != nil {
-				return fmt.Errorf("failed to save configuration: %w", err)
-			}
-
-			return nil
+			return runTargetCommand(cmd, orgName, spaceName)
 		},
 	}
 
@@ -111,6 +43,82 @@ func NewTargetCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&spaceName, "space", "s", "", "target space")
 
 	return cmd
+}
+
+func runTargetCommand(cmd *cobra.Command, orgName, spaceName string) error {
+	// If no flags provided, show current target
+	if orgName == "" && spaceName == "" {
+		return showTarget()
+	}
+
+	// Create client
+	client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+
+	// Get current API config
+	config := loadConfig()
+
+	apiConfig, err := getCurrentAPIConfig()
+	if err != nil {
+		return err
+	}
+
+	// Target organization
+	if orgName != "" {
+		err := targetOrganization(ctx, client, orgName, apiConfig)
+		if err != nil {
+			return err
+		}
+
+		// Clear space if only org is being targeted
+		if spaceName == "" {
+			apiConfig.Space = ""
+			apiConfig.SpaceGUID = ""
+
+			// List available spaces
+			listAvailableSpaces(ctx, client, apiConfig.OrganizationGUID)
+		}
+	}
+
+	// Target space (requires organization to be set)
+	if spaceName != "" {
+		if apiConfig.OrganizationGUID == "" {
+			return ErrOrganizationMustBeTargeted
+		}
+
+		spacesClient := client.Spaces()
+		spaceParams := capi.NewQueryParams()
+		spaceParams.WithFilter("names", spaceName)
+		spaceParams.WithFilter("organization_guids", apiConfig.OrganizationGUID)
+
+		spaces, err := spacesClient.List(ctx, spaceParams)
+		if err != nil {
+			return fmt.Errorf("failed to find space: %w", err)
+		}
+
+		if len(spaces.Resources) == 0 {
+			return fmt.Errorf("space '%s' not found in organization: %w", spaceName, ErrSpaceNotFound)
+		}
+
+		space := spaces.Resources[0]
+		apiConfig.Space = space.Name
+		apiConfig.SpaceGUID = space.GUID
+		_, _ = fmt.Fprintf(os.Stdout, "Targeted space: %s\n", space.Name)
+	}
+
+	// Update config and save
+	config.APIs[config.CurrentAPI] = apiConfig
+
+	err = saveConfigStruct(config)
+	if err != nil {
+		return fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	return nil
 }
 
 // targetOrganization targets the specified organization and updates the config.

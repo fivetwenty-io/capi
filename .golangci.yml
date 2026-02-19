@@ -115,7 +115,7 @@ linters:
   settings:
     funlen:
       lines: 80
-      #statements: 60
+      statements: 60
 
     cyclop:
       # The maximal code complexity to report.
@@ -137,11 +137,23 @@ linters:
         - (.+)Manager$       # Allow Manager interfaces
         - (.+)Cache$         # Allow Cache interfaces
 
+    gosec:
+      excludes:
+        - G117  # Exported struct fields with secret-like names (Password, Token, etc.) are legitimate OAuth/API config fields
+        - G704  # SSRF via taint analysis - HTTP client Do() calls are the purpose of this library
+        - G705  # XSS via taint analysis - fmt.Fprintf to os.Stdout is normal CLI output
+        - G706  # Log injection - log.Printf in examples is expected
+
   # Exclude paths from linting
   exclusions:
     paths:
       - vendor
       - tmp
+    rules:
+      - linters:
+          - gosec
+        text: "G101"
+        path: "_test\\.go"
 
 # Formatters configuration
 formatters:

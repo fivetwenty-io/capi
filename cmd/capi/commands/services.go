@@ -2441,13 +2441,16 @@ func newServicesPlansVisibilityRemoveOrgCommand() *cobra.Command {
 				// If not found by GUID, try by name
 				params := capi.NewQueryParams()
 				params.WithFilter("names", planNameOrGUID)
+
 				plans, err := client.ServicePlans().List(ctx, params)
 				if err != nil {
 					return fmt.Errorf("failed to find service plan: %w", err)
 				}
+
 				if len(plans.Resources) == 0 {
 					return fmt.Errorf("service plan '%s': %w", planNameOrGUID, ErrServicePlanNotFound)
 				}
+
 				plan = &plans.Resources[0]
 			}
 

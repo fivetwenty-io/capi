@@ -643,6 +643,7 @@ func createMonitoringOperations(client capi.Client, ctx context.Context) []struc
 			name: "list applications",
 			fn: func() error {
 				params := capi.NewQueryParams().WithPerPage(constants.DefaultPageSize)
+
 				_, err := client.Apps().List(ctx, params)
 				if err != nil {
 					return fmt.Errorf("failed to list applications in monitoring: %w", err)

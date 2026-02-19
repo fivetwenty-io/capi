@@ -284,6 +284,7 @@ func newOrgsCreateCommand() *cobra.Command {
 			if !ok {
 				return "", "", constants.ErrInvalidClientType
 			}
+
 			org, err := capiClient.Organizations().Create(ctx, createReq)
 			if err != nil {
 				return "", "", fmt.Errorf("failed to create organization: %w", err)
@@ -393,10 +394,12 @@ func newOrgsDeleteCommand() *cobra.Command {
 			if !ok {
 				return nil, constants.ErrInvalidClientType
 			}
+
 			job, err := capiClient.Organizations().Delete(ctx, guid)
 			if err != nil {
 				return nil, fmt.Errorf("failed to delete organization: %w", err)
 			}
+
 			if job != nil {
 				return &job.GUID, nil
 			}

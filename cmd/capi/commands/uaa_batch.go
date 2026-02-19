@@ -198,6 +198,7 @@ operation timings, and efficiency statistics.`,
 					operations: make(map[string][]time.Duration),
 				}
 				GetDefaultPerformanceService().cache.Clear()
+
 				_, _ = os.Stdout.WriteString("Performance metrics and cache cleared\n")
 
 				return nil
@@ -254,6 +255,7 @@ and server info to reduce API calls and improve response times.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if clearCache {
 				GetDefaultPerformanceService().cache.Clear()
+
 				_, _ = os.Stdout.WriteString("Cache cleared successfully\n")
 
 				return nil

@@ -556,20 +556,25 @@ func newDomainsUpdateCommand() *cobra.Command {
 
 			// Find domain
 			var domainGUID string
+
 			domain, err := client.Domains().Get(ctx, nameOrGUID)
 			if err != nil {
 				// Try by name
 				params := capi.NewQueryParams()
 				params.WithFilter("names", nameOrGUID)
+
 				domains, err := client.Domains().List(ctx, params)
 				if err != nil {
 					return fmt.Errorf("failed to find domain: %w", err)
 				}
+
 				if len(domains.Resources) == 0 {
 					return fmt.Errorf("domain '%s': %w", nameOrGUID, ErrDomainNotFound)
 				}
+
 				domain = &domains.Resources[0]
 			}
+
 			domainGUID = domain.GUID
 
 			// Build update request
@@ -609,10 +614,12 @@ func newDomainsDeleteCommand() *cobra.Command {
 			if !ok {
 				return nil, constants.ErrInvalidClientType
 			}
+
 			job, err := capiClient.Domains().Delete(ctx, guid)
 			if err != nil {
 				return nil, fmt.Errorf("failed to delete domain: %w", err)
 			}
+
 			if job != nil {
 				return &job.GUID, nil
 			}

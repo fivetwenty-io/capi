@@ -119,7 +119,7 @@ func (e *EnhancedError) Error() string {
 		msg.WriteString("\n\nContext:")
 
 		for key, value := range e.Context {
-			msg.WriteString(fmt.Sprintf("\n  %s: %s", key, value))
+			fmt.Fprintf(&msg, "\n  %s: %s", key, value)
 		}
 	}
 

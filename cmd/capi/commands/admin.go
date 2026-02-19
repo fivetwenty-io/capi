@@ -113,6 +113,7 @@ func newAdminUsageSummaryCommand() *cobra.Command {
 
 				_, _ = os.Stdout.WriteString("Platform Usage Summary:\n")
 				_, _ = os.Stdout.WriteString("\n")
+
 				err := table.Render()
 				if err != nil {
 					return fmt.Errorf("failed to render table: %w", err)

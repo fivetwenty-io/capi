@@ -315,7 +315,7 @@ func TestStreamPages(t *testing.T) {
 
 	resultChan := capi.StreamPages(ctx, client, "/test", nil, nil)
 
-	var allResources []TestResource
+	var allResources []TestResource //nolint:prealloc // channel range, size unknown
 
 	pageCount := 0
 

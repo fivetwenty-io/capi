@@ -119,6 +119,7 @@ func handleServiceUsageEventsPagination(ctx context.Context, client capi.Client,
 	handler := &PaginationHandler[capi.ServiceUsageEvent]{
 		FetchPage: func(ctx context.Context, params *capi.QueryParams, page int) ([]capi.ServiceUsageEvent, *capi.Pagination, error) {
 			params.Page = page
+
 			moreEvents, err := client.ServiceUsageEvents().List(ctx, params)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to list service usage events: %w", err)
@@ -195,6 +196,7 @@ func newServiceUsageEventsGetCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
+
 			event, err := client.ServiceUsageEvents().Get(ctx, eventGUID)
 			if err != nil {
 				return fmt.Errorf("failed to get service usage event: %w", err)
@@ -247,6 +249,7 @@ func newServiceUsageEventsGetCommand() *cobra.Command {
 				_, _ = os.Stdout.WriteString("\n")
 
 				_, _ = os.Stdout.WriteString("State Information:\n")
+
 				_, _ = fmt.Fprintf(os.Stdout, "  Current State: %s\n", event.State)
 				if event.PreviousState != nil {
 					_, _ = fmt.Fprintf(os.Stdout, "  Previous State: %s\n", *event.PreviousState)

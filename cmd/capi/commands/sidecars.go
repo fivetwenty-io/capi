@@ -47,6 +47,7 @@ func newSidecarsGetCommand() *cobra.Command {
 			}
 
 			ctx := context.Background()
+
 			sidecar, err := client.Sidecars().Get(ctx, sidecarGUID)
 			if err != nil {
 				return fmt.Errorf("failed to get sidecar: %w", err)
@@ -171,7 +172,9 @@ func newSidecarsDeleteCommand() *cobra.Command {
 
 			if !force {
 				_, _ = fmt.Fprintf(os.Stdout, "Really delete sidecar '%s'? (y/N): ", sidecarGUID)
+
 				var response string
+
 				_, _ = fmt.Scanln(&response)
 				if response != "y" && response != "Y" {
 					_, _ = os.Stdout.WriteString("Cancelled\n")

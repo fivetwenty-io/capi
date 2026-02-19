@@ -282,6 +282,7 @@ func createGroupMemberCommand(config groupMemberCommandConfig) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to find group '%s': %w", groupIdentifier, err)
 				}
+
 				groupID = group.ID
 			}
 
@@ -294,6 +295,7 @@ func createGroupMemberCommand(config groupMemberCommandConfig) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to find user '%s': %w", memberIdentifier, err)
 				}
+
 				memberID = user.ID
 			}
 
@@ -325,10 +327,12 @@ The group can be specified by name or ID, and the member can be a username or us
 By default, members are treated as users from the 'uaa' origin.`,
 		operation: func(groupID, memberID, memberType, origin string) error {
 			config := loadConfig()
+
 			uaaClient, err := NewUAAClient(config)
 			if err != nil {
 				return fmt.Errorf("failed to create UAA client: %w", err)
 			}
+
 			err = uaaClient.Client().AddGroupMember(groupID, memberID, memberType, origin)
 			if err != nil {
 				return fmt.Errorf("failed to add member to group: %w", err)
@@ -350,10 +354,12 @@ func createUsersRemoveMemberCommand() *cobra.Command {
 The group can be specified by name or ID, and the member can be a username or user ID.`,
 		operation: func(groupID, memberID, memberType, origin string) error {
 			config := loadConfig()
+
 			uaaClient, err := NewUAAClient(config)
 			if err != nil {
 				return fmt.Errorf("failed to create UAA client: %w", err)
 			}
+
 			err = uaaClient.Client().RemoveGroupMember(groupID, memberID, memberType, origin)
 			if err != nil {
 				return fmt.Errorf("failed to remove member from group: %w", err)

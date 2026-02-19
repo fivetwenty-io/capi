@@ -73,7 +73,7 @@ func renderInfoTable(info *capi.Info) error {
 
 	// Add links
 	if len(info.Links) > 0 {
-		var linkStrings []string
+		linkStrings := make([]string, 0, len(info.Links))
 		for name, link := range info.Links {
 			linkStrings = append(linkStrings, fmt.Sprintf("%s: %s", name, link.Href))
 		}
@@ -83,7 +83,7 @@ func renderInfoTable(info *capi.Info) error {
 
 	// Add custom fields if present
 	if len(info.Custom) > 0 {
-		var customStrings []string
+		customStrings := make([]string, 0, len(info.Custom))
 		for key, value := range info.Custom {
 			customStrings = append(customStrings, fmt.Sprintf("%s: %v", key, value))
 		}

@@ -62,6 +62,7 @@ to the UAA endpoint (e.g., '/Users' or '/oauth/clients').`,
 				if err != nil {
 					return fmt.Errorf("failed to write output to file: %w", err)
 				}
+
 				_, _ = fmt.Fprintf(os.Stdout, "Response written to %s\n", outputFile)
 				_, _ = fmt.Fprintf(os.Stdout, "Status: %d\n", statusCode)
 
@@ -73,6 +74,7 @@ to the UAA endpoint (e.g., '/Users' or '/oauth/clients').`,
 			if responseHeaders != "" {
 				_, _ = fmt.Fprintf(os.Stdout, "Headers:\n%s\n", responseHeaders)
 			}
+
 			if body != "" {
 				_, _ = fmt.Fprintf(os.Stdout, "Response:\n%s\n", body)
 			}

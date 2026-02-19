@@ -87,7 +87,7 @@ func renderJobTable(job *capi.Job) error {
 	_ = table.Append("Updated", job.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 	if len(job.Errors) > 0 {
-		var errorStrings []string
+		errorStrings := make([]string, 0, len(job.Errors))
 		for _, apiErr := range job.Errors {
 			errorStrings = append(errorStrings, fmt.Sprintf("%s: %s", apiErr.Title, apiErr.Detail))
 		}
@@ -96,7 +96,7 @@ func renderJobTable(job *capi.Job) error {
 	}
 
 	if len(job.Warnings) > 0 {
-		var warningStrings []string
+		warningStrings := make([]string, 0, len(job.Warnings))
 		for _, warning := range job.Warnings {
 			warningStrings = append(warningStrings, warning.Detail)
 		}
