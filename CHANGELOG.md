@@ -30,6 +30,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS certificate validation (configurable)
 - OAuth2 token management with automatic refresh
 
+## [3.210.0] - 2026-02-19
+
+### Added
+
+- `Route.Options` field (`*RouteOptions`, optional): load-balancing options for a route.
+  The `RouteOptions` struct contains:
+
+  - `Loadbalancing` (`*string`): load-balancer algorithm — `"round-robin"`, `"least-connection"`,
+    or `"hash"`
+
+  - `HashHeader` (`*string`): HTTP header name to hash for routing (e.g., `"X-User-ID"`,
+    `"Cookie"`); required when `Loadbalancing` is `"hash"`
+
+  - `HashBalance` (`*string`): weight factor for load balancing (`"1.1"` to `"10"`, or `"0"` to
+    disable); optional when `Loadbalancing` is `"hash"`
+
+  Also available on `RouteCreateRequest.Options` and `RouteUpdateRequest.Options`. (CF API v3.210.0)
+
+- `Stack.State` field (`string`): the state of the stack. Valid values: `ACTIVE`, `RESTRICTED`,
+  `DEPRECATED`, `DISABLED`. Also available on `StackCreateRequest.State` (`string`) and
+  `StackUpdateRequest.State` (`*string`). (CF API v3.210.0)
+
+- `broker_catalog_ids` query parameter for listing Service Offerings: comma-delimited list of IDs
+  provided by the service broker to filter by. Pass via `QueryParams.Filters["broker_catalog_ids"]`.
+  (CF API v3.210.0)
+
 ## [3.209.0] - 2026-02-19
 
 ### Added
