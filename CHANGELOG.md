@@ -30,6 +30,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS certificate validation (configurable)
 - OAuth2 token management with automatic refresh
 
+## [3.211.0] - 2026-02-19
+
+### Added
+
+- `ProcessInstance` struct: represents a process instance from the new
+  `GET /v3/processes/:guid/process_instances` endpoint. Fields:
+
+  - `Index` (`int`): zero-based index of the instance
+
+  - `State` (`string`): instance state (`RUNNING`, `CRASHED`, `STARTING`, `STOPPING`, `DOWN`)
+
+  - `Since` (`int`): seconds since the instance entered its current state
+
+  (CF API v3.211.0)
+
+- `ProcessesClient.ListInstances` method: calls `GET /v3/processes/:guid/process_instances`
+  and returns `*ListResponse[ProcessInstance]`. (CF API v3.211.0)
+
+- `Stack.StateReason` field (`string`, optional): plain text describing the stack state change.
+  Also available on `StackCreateRequest.StateReason` (`string`) and
+  `StackUpdateRequest.StateReason` (`*string`). (CF API v3.211.0)
+
+- `embed` query parameter for listing Processes: comma-delimited list of resources to embed
+  (valid value: `process_instances`). Pass via `QueryParams.Filters["embed"]`. (CF API v3.211.0)
+
 ## [3.210.0] - 2026-02-19
 
 ### Added
