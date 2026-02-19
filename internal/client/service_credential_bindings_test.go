@@ -84,6 +84,71 @@ func TestServiceCredentialBindingsClient_Create_App(t *testing.T) {
 }
 
 //nolint:funlen // Test functions can be longer for comprehensive testing
+func TestServiceCredentialBindingsClient_Create_App_WithStrategy(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_credential_bindings", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		var requestBody capi.ServiceCredentialBindingCreateRequest
+
+		err := json.NewDecoder(request.Body).Decode(&requestBody)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "app", requestBody.Type)
+		assert.Equal(t, "my-binding", *requestBody.Name)
+		assert.Equal(t, "instance-guid", requestBody.Relationships.ServiceInstance.Data.GUID)
+		assert.Equal(t, "app-guid", requestBody.Relationships.App.Data.GUID)
+		assert.NotNil(t, requestBody.Strategy)
+		if requestBody.Strategy != nil {
+			assert.Equal(t, "multiple", *requestBody.Strategy)
+		}
+
+		job := capi.Job{
+			Resource: capi.Resource{
+				GUID: "job-guid",
+			},
+			Operation: "service_credential_binding.create",
+			State:     "PROCESSING",
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(writer).Encode(job)
+	}))
+	defer server.Close()
+
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceBindings := NewServiceCredentialBindingsClient(httpClient)
+
+	strategy := "multiple"
+	name := "my-binding"
+	request := &capi.ServiceCredentialBindingCreateRequest{
+		Type:     "app",
+		Name:     &name,
+		Strategy: &strategy,
+		Relationships: capi.ServiceCredentialBindingRelationships{
+			ServiceInstance: capi.Relationship{
+				Data: &capi.RelationshipData{GUID: "instance-guid"},
+			},
+			App: &capi.Relationship{
+				Data: &capi.RelationshipData{GUID: "app-guid"},
+			},
+		},
+	}
+
+	result, err := serviceBindings.Create(context.Background(), request)
+	require.NoError(t, err)
+
+	job, ok := result.(*capi.Job)
+	require.True(t, ok)
+	assert.Equal(t, "job-guid", job.GUID)
+	assert.Equal(t, "service_credential_binding.create", job.Operation)
+}
+
+//nolint:funlen // Test functions can be longer for comprehensive testing
 func TestServiceCredentialBindingsClient_Create_Key(t *testing.T) {
 	t.Parallel()
 

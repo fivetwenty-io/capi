@@ -1377,6 +1377,9 @@ type ServiceCredentialBindingCreateRequest struct {
 	Type string `json:"type" yaml:"type"`
 	// Name optionally names the binding (keys commonly use this).
 	Name *string `json:"name,omitempty" yaml:"name,omitempty"`
+	// Strategy sets the binding creation strategy. Valid values are "single" (default) and
+	// "multiple" (experimental). Only valid when Type is "app".
+	Strategy *string `json:"strategy,omitempty" yaml:"strategy,omitempty"`
 	// Parameters are broker-specific binding parameters.
 	Parameters map[string]interface{} `json:"parameters,omitempty" yaml:"parameters,omitempty"`
 	// Metadata sets labels/annotations on the binding.
