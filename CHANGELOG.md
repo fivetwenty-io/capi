@@ -30,6 +30,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS certificate validation (configurable)
 - OAuth2 token management with automatic refresh
 
+## [3.209.0] - 2026-02-19
+
+### Added
+
+- `ServiceInstance.BrokerProvidedMetadata` field (`*ServiceInstanceBrokerProvidedMetadata`, optional):
+  metadata provided by the service broker about managed service instances. Contains:
+
+  - `Attributes` (`map[string]interface{}`): broker-specific key-value pairs that may imply
+    behavior changes by the platform
+
+  - `Labels` (`map[string]interface{}`): broker-specified key-value pairs for attributes that
+    do not directly imply behavior changes
+
+  Only shown when `Type` is `"managed"`. (CF API v3.209.0)
+
+## [3.208.0] - 2026-02-19
+
+### Changed
+
+- Tracks Cloud Foundry API v3.208.0 (no API-level changes from v3.207.0)
+
+## [3.207.0] - 2026-02-19
+
+### Changed
+
+- Tracks Cloud Foundry API v3.207.0 (no API-level changes from v3.206.0)
+
+## [3.206.0] - 2026-02-19
+
+### Changed
+
+- Tracks Cloud Foundry API v3.206.0 (no API-level changes from v3.205.0)
+
 ## [3.205.0] - 2026-02-18
 
 ### Added
