@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS certificate validation (configurable)
 - OAuth2 token management with automatic refresh
 
+## [3.203.0] - 2026-02-18
+
+### Changed
+
+- Tracks Cloud Foundry API v3.203.0 (no API-level changes from v3.202.0)
+
 ## [1.0.0] - 2024-01-15
 
 ### Added
