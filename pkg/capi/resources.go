@@ -224,6 +224,7 @@ type Route struct {
 	Port          *int               `json:"port,omitempty"     yaml:"port,omitempty"`
 	URL           string             `json:"url"                yaml:"url"`
 	Destinations  []RouteDestination `json:"destinations"       yaml:"destinations"`
+	Options       *RouteOptions      `json:"options,omitempty"  yaml:"options,omitempty"`
 	Metadata      *Metadata          `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	Relationships RouteRelationships `json:"relationships"      yaml:"relationships"`
 }
@@ -238,14 +239,25 @@ type RouteCreateRequest struct {
 	Port *int `json:"port,omitempty" yaml:"port,omitempty"`
 	// Relationships must include Space and Domain.
 	Relationships RouteRelationships `json:"relationships" yaml:"relationships"`
+	// Options sets load-balancing options on the route.
+	Options *RouteOptions `json:"options,omitempty" yaml:"options,omitempty"`
 	// Metadata sets labels/annotations on the route.
 	Metadata *Metadata `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 // RouteUpdateRequest represents a request to update a route.
 type RouteUpdateRequest struct {
+	// Options updates load-balancing options; nil leaves it unchanged.
+	Options *RouteOptions `json:"options,omitempty" yaml:"options,omitempty"`
 	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+}
+
+// RouteOptions represents load-balancing options for a route.
+type RouteOptions struct {
+	Loadbalancing *string `json:"loadbalancing,omitempty" yaml:"loadbalancing,omitempty"` // "round-robin", "least-connection", or "hash"
+	HashHeader    *string `json:"hash_header,omitempty"   yaml:"hash_header,omitempty"`   // HTTP header to hash; required when loadbalancing is "hash"
+	HashBalance   *string `json:"hash_balance,omitempty"  yaml:"hash_balance,omitempty"`  // Weight factor (1.1-10, or 0); optional when loadbalancing is "hash"
 }
 
 // RouteRelationships represents route relationships.
@@ -952,6 +964,7 @@ type Stack struct {
 
 	Name             string    `json:"name"               yaml:"name"`
 	Description      string    `json:"description"        yaml:"description"`
+	State            string    `json:"state"              yaml:"state"` // "ACTIVE", "RESTRICTED", "DEPRECATED", "DISABLED"
 	BuildRootfsImage string    `json:"build_rootfs_image" yaml:"build_rootfs_image"`
 	RunRootfsImage   string    `json:"run_rootfs_image"   yaml:"run_rootfs_image"`
 	Default          bool      `json:"default"            yaml:"default"`
@@ -965,6 +978,8 @@ type StackCreateRequest struct {
 	Name string `json:"name" yaml:"name"`
 	// Description describes the stack.
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	// State sets the stack state; valid values: "ACTIVE", "RESTRICTED", "DEPRECATED", "DISABLED".
+	State string `json:"state,omitempty" yaml:"state,omitempty"`
 	// BuildRootfsImage and RunRootfsImage point to OCI images used for staging and running.
 	BuildRootfsImage string `json:"build_rootfs_image,omitempty" yaml:"build_rootfs_image,omitempty"`
 	RunRootfsImage   string `json:"run_rootfs_image,omitempty"   yaml:"run_rootfs_image,omitempty"`
@@ -974,6 +989,8 @@ type StackCreateRequest struct {
 
 // StackUpdateRequest is the request for updating a stack.
 type StackUpdateRequest struct {
+	// State updates the stack state; valid values: "ACTIVE", "RESTRICTED", "DEPRECATED", "DISABLED".
+	State *string `json:"state,omitempty" yaml:"state,omitempty"`
 	// Metadata updates labels/annotations; nil leaves it unchanged.
 	Metadata *Metadata `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
