@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS certificate validation (configurable)
 - OAuth2 token management with automatic refresh
 
+## [3.205.0] - 2026-02-18
+
+### Added
+
+- `ServiceCredentialBindingCreateRequest.Strategy` field (`string`, optional): sets the binding
+  creation strategy. Valid values are `single` (default) and `multiple` (experimental).
+  Only applicable when `Type` is `"app"`. (CF API v3.205.0)
+
 ## [3.204.0] - 2026-02-18
 
 ### Changed

@@ -101,6 +101,7 @@ func TestServiceCredentialBindingsClient_Create_App_WithStrategy(t *testing.T) {
 		assert.Equal(t, "instance-guid", requestBody.Relationships.ServiceInstance.Data.GUID)
 		assert.Equal(t, "app-guid", requestBody.Relationships.App.Data.GUID)
 		assert.NotNil(t, requestBody.Strategy)
+
 		if requestBody.Strategy != nil {
 			assert.Equal(t, "multiple", *requestBody.Strategy)
 		}
@@ -143,7 +144,7 @@ func TestServiceCredentialBindingsClient_Create_App_WithStrategy(t *testing.T) {
 	require.NoError(t, err)
 
 	job, ok := result.(*capi.Job)
-	require.True(t, ok)
+	require.True(t, ok, "Expected *capi.Job for app binding with strategy")
 	assert.Equal(t, "job-guid", job.GUID)
 	assert.Equal(t, "service_credential_binding.create", job.Operation)
 }
