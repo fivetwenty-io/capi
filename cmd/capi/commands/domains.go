@@ -252,9 +252,9 @@ func formatDomainType(internal bool) string {
 	return "shared"
 }
 
-func formatRouterGroup(routerGroup *string) string {
+func formatRouterGroup(routerGroup *capi.RouterGroup) string {
 	if routerGroup != nil {
-		return *routerGroup
+		return routerGroup.GUID
 	}
 
 	return "default"
@@ -375,7 +375,7 @@ func addDomainBasicInfo(table *tablewriter.Table, domain *capi.Domain) {
 
 func addDomainOptionalInfo(table *tablewriter.Table, domain *capi.Domain) {
 	if domain.RouterGroup != nil {
-		_ = table.Append("Router Group", *domain.RouterGroup)
+		_ = table.Append("Router Group", domain.RouterGroup.GUID)
 	}
 }
 

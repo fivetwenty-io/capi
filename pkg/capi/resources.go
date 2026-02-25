@@ -176,13 +176,19 @@ type SpaceUsageSummary struct {
 	} `json:"usage_summary"`
 }
 
+// RouterGroup identifies the router group associated with a domain.
+// The CF v3 API returns this as an object with a GUID field.
+type RouterGroup struct {
+	GUID string `json:"guid" yaml:"guid"`
+}
+
 // Domain represents a domain.
 type Domain struct {
 	Resource
 
 	Name               string              `json:"name"                   yaml:"name"`
 	Internal           bool                `json:"internal"               yaml:"internal"`
-	RouterGroup        *string             `json:"router_group,omitempty" yaml:"router_group,omitempty"`
+	RouterGroup        *RouterGroup        `json:"router_group,omitempty" yaml:"router_group,omitempty"`
 	SupportedProtocols []string            `json:"supported_protocols"    yaml:"supported_protocols"`
 	Metadata           *Metadata           `json:"metadata,omitempty"     yaml:"metadata,omitempty"`
 	Relationships      DomainRelationships `json:"relationships"          yaml:"relationships"`
