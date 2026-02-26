@@ -84,6 +84,7 @@ type ResourceClients interface {
 // InfoClient provides access to CF API information endpoints.
 type InfoClient interface {
 	GetInfo(ctx context.Context) (*Info, error)
+	GetRoot(ctx context.Context) (*RootInfo, error)
 	GetRootInfo(ctx context.Context) (*RootInfo, error)
 	GetUsageSummary(ctx context.Context) (*UsageSummary, error)
 }

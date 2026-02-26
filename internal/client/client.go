@@ -315,6 +315,25 @@ func (c *Client) GetInfo(ctx context.Context) (*capi.Info, error) {
 	return &info, nil
 }
 
+// GetRoot implements capi.Client.GetRoot.
+// It fetches the CF API root (/) which contains platform-level links
+// such as app_ssh, login, uaa, cloud_controller_v2, and cloud_controller_v3.
+func (c *Client) GetRoot(ctx context.Context) (*capi.RootInfo, error) {
+	resp, err := c.httpClient.Get(ctx, "/", nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting root: %w", err)
+	}
+
+	var root capi.RootInfo
+
+	err = json.Unmarshal(resp.Body, &root)
+	if err != nil {
+		return nil, fmt.Errorf("parsing root response: %w", err)
+	}
+
+	return &root, nil
+}
+
 // GetRootInfo implements capi.Client.GetRootInfo.
 func (c *Client) GetRootInfo(ctx context.Context) (*capi.RootInfo, error) {
 	resp, err := c.httpClient.Get(ctx, "/v3", nil)

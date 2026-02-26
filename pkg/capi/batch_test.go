@@ -47,6 +47,35 @@ func (m *MockClient) GetInfo(ctx context.Context) (*capi.Info, error) {
 	return info, nil
 }
 
+func (m *MockClient) GetRoot(ctx context.Context) (*capi.RootInfo, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		err := args.Error(1)
+		if err != nil {
+			return nil, fmt.Errorf("mock error in GetRoot: %w", err)
+		}
+
+		return nil, nil
+	}
+
+	err := args.Error(1)
+	if err != nil {
+		rootInfo, ok := args.Get(0).(*capi.RootInfo)
+		if !ok {
+			return nil, constants.ErrInvalidTypeAssertion
+		}
+
+		return rootInfo, fmt.Errorf("mock error in GetRoot: %w", err)
+	}
+
+	rootInfo, ok := args.Get(0).(*capi.RootInfo)
+	if !ok {
+		return nil, constants.ErrInvalidTypeAssertion
+	}
+
+	return rootInfo, nil
+}
+
 func (m *MockClient) GetRootInfo(ctx context.Context) (*capi.RootInfo, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
