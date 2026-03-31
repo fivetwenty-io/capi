@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS certificate validation (configurable)
 - OAuth2 token management with automatic refresh
 
+## [3.215.0] - 2026-03-31
+
+### Changed
+
+- App features `k8s-service-bindings` and `file-based-service-bindings` graduated
+  from experimental to generally available (CF API v3.215.0)
+
 ## [3.214.0] - 2026-03-31
 
 ### Changed

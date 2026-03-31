@@ -39,6 +39,8 @@ capi apps features get my-app ssh
 - `ssh` - SSH access to application containers
 - `revisions` - Application revision tracking
 - `log-cache` - Enhanced logging capabilities
+- `k8s-service-bindings` - Enable Kubernetes service bindings for the app
+- `file-based-service-bindings` - Enable file-based VCAP service bindings for the app
 
 ## Output Formats
 
