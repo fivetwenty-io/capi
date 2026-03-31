@@ -30,6 +30,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS certificate validation (configurable)
 - OAuth2 token management with automatic refresh
 
+## [3.216.0] - 2026-03-31
+
+### Changed
+
+- Tracks Cloud Foundry API v3.216.0 (no API-level structural changes from v3.215.0)
+
+- Server-side behavioral changes:
+
+  - App names now have max length validation enforced by the API
+
+  - Default `max_service_credential_bindings_per_app_service_instance` is now 5
+
 ## [3.215.0] - 2026-03-31
 
 ### Changed
