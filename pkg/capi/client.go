@@ -27,6 +27,7 @@ type InfrastructureClients interface {
 	SecurityGroups() SecurityGroupsClient
 	IsolationSegments() IsolationSegmentsClient
 	Stacks() StacksClient
+	Routing() RoutingClient
 }
 
 // ServiceClients provides access to service-related resource clients.

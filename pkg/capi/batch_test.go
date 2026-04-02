@@ -557,6 +557,17 @@ func (m *MockClient) Manifests() capi.ManifestsClient {
 	return client
 }
 
+func (m *MockClient) Routing() capi.RoutingClient {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+
+	client, _ := args.Get(0).(capi.RoutingClient)
+
+	return client
+}
+
 // MockAppsClient implements capi.AppsClient for testing.
 type MockAppsClient struct {
 	mock.Mock

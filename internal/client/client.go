@@ -64,6 +64,7 @@ type Client struct {
 	auditEvents               capi.AuditEventsClient
 	resourceMatches           capi.ResourceMatchesClient
 	manifests                 capi.ManifestsClient
+	routing                   capi.RoutingClient
 }
 
 // New creates a new CF API client.
@@ -562,6 +563,11 @@ func (c *Client) Manifests() capi.ManifestsClient {
 	return c.manifests
 }
 
+// Routing implements capi.Client.Routing.
+func (c *Client) Routing() capi.RoutingClient {
+	return c.routing
+}
+
 // GetToken returns the current access token from the token manager.
 func (c *Client) GetToken(ctx context.Context) (string, error) {
 	if c.tokenManager == nil {
@@ -613,6 +619,7 @@ func (c *Client) initializeResourceClients() {
 	c.auditEvents = NewAuditEventsClient(c.httpClient)
 	c.resourceMatches = NewResourceMatchesClient(c.httpClient)
 	c.manifests = NewManifestsClient(c.httpClient)
+	c.routing = NewRoutingClient(c.httpClient)
 }
 
 // staticTokenManager provides a static token.

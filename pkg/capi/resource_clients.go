@@ -478,3 +478,11 @@ type AuditEventsClient interface {
 type ResourceMatchesClient interface {
 	Create(ctx context.Context, request *ResourceMatchesRequest) (*ResourceMatches, error)
 }
+
+// RoutingClient provides access to the CF Routing API (/routing/v1/).
+// The Routing API is a separate microservice from the Cloud Controller (CF API v3),
+// but typically shares the same base URL and UAA authentication in most CF deployments.
+type RoutingClient interface {
+	ListRouterGroups(ctx context.Context) ([]RouterGroup, error)
+	GetRouterGroupByType(ctx context.Context, groupType string) (*RouterGroup, error)
+}

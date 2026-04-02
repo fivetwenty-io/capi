@@ -176,10 +176,15 @@ type SpaceUsageSummary struct {
 	} `json:"usage_summary"`
 }
 
-// RouterGroup identifies the router group associated with a domain.
-// The CF v3 API returns this as an object with a GUID field.
+// RouterGroup identifies a router group.
+// When embedded in a Domain resource the CF v3 API only returns the GUID field.
+// When fetched directly from the CF Routing API (/routing/v1/router_groups) all
+// fields are populated.
 type RouterGroup struct {
-	GUID string `json:"guid" yaml:"guid"`
+	GUID            string `json:"guid"                       yaml:"guid"`
+	Name            string `json:"name,omitempty"             yaml:"name,omitempty"`
+	Type            string `json:"type,omitempty"             yaml:"type,omitempty"`
+	ReservablePorts string `json:"reservable_ports,omitempty" yaml:"reservable_ports,omitempty"`
 }
 
 // Domain represents a domain.
