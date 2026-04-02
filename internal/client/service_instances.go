@@ -135,12 +135,18 @@ func (c *ServiceInstancesClient) Update(ctx context.Context, guid string, reques
 }
 
 // Delete deletes a service instance.
-func (c *ServiceInstancesClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
+// By default no purge query parameter is sent. Pass capi.WithPurge(true) to
+// bypass the service broker and forcibly remove the record from the database.
+func (c *ServiceInstancesClient) Delete(ctx context.Context, guid string, opts ...capi.DeleteOption) (*capi.Job, error) {
 	path := "/v3/service_instances/" + guid
 
-	// Add purge query parameter by default to force delete
-	queryParams := url.Values{}
-	queryParams.Set("purge", "true")
+	deleteOpts := capi.ApplyDeleteOptions(opts)
+
+	var queryParams url.Values
+	if deleteOpts.Purge {
+		queryParams = url.Values{}
+		queryParams.Set("purge", "true")
+	}
 
 	resp, err := c.httpClient.DeleteWithQuery(ctx, path, queryParams)
 	if err != nil {

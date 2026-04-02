@@ -243,7 +243,7 @@ type ServiceInstancesClient interface {
 	Get(ctx context.Context, guid string) (*ServiceInstance, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceInstance], error)
 	Update(ctx context.Context, guid string, request *ServiceInstanceUpdateRequest) (interface{}, error) // Returns *ServiceInstance for user-provided, *Job for managed
-	Delete(ctx context.Context, guid string) (*Job, error)
+	Delete(ctx context.Context, guid string, opts ...DeleteOption) (*Job, error)
 
 	// Parameters for managed instances
 	GetParameters(ctx context.Context, guid string) (*ServiceInstanceParameters, error)
