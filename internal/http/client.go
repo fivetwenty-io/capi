@@ -39,7 +39,6 @@ type Client struct {
 // Option configures the HTTP client.
 // Static errors for err113 compliance.
 var (
-	ErrAPIError                = errors.New("API error")
 	ErrNoTokenManagerAvailable = errors.New("no token manager available")
 )
 
@@ -123,10 +122,19 @@ func NewClient(baseURL string, tokenManager auth.TokenManager, opts ...Option) *
 		userAgent:    "capi-client-go/1.0.0",
 	}
 
-	// Apply options
+	// Apply options. WithHTTPClient may replace retryClient.HTTPClient, so
+	// the authRetryTransport must be installed AFTER options are applied so
+	// it wraps whatever transport is ultimately in effect.
 	for _, opt := range opts {
 		opt(client)
 	}
+
+	// Install the 401-refresh-and-retry RoundTripper on the inner
+	// *http.Client's Transport so every request (including those driven
+	// by retryablehttp's CheckRetry loop) transparently picks up a token
+	// refresh when the server returns 401.
+	retryClient.HTTPClient.Transport = newAuthRetryTransport(
+		retryClient.HTTPClient.Transport, tokenManager)
 
 	return client
 }
@@ -138,7 +146,6 @@ type Request struct {
 	Query   url.Values
 	Body    interface{}
 	Headers map[string]string
-	isRetry bool
 }
 
 // Response represents an HTTP response.
@@ -411,22 +418,13 @@ func (c *Client) executeHTTPRequest(httpReq *retryablehttp.Request) (*Response, 
 	return response, nil
 }
 
-// handleResponseError processes HTTP error responses with retry logic.
-func (c *Client) handleResponseError(ctx context.Context, response *Response, req *Request) (*Response, error) {
+// handleResponseError processes HTTP error responses. The 401 refresh +
+// retry cycle is handled transparently inside the authRetryTransport
+// installed in NewClient, so this method only needs to turn error status
+// codes into sentinel-wrapping errors via parseError.
+func (c *Client) handleResponseError(_ context.Context, response *Response, _ *Request) (*Response, error) {
 	if response.StatusCode < constants.HTTPStatusBadRequest {
 		return response, nil
-	}
-
-	// Handle authentication errors with retry
-	if response.StatusCode == http.StatusUnauthorized && c.tokenManager != nil && !req.isRetry {
-		// Try to refresh token and retry once
-		err := c.tokenManager.RefreshToken(ctx)
-		if err == nil {
-			retryReq := *req
-			retryReq.isRetry = true
-
-			return c.Do(ctx, &retryReq)
-		}
 	}
 
 	return response, c.parseError(response)
@@ -447,21 +445,15 @@ func (c *Client) buildURL(path string, query url.Values) (string, error) {
 	return parsedURL.String(), nil
 }
 
-// parseError parses an error response from the API.
+// parseError converts an HTTP error response into a sentinel-wrapped error
+// by delegating to capi.MapHTTPError. This is the ONLY call site inside
+// capi/v3 that constructs error values from HTTP responses, so every
+// method on the CAPI client transparently returns sentinel-wrapping errors
+// that callers can detect with errors.Is(err, capi.ErrNotFound) and
+// friends, while still being able to inspect the underlying CF error
+// envelope via errors.As(err, &capi.ResponseError{}).
 func (c *Client) parseError(resp *Response) error {
-	var errResp capi.ResponseError
-
-	err := json.Unmarshal(resp.Body, &errResp)
-	if err != nil {
-		// If we can't parse as ResponseError, return a generic error
-		return fmt.Errorf("%w (status %d): %s", ErrAPIError, resp.StatusCode, string(resp.Body))
-	}
-
-	if len(errResp.Errors) == 0 {
-		return fmt.Errorf("%w (status %d): %s", ErrAPIError, resp.StatusCode, string(resp.Body))
-	}
-
-	return &errResp
+	return capi.MapHTTPError(resp.StatusCode, resp.Body)
 }
 
 // logRequest logs the HTTP request details.
