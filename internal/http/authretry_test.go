@@ -8,10 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/fivetwenty-io/capi/v3/internal/auth"
 	capihttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -324,4 +326,256 @@ func TestAuthRetryTransport_RewindableBodyRetries(t *testing.T) {
 
 	assert.Equal(t, int32(2), atomic.LoadInt32(&attempts))
 	assert.Equal(t, int32(1), atomic.LoadInt32(&tm.refreshCalls))
+}
+
+// serializingTokenManager is a token manager whose RefreshToken publishes
+// the next token atomically and whose GetToken returns whatever token is
+// currently published. It exists so TestAuthRetryTransport_ConcurrentRefresh
+// can observe the exact number of upstream refresh calls and the exact
+// tokens returned from GetToken across a concurrent fleet of 401-retries.
+type serializingTokenManager struct {
+	mu           sync.Mutex
+	current      string
+	refreshDelay time.Duration
+
+	refreshCalls int32
+	getCalls     int32
+}
+
+func (m *serializingTokenManager) GetToken(_ context.Context) (string, error) {
+	atomic.AddInt32(&m.getCalls, 1)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.current, nil
+}
+
+func (m *serializingTokenManager) RefreshToken(_ context.Context) error {
+	atomic.AddInt32(&m.refreshCalls, 1)
+
+	// Simulate upstream latency so concurrent callers pile up while the
+	// refresh is in flight. Without this delay the refresh window is too
+	// short to race.
+	if m.refreshDelay > 0 {
+		time.Sleep(m.refreshDelay)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.current = "refreshed-" + m.current
+
+	return nil
+}
+
+func (m *serializingTokenManager) SetToken(_ string, _ time.Time) {}
+
+// TestAuthRetryTransport_ConcurrentRefresh is the regression test for Wave
+// 6 R6-3 H1: when N goroutines simultaneously receive a 401 they must
+// collectively trigger exactly ONE upstream RefreshToken call, not N. The
+// N-1 goroutines that lose the refresh race must observe the token published
+// by the winner and replay with it without a second upstream refresh.
+func TestAuthRetryTransport_ConcurrentRefresh(t *testing.T) {
+	t.Parallel()
+
+	const concurrency = 10
+
+	var (
+		attemptsTotal     int32
+		successfulReplays int32
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attemptsTotal, 1)
+
+		// Any request carrying the INITIAL token gets a 401. Any request
+		// carrying the refreshed token succeeds. This lets us assert that
+		// every caller eventually replays with the refreshed token.
+		auth := r.Header.Get("Authorization")
+		if auth == "Bearer initial" {
+			w.WriteHeader(http.StatusUnauthorized)
+
+			return
+		}
+
+		if auth == "Bearer refreshed-initial" {
+			atomic.AddInt32(&successfulReplays, 1)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"ok":true}`))
+
+			return
+		}
+
+		t.Errorf("unexpected Authorization header: %q", auth)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	tm := &serializingTokenManager{
+		current:      "initial",
+		refreshDelay: 50 * time.Millisecond,
+	}
+
+	client := capihttp.NewClient(server.URL, tm,
+		capihttp.WithRetryConfig(0, time.Millisecond, time.Millisecond))
+
+	var wg sync.WaitGroup
+
+	wg.Add(concurrency)
+
+	errs := make([]error, concurrency)
+	statuses := make([]int, concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		i := i
+
+		go func() {
+			defer wg.Done()
+
+			resp, err := client.Get(context.Background(), "/v3/apps", nil)
+			errs[i] = err
+
+			if resp != nil {
+				statuses[i] = resp.StatusCode
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoError(t, err, "goroutine %d", i)
+		assert.Equal(t, http.StatusOK, statuses[i], "goroutine %d", i)
+	}
+
+	// The core assertion: exactly one upstream RefreshToken call despite N
+	// concurrent 401s.
+	assert.Equal(
+		t,
+		int32(1),
+		atomic.LoadInt32(&tm.refreshCalls),
+		"RefreshToken must be called exactly once across %d concurrent 401s", concurrency,
+	)
+
+	// Every goroutine must have completed a successful replay with the
+	// refreshed token. The server therefore sees N initial 401s plus N
+	// refreshed-token successes, for a total of 2N attempts.
+	assert.Equal(t, int32(concurrency), atomic.LoadInt32(&successfulReplays))
+	assert.Equal(t, int32(2*concurrency), atomic.LoadInt32(&attemptsTotal))
+}
+
+// TestAuthRetryTransport_SecondUnauthorizedOnReplayReturnsToCaller is the
+// regression test for Wave 6 R6-3 H2.2: when the replay itself returns a
+// 401 the adapter must hand that second 401 back to the caller verbatim
+// without issuing a third attempt (no infinite loop). This is the stated
+// contract in authretry.go's package doc ("a second 401 on the retry is
+// returned to the caller unchanged").
+func TestAuthRetryTransport_SecondUnauthorizedOnReplayReturnsToCaller(t *testing.T) {
+	t.Parallel()
+
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+
+		// Always 401, regardless of how the Authorization header looks.
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"errors":[{"code":10002,"title":"CF-NotAuthenticated","detail":"still bad"}]}`))
+	}))
+	defer server.Close()
+
+	tm := &refreshingTokenManager{
+		initialToken:   "initial",
+		refreshedToken: "refreshed",
+	}
+
+	client := capihttp.NewClient(server.URL, tm,
+		capihttp.WithRetryConfig(0, time.Millisecond, time.Millisecond))
+
+	resp, err := client.Get(context.Background(), "/v3/apps", nil)
+	// The client surfaces the 401 as an error via its error mapper, but
+	// the important contract here is that there is no infinite loop and
+	// exactly TWO server attempts occurred (one original plus one replay).
+	require.Error(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	assert.Contains(t, string(resp.Body), "CF-NotAuthenticated")
+
+	assert.Equal(
+		t,
+		int32(2),
+		atomic.LoadInt32(&attempts),
+		"second 401 on replay must not trigger a third attempt",
+	)
+	assert.Equal(
+		t,
+		int32(1),
+		atomic.LoadInt32(&tm.refreshCalls),
+		"RefreshToken must be called exactly once (no second refresh on second 401)",
+	)
+}
+
+// TestAuthRetryTransport_RefreshEndpointReturns401 is the regression test
+// for Wave 6 R6-3 H2.3: when the token refresh HTTP call itself returns
+// 401 (UAA rejects the refresh), the token manager reports an error and
+// the adapter must surface the original 401 to the caller without
+// attempting any retry loop. This path exercises the real OAuth2 token
+// manager against a fake UAA endpoint to cover the interaction between
+// authretry and auth.OAuth2TokenManager together.
+func TestAuthRetryTransport_RefreshEndpointReturns401(t *testing.T) {
+	t.Parallel()
+
+	var (
+		uaaCalls int32
+		apiCalls int32
+	)
+
+	// Fake UAA token endpoint that always 401s the refresh attempt.
+	uaa := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&uaaCalls, 1)
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_client","error_description":"client not trusted"}`))
+	}))
+	defer uaa.Close()
+
+	// Target API that always 401s (so the retry path is exercised but the
+	// refresh attempt never succeeds).
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&apiCalls, 1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer api.Close()
+
+	tm := auth.NewOAuth2TokenManager(&auth.OAuth2Config{
+		TokenURL:     uaa.URL,
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		AccessToken:  "seed-access-token",
+	})
+
+	client := capihttp.NewClient(api.URL, tm,
+		capihttp.WithRetryConfig(0, time.Millisecond, time.Millisecond))
+
+	resp, err := client.Get(context.Background(), "/v3/apps", nil)
+	require.Error(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	// Exactly one API call: the initial 401. The refresh attempt failed
+	// (UAA returned 401) so the adapter must NOT replay the API request.
+	assert.Equal(
+		t,
+		int32(1),
+		atomic.LoadInt32(&apiCalls),
+		"API must see exactly one attempt when UAA refresh fails",
+	)
+	// Exactly one UAA call: the single refresh attempt that failed.
+	// Anything more would indicate an infinite loop.
+	assert.Equal(
+		t,
+		int32(1),
+		atomic.LoadInt32(&uaaCalls),
+		"UAA must be called at most once; more indicates an infinite loop",
+	)
 }

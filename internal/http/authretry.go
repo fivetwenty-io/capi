@@ -26,6 +26,8 @@ package http
 
 import (
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/fivetwenty-io/capi/v3/internal/auth"
 )
@@ -35,9 +37,20 @@ import (
 // HTTP 401 Unauthorized. It is installed by NewClient on the retryablehttp
 // client's underlying *http.Client so that all requests issued through the
 // retryablehttp machinery pick up the retry automatically.
+//
+// Concurrency: refreshMu serializes the token-refresh section of RoundTrip
+// so that N goroutines hitting a simultaneous 401 result in exactly one
+// upstream RefreshToken call. Callers that observe a refreshed token has
+// already been published by a sibling goroutine (i.e. the token currently
+// cached by the token manager differs from the one they sent with their
+// failing request) skip the refresh and replay immediately with the cached
+// token. This mirrors the single-flight semantics of golang.org/x/oauth2's
+// reuseTokenSource without adding a new module dependency.
 type authRetryTransport struct {
 	base         http.RoundTripper
 	tokenManager auth.TokenManager
+
+	refreshMu sync.Mutex
 }
 
 // newAuthRetryTransport returns an authRetryTransport wrapping the provided
@@ -82,15 +95,55 @@ func (t *authRetryTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 	ctx := req.Context()
 
+	// Serialize the refresh section so that concurrent 401s from multiple
+	// goroutines issue at most one upstream RefreshToken call. Before
+	// refreshing we compare the Authorization bearer value the caller used
+	// (attached to req) against the token currently cached by the token
+	// manager. If they differ, a sibling goroutine already refreshed the
+	// token between the time this request was dispatched and the time it
+	// came back 401 — so we retry with the cached token instead of
+	// triggering another upstream refresh.
+	t.refreshMu.Lock()
+
+	callerToken := bearerFromHeader(req.Header.Get("Authorization"))
+
+	cachedToken, cachedErr := t.tokenManager.GetToken(ctx)
+	if cachedErr == nil && cachedToken != "" && cachedToken != callerToken {
+		// A sibling goroutine already refreshed. Use the cached token
+		// directly without another RefreshToken round trip.
+		t.refreshMu.Unlock()
+
+		return t.replay(req, cachedToken, resp)
+	}
+
 	if refreshErr := t.tokenManager.RefreshToken(ctx); refreshErr != nil {
 		// Refresh failed — return the original 401 unchanged.
+		t.refreshMu.Unlock()
+
 		return resp, nil
 	}
 
 	token, tokenErr := t.tokenManager.GetToken(ctx)
+	t.refreshMu.Unlock()
+
 	if tokenErr != nil {
 		return resp, nil
 	}
+
+	return t.replay(req, token, resp)
+}
+
+// replay builds a cloned request with the refreshed Authorization header and
+// issues it directly against the base transport (bypassing this wrapper so a
+// second 401 is returned unchanged). The caller is responsible for having
+// obtained token from the token manager and must not hold refreshMu.
+//
+// replay closes the original 401 response body on success so the underlying
+// connection is not leaked. On any failure building the retry request (a
+// non-rewindable body that slipped past the caller's check, or GetBody
+// returning an error) replay returns the original 401 unchanged.
+func (t *authRetryTransport) replay(req *http.Request, token string, original *http.Response) (*http.Response, error) {
+	ctx := req.Context()
 
 	// Build a cloned request with the refreshed Authorization header. We
 	// clone (rather than mutate) so the caller's original *http.Request is
@@ -99,13 +152,13 @@ func (t *authRetryTransport) RoundTrip(req *http.Request) (*http.Response, error
 	retryReq.Header.Set("Authorization", "Bearer "+token)
 
 	// Rewind the request body if present. GetBody is guaranteed non-nil
-	// at this point by the streaming-body check above, so any error here
-	// is a genuine IO/wrap failure and we fall back to returning the
+	// at this point by the streaming-body check in RoundTrip, so any error
+	// here is a genuine IO/wrap failure and we fall back to returning the
 	// original 401 response unchanged.
 	if req.Body != nil {
 		newBody, getBodyErr := req.GetBody()
 		if getBodyErr != nil {
-			return resp, nil
+			return original, nil
 		}
 
 		retryReq.Body = newBody
@@ -115,7 +168,19 @@ func (t *authRetryTransport) RoundTrip(req *http.Request) (*http.Response, error
 	// response body so we do not leak the underlying connection, then
 	// issue the replay directly against the base transport (bypassing
 	// this wrapper so a second 401 is returned unchanged).
-	_ = resp.Body.Close()
+	_ = original.Body.Close()
 
 	return t.base.RoundTrip(retryReq)
+}
+
+// bearerFromHeader extracts the bearer-token payload from an Authorization
+// header value. Returns the raw header value unchanged if it does not carry
+// a "Bearer " prefix, so comparisons still work for non-bearer auth schemes.
+func bearerFromHeader(header string) string {
+	const prefix = "Bearer "
+	if strings.HasPrefix(header, prefix) {
+		return strings.TrimSpace(header[len(prefix):])
+	}
+
+	return header
 }
