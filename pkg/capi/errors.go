@@ -62,15 +62,16 @@ const (
 	ErrorCodeAsyncServiceInProgress = 10001
 )
 
-// Common error types.
+// Common CF-API error templates keyed by CF error code. These are APIError
+// values (not sentinel errors) that callers can use as prototypes when
+// constructing a synthetic CF error for tests or when injecting a known CF
+// error code into a *ResponseError. For detecting a failure mode in a
+// returned error, use the sentinel errors in errormap.go with errors.Is
+// (e.g. errors.Is(err, capi.ErrNotFound)).
 var (
-	ErrNotFound           = &APIError{Code: ErrorCodeNotFound, Title: "CF-ResourceNotFound"}
-	ErrUnauthorized       = &APIError{Code: ErrorCodeNotAuthenticated, Title: "CF-NotAuthenticated"}
-	ErrForbidden          = &APIError{Code: ErrorCodeNotAuthorized, Title: "CF-NotAuthorized"}
-	ErrUnprocessable      = &APIError{Code: ErrorCodeUnprocessableEntity, Title: "CF-UnprocessableEntity"}
-	ErrServiceUnavailable = &APIError{Code: ErrorCodeServiceUnavailable, Title: "CF-ServiceUnavailable"}
-	ErrBadRequest         = &APIError{Code: ErrorCodeBadRequest, Title: "CF-BadRequest"}
-	ErrTooManyRequests    = &APIError{Code: ErrorCodeTooManyRequests, Title: "CF-TooManyRequests"}
+	ErrCFServiceUnavailable = &APIError{Code: ErrorCodeServiceUnavailable, Title: "CF-ServiceUnavailable"}
+	ErrCFBadRequest         = &APIError{Code: ErrorCodeBadRequest, Title: "CF-BadRequest"}
+	ErrCFTooManyRequests    = &APIError{Code: ErrorCodeTooManyRequests, Title: "CF-TooManyRequests"}
 )
 
 // Common static errors that can be wrapped with context.
@@ -114,54 +115,91 @@ var (
 	ErrInvalidClientType           = errors.New("invalid client type")
 )
 
-// IsNotFound checks if the error is a not found error.
+// IsNotFound reports whether err represents a CF "resource not found"
+// failure. It returns true when the error chain contains the ErrNotFound
+// sentinel (the canonical check for errors produced by MapHTTPError) or
+// when the chain contains an *APIError / *ResponseError whose CF error code
+// equals ErrorCodeNotFound (the legacy check for errors constructed
+// directly from an APIError).
 func IsNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, ErrNotFound) {
+		return true
+	}
+
 	apiErr := &APIError{}
-	if errors.As(err, &apiErr) {
-		return apiErr.Code == ErrorCodeNotFound
+	if errors.As(err, &apiErr) && apiErr.Code == ErrorCodeNotFound {
+		return true
 	}
 
 	errResp := &ResponseError{}
 	if errors.As(err, &errResp) {
 		first := errResp.FirstError()
-		if first != nil {
-			return first.Code == ErrorCodeNotFound
+		if first != nil && first.Code == ErrorCodeNotFound {
+			return true
 		}
 	}
 
 	return false
 }
 
-// IsUnauthorized checks if the error is an unauthorized error.
+// IsUnauthorized reports whether err represents a CF "unauthorized"
+// (HTTP 401 / not authenticated) failure. It returns true when the error
+// chain contains the ErrUnauthorized sentinel, or when it contains an
+// *APIError / *ResponseError whose CF error code equals
+// ErrorCodeNotAuthenticated.
 func IsUnauthorized(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, ErrUnauthorized) {
+		return true
+	}
+
 	apiErr := &APIError{}
-	if errors.As(err, &apiErr) {
-		return apiErr.Code == ErrorCodeNotAuthenticated
+	if errors.As(err, &apiErr) && apiErr.Code == ErrorCodeNotAuthenticated {
+		return true
 	}
 
 	errResp := &ResponseError{}
 	if errors.As(err, &errResp) {
 		first := errResp.FirstError()
-		if first != nil {
-			return first.Code == ErrorCodeNotAuthenticated
+		if first != nil && first.Code == ErrorCodeNotAuthenticated {
+			return true
 		}
 	}
 
 	return false
 }
 
-// IsForbidden checks if the error is a forbidden error.
+// IsForbidden reports whether err represents a CF "forbidden"
+// (HTTP 403 / not authorized) failure. It returns true when the error
+// chain contains the ErrForbidden sentinel, or when it contains an
+// *APIError / *ResponseError whose CF error code equals
+// ErrorCodeNotAuthorized.
 func IsForbidden(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, ErrForbidden) {
+		return true
+	}
+
 	apiErr := &APIError{}
-	if errors.As(err, &apiErr) {
-		return apiErr.Code == ErrorCodeNotAuthorized
+	if errors.As(err, &apiErr) && apiErr.Code == ErrorCodeNotAuthorized {
+		return true
 	}
 
 	errResp := &ResponseError{}
 	if errors.As(err, &errResp) {
 		first := errResp.FirstError()
-		if first != nil {
-			return first.Code == ErrorCodeNotAuthorized
+		if first != nil && first.Code == ErrorCodeNotAuthorized {
+			return true
 		}
 	}
 

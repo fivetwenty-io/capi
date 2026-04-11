@@ -277,26 +277,17 @@ func TestParseResponseError(t *testing.T) {
 
 func TestErrorConstants(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, 10010, capi.ErrNotFound.Code)
-	assert.Equal(t, "CF-ResourceNotFound", capi.ErrNotFound.Title)
 
-	assert.Equal(t, 10002, capi.ErrUnauthorized.Code)
-	assert.Equal(t, "CF-NotAuthenticated", capi.ErrUnauthorized.Title)
+	// CF-API error templates (keyed by CF error code) used as prototypes
+	// when constructing synthetic APIError values.
+	assert.Equal(t, 10001, capi.ErrCFServiceUnavailable.Code)
+	assert.Equal(t, "CF-ServiceUnavailable", capi.ErrCFServiceUnavailable.Title)
 
-	assert.Equal(t, 10003, capi.ErrForbidden.Code)
-	assert.Equal(t, "CF-NotAuthorized", capi.ErrForbidden.Title)
+	assert.Equal(t, 10005, capi.ErrCFBadRequest.Code)
+	assert.Equal(t, "CF-BadRequest", capi.ErrCFBadRequest.Title)
 
-	assert.Equal(t, 10008, capi.ErrUnprocessable.Code)
-	assert.Equal(t, "CF-UnprocessableEntity", capi.ErrUnprocessable.Title)
-
-	assert.Equal(t, 10001, capi.ErrServiceUnavailable.Code)
-	assert.Equal(t, "CF-ServiceUnavailable", capi.ErrServiceUnavailable.Title)
-
-	assert.Equal(t, 10005, capi.ErrBadRequest.Code)
-	assert.Equal(t, "CF-BadRequest", capi.ErrBadRequest.Title)
-
-	assert.Equal(t, 10013, capi.ErrTooManyRequests.Code)
-	assert.Equal(t, "CF-TooManyRequests", capi.ErrTooManyRequests.Title)
+	assert.Equal(t, 10013, capi.ErrCFTooManyRequests.Code)
+	assert.Equal(t, "CF-TooManyRequests", capi.ErrCFTooManyRequests.Title)
 }
 
 func TestResponseError_JSONMarshaling(t *testing.T) {
