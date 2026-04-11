@@ -2,6 +2,7 @@ package capi_test
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -223,16 +224,43 @@ func TestMapHTTPError_MultiErrorEnvelope(t *testing.T) {
 	assert.Equal(t, "stack must be present", envelope.Errors[1].Detail)
 }
 
-// TestMapHTTPError_UnknownStatusCode verifies that a 4xx status code the
-// mapper does not explicitly enumerate (e.g., 418 I'm a teapot) still
-// produces a non-nil error. It must NOT match any of the named sentinels.
-func TestMapHTTPError_UnknownClient4xx(t *testing.T) {
+// TestMapHTTPError_UnknownClient4xxMapsToBadRequest pins the contract that
+// a 4xx status code the mapper does not explicitly enumerate (for example
+// 400 Bad Request, 405 Method Not Allowed, 418 I'm a Teapot, or 431 Request
+// Header Fields Too Large) classifies as ErrBadRequest — a stable sentinel
+// with "client error, do not retry" semantics. This is the regression test
+// for Wave 6 R6-3 H3: unknown 4xx must not be a non-sentinel fmt.Errorf
+// because callers cannot reliably distinguish it with errors.Is. The test
+// also verifies the unknown 4xx does NOT accidentally match any of the
+// other named sentinels (404/401/403/409/422/429) or the 5xx sentinel.
+func TestMapHTTPError_UnknownClient4xxMapsToBadRequest(t *testing.T) {
 	t.Parallel()
 
-	err := capi.MapHTTPError(http.StatusTeapot, []byte(`{"errors":[]}`))
-	require.Error(t, err)
+	unknownStatuses := []int{
+		http.StatusBadRequest,                   // 400
+		http.StatusMethodNotAllowed,             // 405
+		http.StatusNotAcceptable,                // 406
+		http.StatusRequestTimeout,               // 408
+		http.StatusGone,                         // 410
+		http.StatusLengthRequired,               // 411
+		http.StatusPreconditionFailed,           // 412
+		http.StatusRequestEntityTooLarge,        // 413
+		http.StatusRequestURITooLong,            // 414
+		http.StatusUnsupportedMediaType,         // 415
+		http.StatusRequestedRangeNotSatisfiable, // 416
+		http.StatusExpectationFailed,            // 417
+		http.StatusTeapot,                       // 418
+		http.StatusMisdirectedRequest,           // 421
+		http.StatusLocked,                       // 423
+		http.StatusFailedDependency,             // 424
+		http.StatusTooEarly,                     // 425
+		http.StatusUpgradeRequired,              // 426
+		http.StatusPreconditionRequired,         // 428
+		http.StatusRequestHeaderFieldsTooLarge,  // 431
+		http.StatusUnavailableForLegalReasons,   // 451
+	}
 
-	namedSentinels := []error{
+	nonMatchingSentinels := []error{
 		capi.ErrNotFound,
 		capi.ErrUnauthorized,
 		capi.ErrForbidden,
@@ -241,12 +269,63 @@ func TestMapHTTPError_UnknownClient4xx(t *testing.T) {
 		capi.ErrRateLimited,
 		capi.ErrServerError,
 	}
-	for _, s := range namedSentinels {
-		assert.False(t, errors.Is(err, s),
-			"unknown 4xx status must not match sentinel %v", s)
+
+	for _, status := range unknownStatuses {
+		status := status
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			t.Parallel()
+
+			err := capi.MapHTTPError(status, []byte(`{"errors":[]}`))
+			require.Error(t, err)
+
+			// Regression pin: unknown 4xx MUST be classified as ErrBadRequest
+			// so callers can use errors.Is(err, capi.ErrBadRequest) to
+			// detect "client error, do not retry" failures.
+			assert.True(t, errors.Is(err, capi.ErrBadRequest),
+				"status %d must unwrap to ErrBadRequest via errors.Is", status)
+
+			for _, s := range nonMatchingSentinels {
+				assert.False(t, errors.Is(err, s),
+					"unknown 4xx status %d must not match sentinel %v", status, s)
+			}
+
+			// The error message should still mention the status code for
+			// human debuggability.
+			assert.Contains(t, err.Error(),
+				fmt.Sprintf("%d", status),
+				"error message must include the raw status code %d", status)
+		})
 	}
-	// The generic error message should still mention the status code.
-	assert.Contains(t, err.Error(), "418")
+}
+
+// TestMapHTTPError_ErrBadRequestSentinelIdentity verifies ErrBadRequest is
+// a distinct sentinel value that does not accidentally unwrap to any other
+// sentinel in the package. This is the companion check to
+// TestMapHTTPError_SentinelIdentity above and closes the regression surface
+// opened by H3 (a non-sentinel fallthrough could be indistinguishable from
+// a future sentinel).
+func TestMapHTTPError_ErrBadRequestSentinelIdentity(t *testing.T) {
+	t.Parallel()
+
+	other := []error{
+		capi.ErrNotFound,
+		capi.ErrUnauthorized,
+		capi.ErrForbidden,
+		capi.ErrConflict,
+		capi.ErrUnprocessable,
+		capi.ErrRateLimited,
+		capi.ErrServerError,
+	}
+
+	require.NotNil(t, capi.ErrBadRequest)
+	assert.True(t, strings.HasPrefix(capi.ErrBadRequest.Error(), "capi: "))
+
+	for _, s := range other {
+		assert.False(t, errors.Is(capi.ErrBadRequest, s),
+			"ErrBadRequest must not unwrap to %v", s)
+		assert.False(t, errors.Is(s, capi.ErrBadRequest),
+			"%v must not unwrap to ErrBadRequest", s)
+	}
 }
 
 // TestMapHTTPError_ServerErrorSentinelCatchesAll5xx verifies that any 5xx

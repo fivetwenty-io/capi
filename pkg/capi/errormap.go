@@ -50,6 +50,17 @@ var (
 	// ErrServerError is returned when the CF v3 API responds with any 5xx
 	// status code.
 	ErrServerError = errors.New("capi: server error")
+
+	// ErrBadRequest is returned when the CF v3 API responds with any 4xx
+	// status code that is not explicitly enumerated by the mapper (for
+	// example 400 Bad Request, 405 Method Not Allowed, 418 I'm a Teapot,
+	// 431 Request Header Fields Too Large). It carries "client error; do
+	// not retry" semantics: the request was rejected by the server for a
+	// reason specific to the request itself, and automatically retrying the
+	// same request is not expected to succeed. Callers that need finer
+	// grain can still inspect the embedded *ResponseError via errors.As or
+	// the raw status via the error message.
+	ErrBadRequest = errors.New("capi: bad request")
 )
 
 // MapHTTPError constructs an error value from the HTTP status code and
@@ -70,8 +81,9 @@ var (
 //
 // Inputs:
 //   - status: the HTTP response status code. Any value < 400 yields nil.
-//     Known 4xx/5xx codes map to the matching sentinel. Unknown 4xx codes
-//     yield a generic "capi: HTTP <code>" error (still a non-nil error).
+//     Known 4xx/5xx codes map to the matching sentinel. Any other 4xx code
+//     (400/405/418/431/...) maps to ErrBadRequest so callers have a stable
+//     sentinel to test for "client error, do not retry" via errors.Is.
 //     Any code >= 500 maps to ErrServerError.
 //   - body: the raw response body bytes. May be nil or empty; MapHTTPError
 //     does not panic on either.
@@ -105,10 +117,14 @@ func MapHTTPError(status int, body []byte) error {
 // mapStatusToSentinel returns the sentinel error that matches the given HTTP
 // status code. Known 4xx codes (401/403/404/409/422/429) map directly. Any
 // 5xx code maps to ErrServerError. Any other 4xx code (including client
-// errors this library does not yet enumerate, such as 400 Bad Request or 405
-// Method Not Allowed) yields a generic "capi: HTTP <code>" error so that the
-// caller still receives a non-nil error without a misleading sentinel
-// classification.
+// errors this library does not yet enumerate, such as 400 Bad Request, 405
+// Method Not Allowed, 418 I'm a Teapot, or 431 Request Header Fields Too
+// Large) maps to ErrBadRequest so callers have a stable sentinel to test
+// for "client error, do not retry" semantics via errors.Is. The raw status
+// is still surfaced via the wrapping fmt.Errorf message in MapHTTPError.
+// Any other status (unknown, below 400 or above 599) yields a generic
+// "capi: HTTP <code>" error so the caller still observes a non-nil error
+// without a misleading sentinel classification.
 //
 // mapStatusToSentinel is intentionally unexported: callers use MapHTTPError
 // which composes this helper with body parsing.
@@ -128,12 +144,20 @@ func mapStatusToSentinel(status int) error {
 		return ErrRateLimited
 	}
 
-	if status >= 500 {
+	if status >= 500 && status <= 599 {
 		return ErrServerError
 	}
 
-	// Unknown 4xx (or any other non-success status not otherwise matched).
-	// Return a distinct error value so callers still observe a non-nil error
-	// and can inspect the status via the message.
+	// Unknown 4xx — classify as a client error so callers can use
+	// errors.Is(err, capi.ErrBadRequest) to detect "do not retry" failures
+	// without needing to enumerate every non-standard status code the
+	// server might return.
+	if status >= 400 && status <= 499 {
+		return ErrBadRequest
+	}
+
+	// Any other non-success status not otherwise matched. Return a distinct
+	// error value so callers still observe a non-nil error and can inspect
+	// the status via the message.
 	return fmt.Errorf("capi: HTTP %d", status)
 }
