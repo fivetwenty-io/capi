@@ -12,7 +12,11 @@ type AppCRUDClient interface {
 	Get(ctx context.Context, guid string) (*App, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[App], error)
 	Update(ctx context.Context, guid string, request *AppUpdateRequest) (*App, error)
-	Delete(ctx context.Context, guid string) error
+	// Delete issues DELETE /v3/apps/{guid}. CF v3 returns 202 Accepted with a
+	// Job resource describing the async deletion; callers poll Jobs().Get
+	// (or Jobs().PollUntilComplete) until the job is terminal. Matches the
+	// pattern used by OrganizationsClient.Delete and SpacesClient.Delete.
+	Delete(ctx context.Context, guid string) (*Job, error)
 }
 
 // AppLifecycleClient provides app lifecycle operations.

@@ -655,15 +655,17 @@ func (m *MockAppsClient) Update(ctx context.Context, guid string, request *capi.
 	return result, nil
 }
 
-func (m *MockAppsClient) Delete(ctx context.Context, guid string) error {
+func (m *MockAppsClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	args := m.Called(ctx, guid)
 
-	err := args.Error(0)
+	err := args.Error(1)
 	if err != nil {
-		return fmt.Errorf("delete app failed: %w", err)
+		return nil, fmt.Errorf("delete app failed: %w", err)
 	}
 
-	return nil
+	job, _ := args.Get(0).(*capi.Job)
+
+	return job, nil
 }
 
 func (m *MockAppsClient) GetCurrentDroplet(ctx context.Context, guid string) (*capi.Droplet, error) {

@@ -176,19 +176,43 @@ func TestAppsClient_Update(t *testing.T) {
 func TestAppsClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/apps/{guid} is async: 202 Accepted, empty body,
+	// Location header pointing at /v3/jobs/{jobGuid}.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/apps/app-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		writer.WriteHeader(http.StatusNoContent)
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
 
 	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 	require.NoError(t, err)
 
-	err = client.Apps().Delete(context.Background(), "app-guid")
+	job, err := client.Apps().Delete(context.Background(), "app-guid")
 	require.NoError(t, err)
+	require.NotNil(t, job)
+	assert.Equal(t, "job-guid", job.GUID)
+}
+
+func TestAppsClient_DeleteMissingLocation(t *testing.T) {
+	t.Parallel()
+
+	// Server that responds 202 without the Location header — the capi
+	// impl should treat this as a protocol violation rather than returning
+	// a Job with an empty GUID the caller could try to poll.
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	job, err := client.Apps().Delete(context.Background(), "app-guid")
+	require.Error(t, err)
+	assert.Nil(t, job)
 }
 
 func TestAppsClient_ActionMethods(t *testing.T) {
