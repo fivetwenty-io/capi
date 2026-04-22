@@ -125,15 +125,39 @@ func (c *AppsClient) Update(ctx context.Context, guid string, request *capi.AppU
 }
 
 // Delete implements capi.AppsClient.Delete.
-func (c *AppsClient) Delete(ctx context.Context, guid string) error {
+//
+// DELETE /v3/apps/{guid} is async: CF returns 202 Accepted with an empty
+// body and a Location header pointing at /v3/jobs/{jobGuid}. We extract
+// the job GUID from that header and return a Job with its GUID populated;
+// callers use Jobs().Get or Jobs().PollUntilComplete for full state.
+//
+// Location header contract is defined in the CF v3 OpenAPI spec for
+// `delete` on /v3/apps/{guid}. If the header is missing or malformed we
+// return a sentinel error rather than a partially-populated Job, so
+// callers don't accidentally poll an empty job id.
+func (c *AppsClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/apps/" + guid
 
-	_, err := c.httpClient.Delete(ctx, path)
+	resp, err := c.httpClient.Delete(ctx, path)
 	if err != nil {
-		return fmt.Errorf("deleting app: %w", err)
+		return nil, fmt.Errorf("deleting app: %w", err)
 	}
 
-	return nil
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting app: no Location header on async delete response")
+	}
+
+	// Location format: .../v3/jobs/{jobGuid}
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting app: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // Start implements capi.AppsClient.Start.

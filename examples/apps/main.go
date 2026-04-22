@@ -358,10 +358,10 @@ func stopApplicationExample(client capi.Client, ctx context.Context, app *capi.A
 func cleanup(client capi.Client, ctx context.Context, app *capi.App) {
 	log.Println("=== Deleting Application ===")
 
-	err := client.Apps().Delete(ctx, app.GUID)
+	job, err := client.Apps().Delete(ctx, app.GUID)
 	if err != nil {
 		log.Fatalf("Failed to delete application: %v", err)
 	}
 
-	log.Println("Application deleted successfully!")
+	log.Printf("Application delete queued (job %s) — poll Jobs().Get to observe completion.", job.GUID)
 }
