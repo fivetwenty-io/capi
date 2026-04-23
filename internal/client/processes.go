@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -83,7 +84,16 @@ func (c *ProcessesClient) Update(ctx context.Context, guid string, request *capi
 }
 
 // Scale adjusts the instances, memory, disk, or log rate limit of a process.
-func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.ProcessScaleRequest) (*capi.Process, error) {
+//
+// POST /v3/processes/{guid}/actions/scale is async per the CF v3 API
+// spec: CF returns 202 Accepted with a Location header pointing at
+// /v3/jobs/{jobGuid}. Mirror the app-lifecycle actions and return *Job
+// so callers have a uniform async-completion surface.
+//
+// The prior implementation unmarshalled the response body as Process
+// and discarded the Location header, which left callers with either a
+// stale Process or (when CF sent no body) a zero value.
+func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.ProcessScaleRequest) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/processes/%s/actions/scale", guid)
 
 	resp, err := c.httpClient.Post(ctx, path, request)
@@ -91,14 +101,20 @@ func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.
 		return nil, fmt.Errorf("scaling process: %w", err)
 	}
 
-	var process capi.Process
-
-	err = json.Unmarshal(resp.Body, &process)
-	if err != nil {
-		return nil, fmt.Errorf("parsing process response: %w", err)
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("scaling process: no Location header on async response")
 	}
 
-	return &process, nil
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("scaling process: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // GetStats retrieves runtime statistics for all instances of a process.

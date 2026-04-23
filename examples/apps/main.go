@@ -202,12 +202,14 @@ func scaleApplicationExample(client capi.Client, ctx context.Context, processes 
 
 	scaleReq := buildScaleRequest()
 
-	scaledProcess, err := client.Processes().Scale(ctx, webProcess.GUID, scaleReq)
+	// Scale is async — returns a job whose GUID we log. Callers that need
+	// terminal state should poll Jobs().Get.
+	job, err := client.Processes().Scale(ctx, webProcess.GUID, scaleReq)
 	if err != nil {
 		log.Fatalf("Failed to scale process: %v", err)
 	}
 
-	printScaledProcess(scaledProcess)
+	log.Printf("Queued scale of %s process (job %s)\n", webProcess.Type, job.GUID)
 }
 
 func buildScaleRequest() *capi.ProcessScaleRequest {
@@ -220,14 +222,6 @@ func buildScaleRequest() *capi.ProcessScaleRequest {
 		MemoryInMB: &memory,
 		DiskInMB:   &disk,
 	}
-}
-
-func printScaledProcess(process *capi.Process) {
-	log.Printf("Scaled %s process:\n", process.Type)
-	log.Printf("  Instances: %d\n", process.Instances)
-	log.Printf("  Memory: %d MB\n", process.MemoryInMB)
-	log.Printf("  Disk: %d MB\n", process.DiskInMB)
-	log.Println()
 }
 
 func manageEnvironmentVariablesExample(client capi.Client, ctx context.Context, app *capi.App) {
