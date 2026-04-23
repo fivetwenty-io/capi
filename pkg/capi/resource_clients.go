@@ -20,11 +20,17 @@ type AppCRUDClient interface {
 }
 
 // AppLifecycleClient provides app lifecycle operations.
+//
+// start/stop/restart/restage all POST to /v3/apps/{guid}/actions/{action}
+// which CF v3 treats as async: 202 + Location → /v3/jobs/{jobGuid}.
+// Each method returns a Job with GUID populated from the Location
+// header; callers poll via Jobs().Get / Jobs().PollUntilComplete for
+// terminal state.
 type AppLifecycleClient interface {
-	Start(ctx context.Context, guid string) (*App, error)
-	Stop(ctx context.Context, guid string) (*App, error)
-	Restart(ctx context.Context, guid string) (*App, error)
-	Restage(ctx context.Context, guid string) (*Build, error)
+	Start(ctx context.Context, guid string) (*Job, error)
+	Stop(ctx context.Context, guid string) (*Job, error)
+	Restart(ctx context.Context, guid string) (*Job, error)
+	Restage(ctx context.Context, guid string) (*Job, error)
 }
 
 // AppEnvironmentClient provides app environment operations.

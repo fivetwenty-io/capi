@@ -337,14 +337,13 @@ func newAppsStartCommand() *cobra.Command {
 				return err
 			}
 
-			// Start application
-			app, err := client.Apps().Start(ctx, appGUID)
+			// Start application — CF v3 /actions/start returns a job.
+			job, err := client.Apps().Start(ctx, appGUID)
 			if err != nil {
 				return fmt.Errorf("failed to start application: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully started application '%s'\n", app.Name)
-			_ = appName // Use appName if needed
+			_, _ = fmt.Fprintf(os.Stdout, "Queued start of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},
@@ -368,18 +367,18 @@ func newAppsStopCommand() *cobra.Command {
 			ctx := context.Background()
 
 			// Find application
-			appGUID, _, err := resolveApp(ctx, client, nameOrGUID)
+			appGUID, appName, err := resolveApp(ctx, client, nameOrGUID)
 			if err != nil {
 				return err
 			}
 
-			// Stop application
-			app, err := client.Apps().Stop(ctx, appGUID)
+			// Stop application — CF v3 /actions/stop returns a job.
+			job, err := client.Apps().Stop(ctx, appGUID)
 			if err != nil {
 				return fmt.Errorf("failed to stop application: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully stopped application '%s'\n", app.Name)
+			_, _ = fmt.Fprintf(os.Stdout, "Queued stop of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},
@@ -403,18 +402,18 @@ func newAppsRestartCommand() *cobra.Command {
 			ctx := context.Background()
 
 			// Find application
-			appGUID, _, err := resolveApp(ctx, client, nameOrGUID)
+			appGUID, appName, err := resolveApp(ctx, client, nameOrGUID)
 			if err != nil {
 				return err
 			}
 
-			// Restart application
-			app, err := client.Apps().Restart(ctx, appGUID)
+			// Restart application — CF v3 /actions/restart returns a job.
+			job, err := client.Apps().Restart(ctx, appGUID)
 			if err != nil {
 				return fmt.Errorf("failed to restart application: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully restarted application '%s'\n", app.Name)
+			_, _ = fmt.Fprintf(os.Stdout, "Queued restart of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},
@@ -425,7 +424,7 @@ func newAppsRestageCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "restage APP_NAME_OR_GUID",
 		Short: "Restage an application",
-		Long:  "Restage a Cloud Foundry application to create a new build",
+		Long:  "Restage a Cloud Foundry application",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nameOrGUID := args[0]
@@ -443,15 +442,13 @@ func newAppsRestageCommand() *cobra.Command {
 				return err
 			}
 
-			// Restage application
-			build, err := client.Apps().Restage(ctx, appGUID)
+			// Restage application — CF v3 /actions/restage returns a job.
+			job, err := client.Apps().Restage(ctx, appGUID)
 			if err != nil {
 				return fmt.Errorf("failed to restage application: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully initiated restage of application '%s'\n", appName)
-			_, _ = fmt.Fprintf(os.Stdout, "Build GUID: %s\n", build.GUID)
-			_, _ = fmt.Fprintf(os.Stdout, "Build State: %s\n", build.State)
+			_, _ = fmt.Fprintf(os.Stdout, "Queued restage of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},

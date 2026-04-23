@@ -223,7 +223,7 @@ func TestAppsClient_ActionMethods(t *testing.T) {
 			Name:          "Start",
 			Action:        "start",
 			ExpectedState: "STARTED",
-			ActionFunc: func(c *Client) func(context.Context, string) (*capi.App, error) {
+			ActionFunc: func(c *Client) func(context.Context, string) (*capi.Job, error) {
 				return c.Apps().Start
 			},
 		},
@@ -231,7 +231,7 @@ func TestAppsClient_ActionMethods(t *testing.T) {
 			Name:          "Stop",
 			Action:        "stop",
 			ExpectedState: "STOPPED",
-			ActionFunc: func(c *Client) func(context.Context, string) (*capi.App, error) {
+			ActionFunc: func(c *Client) func(context.Context, string) (*capi.Job, error) {
 				return c.Apps().Stop
 			},
 		},
@@ -239,8 +239,16 @@ func TestAppsClient_ActionMethods(t *testing.T) {
 			Name:          "Restart",
 			Action:        "restart",
 			ExpectedState: "STARTED",
-			ActionFunc: func(c *Client) func(context.Context, string) (*capi.App, error) {
+			ActionFunc: func(c *Client) func(context.Context, string) (*capi.Job, error) {
 				return c.Apps().Restart
+			},
+		},
+		{
+			Name:          "Restage",
+			Action:        "restage",
+			ExpectedState: "STAGED",
+			ActionFunc: func(c *Client) func(context.Context, string) (*capi.Job, error) {
+				return c.Apps().Restage
 			},
 		},
 	}
