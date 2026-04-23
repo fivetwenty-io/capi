@@ -344,7 +344,10 @@ type ProcessesClient interface {
 	Get(ctx context.Context, guid string) (*Process, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Process], error)
 	Update(ctx context.Context, guid string, request *ProcessUpdateRequest) (*Process, error)
-	Scale(ctx context.Context, guid string, request *ProcessScaleRequest) (*Process, error)
+	// Scale adjusts instances/memory/disk/log rate for a process. CF v3
+	// responds 202 + Location → /v3/jobs/{jobGuid}; the returned Job has
+	// its GUID populated from that header. Callers poll via Jobs().Get.
+	Scale(ctx context.Context, guid string, request *ProcessScaleRequest) (*Job, error)
 	GetStats(ctx context.Context, guid string) (*ProcessStats, error)
 	ListInstances(ctx context.Context, guid string) (*ListResponse[ProcessInstance], error)
 	TerminateInstance(ctx context.Context, guid string, index int) error

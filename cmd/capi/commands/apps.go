@@ -560,12 +560,16 @@ func runAppsScale(params *appsScaleParams) error {
 		return outputCurrentScale(appName, appGUID, targetProcess)
 	}
 
-	scaledProcess, err := client.Processes().Scale(ctx, targetProcess.GUID, scaleReq)
+	// Scale is async (202 + job). We log the queued job and report the
+	// current scale targets back to the user; callers that need terminal
+	// state should poll Jobs().Get(job.GUID).
+	job, err := client.Processes().Scale(ctx, targetProcess.GUID, scaleReq)
 	if err != nil {
 		return fmt.Errorf("failed to scale application: %w", err)
 	}
 
-	return outputScaledResult(appName, appGUID, scaledProcess)
+	_, _ = fmt.Fprintf(os.Stdout, "Queued scale of application '%s' process '%s' (job %s)\n", appName, targetProcess.Type, job.GUID)
+	return outputScaledResult(appName, appGUID, targetProcess, scaleReq)
 }
 
 func findTargetProcess(ctx context.Context, client capi.Client, appGUID, appName, processType string) (*capi.Process, error) {
@@ -624,7 +628,11 @@ func outputCurrentScale(appName, appGUID string, process *capi.Process) error {
 	return outputScaleInfo(info, fmt.Sprintf("Current scale for application '%s' process '%s':", appName, process.Type))
 }
 
-func outputScaledResult(appName, appGUID string, process *capi.Process) error {
+func outputScaledResult(appName, appGUID string, process *capi.Process, scaleReq *capi.ProcessScaleRequest) error {
+	// The returned job doesn't carry process fields, so we echo back the
+	// requested scale (falling back to current values for fields that
+	// weren't in the request). The queued-job line is printed separately
+	// by the caller so operators see the async nature of the call.
 	info := scaleInfo{
 		AppName:     appName,
 		AppGUID:     appGUID,
@@ -634,7 +642,17 @@ func outputScaledResult(appName, appGUID string, process *capi.Process) error {
 		DiskMB:      process.DiskInMB,
 	}
 
-	return outputScaleInfo(info, fmt.Sprintf("Successfully scaled application '%s' process '%s':", appName, process.Type))
+	if scaleReq.Instances != nil {
+		info.Instances = *scaleReq.Instances
+	}
+	if scaleReq.MemoryInMB != nil {
+		info.MemoryMB = *scaleReq.MemoryInMB
+	}
+	if scaleReq.DiskInMB != nil {
+		info.DiskMB = *scaleReq.DiskInMB
+	}
+
+	return outputScaleInfo(info, fmt.Sprintf("Requested scale for application '%s' process '%s':", appName, process.Type))
 }
 
 func outputScaleInfo(info scaleInfo, tableTitle string) error {
