@@ -85,14 +85,12 @@ func (c *ProcessesClient) Update(ctx context.Context, guid string, request *capi
 
 // Scale adjusts the instances, memory, disk, or log rate limit of a process.
 //
-// POST /v3/processes/{guid}/actions/scale is async per the CF v3 API
-// spec: CF returns 202 Accepted with a Location header pointing at
-// /v3/jobs/{jobGuid}. Mirror the app-lifecycle actions and return *Job
-// so callers have a uniform async-completion surface.
-//
-// The prior implementation unmarshalled the response body as Process
-// and discarded the Location header, which left callers with either a
-// stale Process or (when CF sent no body) a zero value.
+// POST /v3/processes/{guid}/actions/scale is async on modern CF v3
+// (202 + Location → /v3/jobs/{jobGuid}) and was synchronous on older
+// versions (200 + updated Process body). We support both for forward-
+// and backward-compatibility, matching AppsClient.postActionJob:
+// Location header present → return *Job with extracted GUID; absent →
+// return (nil, nil) signaling "action complete, no job to poll".
 func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.ProcessScaleRequest) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/processes/%s/actions/scale", guid)
 
@@ -103,7 +101,8 @@ func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.
 
 	location := resp.Headers.Get("Location")
 	if location == "" {
-		return nil, fmt.Errorf("scaling process: no Location header on async response")
+		// Sync-complete (older CF) — no job to poll.
+		return nil, nil
 	}
 
 	jobGUID := location

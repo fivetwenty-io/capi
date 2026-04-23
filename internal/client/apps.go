@@ -194,6 +194,21 @@ func (c *AppsClient) Restart(ctx context.Context, guid string) (*capi.Job, error
 // extracts the async job GUID from the Location header. Shared across
 // start/stop/restart/restage because CF's async-action response shape
 // is identical for all four endpoints.
+//
+// CF v3 transitioned these actions from synchronous (200 + App body) to
+// asynchronous (202 + Location → /v3/jobs/{jobGuid}) somewhere in the
+// 3.18x–3.20x range. We support both shapes so the client works against
+// older and newer targets:
+//
+//  1. If the response carries a Location header → parse it, return a
+//     Job with the extracted GUID. Callers poll via Jobs().Get.
+//  2. Otherwise → treat the call as synchronously complete and return
+//     (nil, nil). Callers that need to know "is the action done?" can
+//     treat nil-Job-nil-error as COMPLETE; callers that want to poll
+//     regardless should branch on job != nil.
+//
+// Non-2xx is surfaced as an error by the httpClient layer and doesn't
+// reach this parse path.
 func (c *AppsClient) postActionJob(ctx context.Context, path, opLabel string) (*capi.Job, error) {
 	resp, err := c.httpClient.Post(ctx, path, nil)
 	if err != nil {
@@ -202,7 +217,8 @@ func (c *AppsClient) postActionJob(ctx context.Context, path, opLabel string) (*
 
 	location := resp.Headers.Get("Location")
 	if location == "" {
-		return nil, fmt.Errorf("%s: no Location header on async response", opLabel)
+		// Sync-complete (older CF) — no job to poll.
+		return nil, nil
 	}
 
 	jobGUID := location
