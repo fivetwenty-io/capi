@@ -332,24 +332,25 @@ func startStopApplicationExample(client capi.Client, ctx context.Context, app *c
 func startApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
 	log.Println("=== Starting Application ===")
 
-	startedApp, err := client.Apps().Start(ctx, app.GUID)
+	// CF v3 /actions/start is async — returns a job whose GUID we can
+	// poll for terminal state. For the example we just log it and fall
+	// through to the next step.
+	job, err := client.Apps().Start(ctx, app.GUID)
 	if err != nil {
 		log.Printf("Failed to start application: %v", err)
 	} else {
-		log.Printf("Application state changed to: %s\n", startedApp.State)
-		*app = *startedApp // Update the app reference
+		log.Printf("Queued start of application (job %s)\n", job.GUID)
 	}
 }
 
 func stopApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
 	log.Println("=== Stopping Application ===")
 
-	stoppedApp, err := client.Apps().Stop(ctx, app.GUID)
+	job, err := client.Apps().Stop(ctx, app.GUID)
 	if err != nil {
 		log.Printf("Failed to stop application: %v", err)
 	} else {
-		log.Printf("Application state changed to: %s\n", stoppedApp.State)
-		*app = *stoppedApp // Update the app reference
+		log.Printf("Queued stop of application (job %s)\n", job.GUID)
 	}
 
 	log.Println()
