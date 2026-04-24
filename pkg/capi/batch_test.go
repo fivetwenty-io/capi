@@ -880,27 +880,6 @@ func (m *MockAppsClient) Restart(ctx context.Context, guid string) (*capi.Job, e
 	return result, nil
 }
 
-func (m *MockAppsClient) Restage(ctx context.Context, guid string) (*capi.Job, error) {
-	args := m.Called(ctx, guid)
-	if args.Get(0) == nil {
-		err := args.Error(1)
-		if err != nil {
-			return nil, fmt.Errorf("restage app failed: %w", err)
-		}
-
-		return nil, nil
-	}
-
-	err := args.Error(1)
-	if err != nil {
-		return nil, fmt.Errorf("restage app failed: %w", err)
-	}
-
-	result, _ := args.Get(0).(*capi.Job)
-
-	return result, nil
-}
-
 func (m *MockAppsClient) ClearBuildpackCache(ctx context.Context, guid string) error {
 	args := m.Called(ctx, guid)
 

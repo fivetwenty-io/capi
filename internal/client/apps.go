@@ -404,27 +404,6 @@ func (c *AppsClient) GetManifest(ctx context.Context, guid string) (string, erro
 	return string(resp.Body), nil
 }
 
-// Restage implements capi.AppsClient.Restage.
-//
-// POST /v3/apps/{guid}/actions/restage is documented as deprecated in
-// CF v3 (favor: create a new build from the latest package, then set
-// the current droplet). The deprecated endpoint still returns 202 +
-// Location → /v3/jobs/{jobGuid}, matching start/stop/restart. We keep
-// it for now so all four lifecycle actions share one async-job shape
-// and client callers see a uniform interface. Migration to the modern
-// build-from-package flow is a planned follow-up; until then, users
-// with a working /actions/restage endpoint get the expected behavior.
-//
-// The previous implementation ran the modern two-step flow inside the
-// client (list packages → create build) and returned a *Build — useful
-// but inconsistent with the rest of the lifecycle group. Callers that
-// need the build-state-polling flow should compose Packages().List +
-// Builds().Create + Droplets().SetCurrent explicitly.
-func (c *AppsClient) Restage(ctx context.Context, guid string) (*capi.Job, error) {
-	path := fmt.Sprintf("/v3/apps/%s/actions/restage", guid)
-	return c.postActionJob(ctx, path, "restaging app")
-}
-
 // GetRecentLogs implements capi.AppsClient.GetRecentLogs.
 func (c *AppsClient) GetRecentLogs(ctx context.Context, guid string, lines int) (*capi.AppLogs, error) {
 	// Get the log_cache endpoint URL

@@ -81,7 +81,6 @@ func NewAppsCommand() *cobra.Command {
 	cmd.AddCommand(newAppsStartCommand())
 	cmd.AddCommand(newAppsStopCommand())
 	cmd.AddCommand(newAppsRestartCommand())
-	cmd.AddCommand(newAppsRestageCommand())
 	cmd.AddCommand(newAppsScaleCommand())
 	cmd.AddCommand(newAppsEnvCommand())
 	cmd.AddCommand(newAppsSetEnvCommand())
@@ -414,41 +413,6 @@ func newAppsRestartCommand() *cobra.Command {
 			}
 
 			_, _ = fmt.Fprintf(os.Stdout, "Queued restart of application '%s' (job %s)\n", appName, job.GUID)
-
-			return nil
-		},
-	}
-}
-
-func newAppsRestageCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "restage APP_NAME_OR_GUID",
-		Short: "Restage an application",
-		Long:  "Restage a Cloud Foundry application",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			nameOrGUID := args[0]
-
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-
-			// Find application
-			appGUID, appName, err := resolveApp(ctx, client, nameOrGUID)
-			if err != nil {
-				return err
-			}
-
-			// Restage application — CF v3 /actions/restage returns a job.
-			job, err := client.Apps().Restage(ctx, appGUID)
-			if err != nil {
-				return fmt.Errorf("failed to restage application: %w", err)
-			}
-
-			_, _ = fmt.Fprintf(os.Stdout, "Queued restage of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},
