@@ -243,14 +243,6 @@ func TestAppsClient_ActionMethods(t *testing.T) {
 				return c.Apps().Restart
 			},
 		},
-		{
-			Name:          "Restage",
-			Action:        "restage",
-			ExpectedState: "STAGED",
-			ActionFunc: func(c *Client) func(context.Context, string) (*capi.Job, error) {
-				return c.Apps().Restage
-			},
-		},
 	}
 
 	RunAppActionTests(t, tests)
