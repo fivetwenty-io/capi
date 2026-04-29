@@ -387,7 +387,7 @@ type RolesClient interface {
 	Create(ctx context.Context, request *RoleCreateRequest) (*Role, error)
 	Get(ctx context.Context, guid string) (*Role, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Role], error)
-	Delete(ctx context.Context, guid string) error
+	Delete(ctx context.Context, guid string) (*Job, error)
 }
 
 type SecurityGroupsClient interface {
