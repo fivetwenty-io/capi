@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.216.4] - 2026-04-24
+
+### Removed
+
+- NATS JetStream KV cache backend (`pkg/capi/cache_nats.go`, `CacheTypeNATS`,
+  `CacheConfig.NATS`, `CacheBuilder.WithNATSConfig`). The backend was opt-in,
+  untested, and unused by known consumers; its presence pulled `nats.go`,
+  `nkeys`, and `nuid` into every dependent build. Memory and no-op cache
+  backends remain. Patch bump (additive removal of an optional, dead
+  feature) per maintainer direction; downstream code that explicitly
+  selected `CacheTypeNATS` must migrate to memory or no-op.
+
 ### Added
 - Initial release of Cloud Foundry API v3 client library
 - Complete CF API v3 resource coverage

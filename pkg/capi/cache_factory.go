@@ -15,9 +15,6 @@ const (
 	// CacheTypeMemory represents in-memory cache.
 	CacheTypeMemory CacheType = "memory"
 
-	// CacheTypeNATS represents NATS KV cache.
-	CacheTypeNATS CacheType = "nats"
-
 	// CacheTypeNone represents no caching.
 	CacheTypeNone CacheType = "none"
 )
@@ -25,7 +22,6 @@ const (
 // CacheConfig configures cache backend.
 // Static errors for err113 compliance.
 var (
-	ErrNATSConfigRequired    = errors.New("NATS configuration required for NATS cache")
 	ErrUnsupportedCacheType  = errors.New("unsupported cache type")
 	ErrCacheDisabled         = errors.New("cache disabled")
 	ErrKeyNotFoundInAnyCache = errors.New("key not found in any cache")
@@ -37,9 +33,6 @@ type CacheConfig struct {
 
 	// Memory cache configuration
 	Memory *MemoryCacheConfig
-
-	// NATS KV cache configuration
-	NATS *NATSKVConfig
 
 	// Common options applied to any backend. If nil, DefaultCacheOptions() is used.
 	Options *CacheOptions
@@ -75,13 +68,6 @@ func NewCacheFromConfig(config *CacheConfig) (Cache, error) {
 	switch config.Type {
 	case CacheTypeMemory:
 		return NewMemoryCacheFromConfig(config.Memory)
-
-	case CacheTypeNATS:
-		if config.NATS == nil {
-			return nil, ErrNATSConfigRequired
-		}
-
-		return NewNATSKVCache(config.NATS)
 
 	case CacheTypeNone:
 		return NewNoOpCache(), nil
@@ -166,13 +152,6 @@ func (b *CacheBuilder) WithMemoryConfig(maxSize int, cleanupInterval string) *Ca
 		MaxSize:         maxSize,
 		CleanupInterval: cleanupInterval,
 	}
-
-	return b
-}
-
-// WithNATSConfig sets NATS cache configuration.
-func (b *CacheBuilder) WithNATSConfig(config *NATSKVConfig) *CacheBuilder {
-	b.config.NATS = config
 
 	return b
 }
