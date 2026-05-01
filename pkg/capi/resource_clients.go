@@ -465,6 +465,7 @@ type RevisionsClient interface {
 	Update(ctx context.Context, guid string, request *RevisionUpdateRequest) (*Revision, error)
 	GetEnvironmentVariables(ctx context.Context, guid string) (map[string]interface{}, error)
 	ListForApp(ctx context.Context, appGUID string, params *QueryParams) (*ListResponse[Revision], error)
+	GetDeployedForApp(ctx context.Context, appGUID string) (*ListResponse[Revision], error)
 }
 
 // EnvironmentVariableGroupsClient defines operations for environment variable groups.

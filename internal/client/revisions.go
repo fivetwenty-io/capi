@@ -105,3 +105,22 @@ func (c *RevisionsClient) ListForApp(ctx context.Context, appGUID string, params
 
 	return &result, nil
 }
+
+// GetDeployedForApp implements capi.RevisionsClient.GetDeployedForApp.
+func (c *RevisionsClient) GetDeployedForApp(ctx context.Context, appGUID string) (*capi.ListResponse[capi.Revision], error) {
+	path := fmt.Sprintf("/v3/apps/%s/revisions/deployed", appGUID)
+
+	resp, err := c.httpClient.Get(ctx, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting deployed revisions for app: %w", err)
+	}
+
+	var result capi.ListResponse[capi.Revision]
+
+	err = json.Unmarshal(resp.Body, &result)
+	if err != nil {
+		return nil, fmt.Errorf("parsing deployed revisions response: %w", err)
+	}
+
+	return &result, nil
+}

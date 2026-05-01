@@ -185,3 +185,56 @@ func TestRevisionsClient_ListForApp(t *testing.T) {
 	assert.Equal(t, 1, result.Resources[0].Version)
 	assert.True(t, result.Resources[0].Deployable)
 }
+
+func TestRevisionsClient_GetDeployedForApp(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/apps/app-guid/revisions/deployed", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		description := "Deployed revision"
+		response := capi.ListResponse[capi.Revision]{
+			Resources: []capi.Revision{
+				{
+					Resource: capi.Resource{
+						GUID:      "deployed-revision-guid",
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					},
+					Version:     2,
+					Deployable:  true,
+					Description: &description,
+					Droplet: capi.RevisionDropletRef{
+						GUID: "deployed-droplet-guid",
+					},
+					Processes: map[string]capi.Process{
+						"web": {
+							Resource: capi.Resource{
+								GUID: "deployed-process-guid",
+							},
+							Type:       "web",
+							Instances:  3,
+							MemoryInMB: 512,
+							DiskInMB:   1024,
+						},
+					},
+				},
+			},
+		}
+
+		_ = json.NewEncoder(writer).Encode(response)
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	result, err := client.Revisions().GetDeployedForApp(context.Background(), "app-guid")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result.Resources, 1)
+	assert.Equal(t, "deployed-revision-guid", result.Resources[0].GUID)
+	assert.Equal(t, 2, result.Resources[0].Version)
+	assert.True(t, result.Resources[0].Deployable)
+}
