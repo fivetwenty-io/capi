@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -104,6 +105,13 @@ func (c *RoutesClient) Update(ctx context.Context, guid string, request *capi.Ro
 }
 
 // Delete deletes a route.
+//
+// DELETE /v3/routes/{guid} is async: CF returns 202 Accepted with an empty
+// body and a Location header pointing at /v3/jobs/{jobGuid}. We extract the
+// job GUID from that header and return a Job with its GUID populated;
+// callers use Jobs().Get or Jobs().PollUntilComplete for full state. Same
+// pattern as AppsClient.Delete — both async deletes share the Location-only
+// response shape.
 func (c *RoutesClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/routes/" + guid
 
@@ -112,14 +120,21 @@ func (c *RoutesClient) Delete(ctx context.Context, guid string) (*capi.Job, erro
 		return nil, fmt.Errorf("deleting route: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting route: no Location header on async delete response")
 	}
 
-	return &job, nil
+	// Location format: .../v3/jobs/{jobGuid}
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting route: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // ListDestinations lists all destinations for a route.

@@ -81,7 +81,6 @@ func NewAppsCommand() *cobra.Command {
 	cmd.AddCommand(newAppsStartCommand())
 	cmd.AddCommand(newAppsStopCommand())
 	cmd.AddCommand(newAppsRestartCommand())
-	cmd.AddCommand(newAppsRestageCommand())
 	cmd.AddCommand(newAppsScaleCommand())
 	cmd.AddCommand(newAppsEnvCommand())
 	cmd.AddCommand(newAppsSetEnvCommand())
@@ -337,14 +336,13 @@ func newAppsStartCommand() *cobra.Command {
 				return err
 			}
 
-			// Start application
-			app, err := client.Apps().Start(ctx, appGUID)
+			// Start application — CF v3 /actions/start returns a job.
+			job, err := client.Apps().Start(ctx, appGUID)
 			if err != nil {
 				return fmt.Errorf("failed to start application: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully started application '%s'\n", app.Name)
-			_ = appName // Use appName if needed
+			_, _ = fmt.Fprintf(os.Stdout, "Queued start of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},
@@ -368,18 +366,18 @@ func newAppsStopCommand() *cobra.Command {
 			ctx := context.Background()
 
 			// Find application
-			appGUID, _, err := resolveApp(ctx, client, nameOrGUID)
+			appGUID, appName, err := resolveApp(ctx, client, nameOrGUID)
 			if err != nil {
 				return err
 			}
 
-			// Stop application
-			app, err := client.Apps().Stop(ctx, appGUID)
+			// Stop application — CF v3 /actions/stop returns a job.
+			job, err := client.Apps().Stop(ctx, appGUID)
 			if err != nil {
 				return fmt.Errorf("failed to stop application: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully stopped application '%s'\n", app.Name)
+			_, _ = fmt.Fprintf(os.Stdout, "Queued stop of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},
@@ -403,55 +401,18 @@ func newAppsRestartCommand() *cobra.Command {
 			ctx := context.Background()
 
 			// Find application
-			appGUID, _, err := resolveApp(ctx, client, nameOrGUID)
-			if err != nil {
-				return err
-			}
-
-			// Restart application
-			app, err := client.Apps().Restart(ctx, appGUID)
-			if err != nil {
-				return fmt.Errorf("failed to restart application: %w", err)
-			}
-
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully restarted application '%s'\n", app.Name)
-
-			return nil
-		},
-	}
-}
-
-func newAppsRestageCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "restage APP_NAME_OR_GUID",
-		Short: "Restage an application",
-		Long:  "Restage a Cloud Foundry application to create a new build",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			nameOrGUID := args[0]
-
-			client, err := CreateClientWithAPI(cmd.Flag("api").Value.String())
-			if err != nil {
-				return err
-			}
-
-			ctx := context.Background()
-
-			// Find application
 			appGUID, appName, err := resolveApp(ctx, client, nameOrGUID)
 			if err != nil {
 				return err
 			}
 
-			// Restage application
-			build, err := client.Apps().Restage(ctx, appGUID)
+			// Restart application — CF v3 /actions/restart returns a job.
+			job, err := client.Apps().Restart(ctx, appGUID)
 			if err != nil {
-				return fmt.Errorf("failed to restage application: %w", err)
+				return fmt.Errorf("failed to restart application: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, "Successfully initiated restage of application '%s'\n", appName)
-			_, _ = fmt.Fprintf(os.Stdout, "Build GUID: %s\n", build.GUID)
-			_, _ = fmt.Fprintf(os.Stdout, "Build State: %s\n", build.State)
+			_, _ = fmt.Fprintf(os.Stdout, "Queued restart of application '%s' (job %s)\n", appName, job.GUID)
 
 			return nil
 		},
@@ -563,12 +524,16 @@ func runAppsScale(params *appsScaleParams) error {
 		return outputCurrentScale(appName, appGUID, targetProcess)
 	}
 
-	scaledProcess, err := client.Processes().Scale(ctx, targetProcess.GUID, scaleReq)
+	// Scale is async (202 + job). We log the queued job and report the
+	// current scale targets back to the user; callers that need terminal
+	// state should poll Jobs().Get(job.GUID).
+	job, err := client.Processes().Scale(ctx, targetProcess.GUID, scaleReq)
 	if err != nil {
 		return fmt.Errorf("failed to scale application: %w", err)
 	}
 
-	return outputScaledResult(appName, appGUID, scaledProcess)
+	_, _ = fmt.Fprintf(os.Stdout, "Queued scale of application '%s' process '%s' (job %s)\n", appName, targetProcess.Type, job.GUID)
+	return outputScaledResult(appName, appGUID, targetProcess, scaleReq)
 }
 
 func findTargetProcess(ctx context.Context, client capi.Client, appGUID, appName, processType string) (*capi.Process, error) {
@@ -627,7 +592,11 @@ func outputCurrentScale(appName, appGUID string, process *capi.Process) error {
 	return outputScaleInfo(info, fmt.Sprintf("Current scale for application '%s' process '%s':", appName, process.Type))
 }
 
-func outputScaledResult(appName, appGUID string, process *capi.Process) error {
+func outputScaledResult(appName, appGUID string, process *capi.Process, scaleReq *capi.ProcessScaleRequest) error {
+	// The returned job doesn't carry process fields, so we echo back the
+	// requested scale (falling back to current values for fields that
+	// weren't in the request). The queued-job line is printed separately
+	// by the caller so operators see the async nature of the call.
 	info := scaleInfo{
 		AppName:     appName,
 		AppGUID:     appGUID,
@@ -637,7 +606,17 @@ func outputScaledResult(appName, appGUID string, process *capi.Process) error {
 		DiskMB:      process.DiskInMB,
 	}
 
-	return outputScaleInfo(info, fmt.Sprintf("Successfully scaled application '%s' process '%s':", appName, process.Type))
+	if scaleReq.Instances != nil {
+		info.Instances = *scaleReq.Instances
+	}
+	if scaleReq.MemoryInMB != nil {
+		info.MemoryMB = *scaleReq.MemoryInMB
+	}
+	if scaleReq.DiskInMB != nil {
+		info.DiskMB = *scaleReq.DiskInMB
+	}
+
+	return outputScaleInfo(info, fmt.Sprintf("Requested scale for application '%s' process '%s':", appName, process.Type))
 }
 
 func outputScaleInfo(info scaleInfo, tableTitle string) error {

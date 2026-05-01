@@ -178,19 +178,45 @@ func TestRolesClient_List(t *testing.T) {
 func TestRolesClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/roles/{guid} returns 202 Accepted with a
+	// Location header pointing at /v3/jobs/{guid}. Mirror Apps.Delete
+	// behaviour: extract the job GUID from the Location header and
+	// return a Job populated with that GUID.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/roles/role-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		writer.WriteHeader(http.StatusNoContent)
+		writer.Header().Set("Location", "https://api.example.com/v3/jobs/job-guid-123")
+		writer.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
 
 	httpClient := internalhttp.NewClient(server.URL, nil)
 	roles := NewRolesClient(httpClient)
 
-	err := roles.Delete(context.Background(), "role-guid")
+	job, err := roles.Delete(context.Background(), "role-guid")
 	require.NoError(t, err)
+	require.NotNil(t, job)
+	assert.Equal(t, "job-guid-123", job.GUID)
+}
+
+// TestRolesClient_DeleteMissingLocation pins the failure mode when CF
+// returns 202 without a Location header — should error, not return a
+// nil-GUID Job that callers might poll for ever.
+func TestRolesClient_DeleteMissingLocation(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	roles := NewRolesClient(httpClient)
+
+	job, err := roles.Delete(context.Background(), "role-guid")
+	require.Error(t, err)
+	assert.Nil(t, job)
 }
 
 func TestRolesClient_GetNotFound(t *testing.T) {

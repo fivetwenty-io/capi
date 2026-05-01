@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -120,6 +121,24 @@ func (c *ServiceCredentialBindingsClient) Update(ctx context.Context, guid strin
 }
 
 // Delete deletes a service credential binding.
+//
+// DELETE /v3/service_credential_bindings/{guid} is polymorphic depending on
+// the underlying service instance type:
+//
+//   - User-provided service instance: CF deletes synchronously and returns
+//     204 No Content with no body and no Location header. We return
+//     (nil, nil) so callers can treat a nil Job as "no async work pending —
+//     the delete is already complete."
+//   - Managed service instance: CF schedules an async job and returns 202
+//     Accepted with an empty body and a Location header pointing at
+//     /v3/jobs/{jobGuid}. We extract the GUID from the header and return a
+//     Job with it populated; callers poll via Jobs().Get or
+//     Jobs().PollUntilComplete.
+//
+// Callers must guard against `job == nil` before polling. Missing Location
+// on a 202 response is treated as a protocol violation — we return an error
+// rather than a Job with an empty GUID to prevent accidentally polling
+// `/v3/jobs/`.
 func (c *ServiceCredentialBindingsClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/service_credential_bindings/" + guid
 
@@ -128,14 +147,27 @@ func (c *ServiceCredentialBindingsClient) Delete(ctx context.Context, guid strin
 		return nil, fmt.Errorf("deleting service credential binding: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
+	// Sync delete of a user-provided binding: 204 No Content, no Job.
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
 	}
 
-	return &job, nil
+	// Async delete of a managed binding: 202 Accepted + Location header.
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting service credential binding: no Location header on async delete response (status %d)", resp.StatusCode)
+	}
+
+	// Location format: .../v3/jobs/{jobGuid}
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting service credential binding: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // GetDetails retrieves the details (credentials) for a service credential binding.
