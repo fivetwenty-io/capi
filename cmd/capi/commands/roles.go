@@ -368,7 +368,7 @@ func newRolesDeleteCommand() *cobra.Command {
 
 			ctx := context.Background()
 
-			err = client.Roles().Delete(ctx, roleGUID)
+			_, err = client.Roles().Delete(ctx, roleGUID)
 			if err != nil {
 				return fmt.Errorf("failed to delete role: %w", err)
 			}

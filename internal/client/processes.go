@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -83,7 +84,14 @@ func (c *ProcessesClient) Update(ctx context.Context, guid string, request *capi
 }
 
 // Scale adjusts the instances, memory, disk, or log rate limit of a process.
-func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.ProcessScaleRequest) (*capi.Process, error) {
+//
+// POST /v3/processes/{guid}/actions/scale is async on modern CF v3
+// (202 + Location → /v3/jobs/{jobGuid}) and was synchronous on older
+// versions (200 + updated Process body). We support both for forward-
+// and backward-compatibility, matching AppsClient.postActionJob:
+// Location header present → return *Job with extracted GUID; absent →
+// return (nil, nil) signaling "action complete, no job to poll".
+func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.ProcessScaleRequest) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/processes/%s/actions/scale", guid)
 
 	resp, err := c.httpClient.Post(ctx, path, request)
@@ -91,14 +99,21 @@ func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.
 		return nil, fmt.Errorf("scaling process: %w", err)
 	}
 
-	var process capi.Process
-
-	err = json.Unmarshal(resp.Body, &process)
-	if err != nil {
-		return nil, fmt.Errorf("parsing process response: %w", err)
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		// Sync-complete (older CF) — no job to poll.
+		return nil, nil
 	}
 
-	return &process, nil
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("scaling process: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // GetStats retrieves runtime statistics for all instances of a process.

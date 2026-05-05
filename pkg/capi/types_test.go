@@ -220,3 +220,64 @@ func TestListResponse_JSONMarshaling(t *testing.T) {
 	assert.Equal(t, "guid-2", decoded.Resources[1].GUID)
 	assert.Equal(t, "test-2", decoded.Resources[1].Name)
 }
+
+func TestLink_MetaRoundTripsAppSSHFields(t *testing.T) {
+	t.Parallel()
+
+	// Real CF root response shape for the app_ssh link (CF 3.180.0):
+	//   "app_ssh": {
+	//     "href": "ssh.example.com:2222",
+	//     "meta": {
+	//       "host_key_fingerprint": "AAAA...",
+	//       "oauth_client": "ssh-proxy"
+	//     }
+	//   }
+	raw := []byte(`{
+		"href": "ssh.example.com:2222",
+		"meta": {
+			"host_key_fingerprint": "AAAA-FINGERPRINT-BBBB",
+			"oauth_client": "ssh-proxy"
+		}
+	}`)
+
+	var link capi.Link
+	require.NoError(t, json.Unmarshal(raw, &link))
+
+	assert.Equal(t, "ssh.example.com:2222", link.Href)
+	require.NotNil(t, link.Meta)
+	assert.Equal(t, "AAAA-FINGERPRINT-BBBB", link.Meta["host_key_fingerprint"])
+	assert.Equal(t, "ssh-proxy", link.Meta["oauth_client"])
+
+	// Round-trip back to JSON to confirm omitempty is honored when Meta is set
+	// and the field is wire-compatible.
+	encoded, err := json.Marshal(link)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"meta":`)
+	assert.Contains(t, string(encoded), `"host_key_fingerprint":"AAAA-FINGERPRINT-BBBB"`)
+}
+
+func TestLink_MetaOmittedWhenNil(t *testing.T) {
+	t.Parallel()
+
+	// Existing callers that don't set Meta produce wire-identical output to
+	// pre-Meta versions: no `"meta":` key, no `null`.
+	link := capi.Link{Href: "https://example.com/v3/apps", Method: "GET"}
+	encoded, err := json.Marshal(link)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), `"meta"`)
+}
+
+func TestLink_MetaCarriesAPIVersion(t *testing.T) {
+	t.Parallel()
+
+	// links.cloud_controller_v3.meta.version is the CF v3 API semver,
+	// e.g. "3.180.0" — the second concrete shape Stratos consumes.
+	raw := []byte(`{
+		"href": "https://api.example.com/v3",
+		"meta": {"version": "3.180.0"}
+	}`)
+
+	var link capi.Link
+	require.NoError(t, json.Unmarshal(raw, &link))
+	assert.Equal(t, "3.180.0", link.Meta["version"])
+}

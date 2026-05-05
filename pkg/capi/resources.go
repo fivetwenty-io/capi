@@ -278,8 +278,19 @@ type RouteRelationships struct {
 }
 
 // RouteDestination represents a route destination.
+//
+// This struct is used both as a response shape (CF returns the
+// server-assigned GUID on GET) and as a request shape on
+// POST /v3/routes/{guid}/destinations. The CF v3 destinations-create
+// schema rejects unknown fields per destination — only "app", "weight",
+// "port" and "protocol" are accepted — so GUID must be omitempty,
+// otherwise marshalling a zero value emits {"guid":""} and CF answers
+// 422 CF-UnprocessableEntity:
+//
+//	Destinations[0]: must have only "app" and optionally "weight",
+//	"port" or "protocol".
 type RouteDestination struct {
-	GUID     string              `json:"guid"               yaml:"guid"`
+	GUID     string              `json:"guid,omitempty"     yaml:"guid,omitempty"`
 	App      RouteDestinationApp `json:"app"                yaml:"app"`
 	Port     *int                `json:"port,omitempty"     yaml:"port,omitempty"`
 	Protocol *string             `json:"protocol,omitempty" yaml:"protocol,omitempty"`
