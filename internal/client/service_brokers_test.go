@@ -490,22 +490,14 @@ func TestServiceBrokersClient_Update(t *testing.T) {
 func TestServiceBrokersClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/service_brokers/{guid} is async: 202 Accepted, empty
+	// body, Location header pointing at /v3/jobs/{jobGuid}.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_brokers/test-broker-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID: "job-guid",
-			},
-			Operation: "service_broker.delete",
-			State:     "PROCESSING",
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
 		writer.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -516,6 +508,4 @@ func TestServiceBrokersClient_Delete(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
-	assert.Equal(t, "service_broker.delete", job.Operation)
-	assert.Equal(t, "PROCESSING", job.State)
 }

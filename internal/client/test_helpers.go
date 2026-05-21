@@ -970,6 +970,12 @@ func RunServiceListTest[TResource any](
 }
 
 // RunJobDeleteTest runs a generic delete test that returns a job.
+//
+// CF V3 async-delete contract: 202 Accepted with empty body, async job
+// reference in the Location header. The `operationType` parameter is kept
+// for callsite-clarity (so the test name documents which CF op is under
+// test) but no longer asserted on the returned Job (Operation/State live
+// in the /v3/jobs/{guid} response body, not in the Location-derived stub).
 func RunJobDeleteTest(
 	t *testing.T,
 	testName string,
@@ -979,23 +985,14 @@ func RunJobDeleteTest(
 	deleteCall func(interface{}) (*capi.Job, error),
 ) {
 	t.Helper()
+	_ = operationType
 	t.Run(testName, func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)
 			assert.Equal(t, "DELETE", request.Method)
 
-			job := capi.Job{
-				Resource: capi.Resource{
-					GUID: "job-guid",
-				},
-				Operation: operationType,
-				State:     "PROCESSING",
-			}
-
-			writer.Header().Set("Content-Type", "application/json")
 			writer.Header().Set("Location", "/v3/jobs/job-guid")
 			writer.WriteHeader(http.StatusAccepted)
-			_ = json.NewEncoder(writer).Encode(job)
 		}))
 		defer server.Close()
 
@@ -1004,9 +1001,8 @@ func RunJobDeleteTest(
 
 		job, err := deleteCall(client)
 		require.NoError(t, err)
-		assert.NotNil(t, job)
+		require.NotNil(t, job)
 		assert.Equal(t, "job-guid", job.GUID)
-		assert.Equal(t, operationType, job.Operation)
 	})
 }
 

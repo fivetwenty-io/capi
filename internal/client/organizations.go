@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -100,6 +101,12 @@ func (c *OrganizationsClient) Update(ctx context.Context, guid string, request *
 }
 
 // Delete implements capi.OrganizationsClient.Delete.
+//
+// CF V3 DELETE /v3/organizations/{guid} returns 202 Accepted with an empty
+// body and the async job reference in the Location header. Mirrors the
+// Apps.Delete handling: read the Location header, extract the job GUID,
+// return a synthesized capi.Job carrying that GUID (callers poll /v3/jobs/{guid}
+// via the Jobs client).
 func (c *OrganizationsClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/organizations/" + guid
 
@@ -108,15 +115,21 @@ func (c *OrganizationsClient) Delete(ctx context.Context, guid string) (*capi.Jo
 		return nil, fmt.Errorf("deleting organization: %w", err)
 	}
 
-	// Organization deletion returns a job for async operation
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting organization: no Location header on async delete response")
 	}
 
-	return &job, nil
+	// Location format: .../v3/jobs/{jobGuid}
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting organization: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // GetDefaultIsolationSegment implements capi.OrganizationsClient.GetDefaultIsolationSegment.

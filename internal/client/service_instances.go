@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -153,14 +154,29 @@ func (c *ServiceInstancesClient) Delete(ctx context.Context, guid string, opts .
 		return nil, fmt.Errorf("deleting service instance: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
+	// CF V3 DELETE /v3/service_instances/{guid} returns 202 Accepted +
+	// Location: /v3/jobs/{jobGuid} for the normal async path. When
+	// purge=true, CF V3 responds 204 No Content with no Location header
+	// (sync delete bypassing the broker); callers get a nil job + nil
+	// error and treat that as "delete completed synchronously, no polling
+	// needed."
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		if deleteOpts.Purge {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("deleting service instance: no Location header on async delete response")
 	}
 
-	return &job, nil
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting service instance: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // GetParameters retrieves parameters for a managed service instance.

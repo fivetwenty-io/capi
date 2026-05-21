@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/url"
+	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -107,6 +108,9 @@ func (c *BuildpacksClient) Update(ctx context.Context, guid string, request *cap
 }
 
 // Delete implements capi.BuildpacksClient.Delete.
+// CF V3 DELETE /v3/buildpacks/{guid} returns 202 Accepted with an empty body
+// and the async job reference in the Location header. See Apps.Delete for
+// the canonical Location-extraction pattern.
 func (c *BuildpacksClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/buildpacks/" + guid
 
@@ -115,14 +119,20 @@ func (c *BuildpacksClient) Delete(ctx context.Context, guid string) (*capi.Job, 
 		return nil, fmt.Errorf("deleting buildpack: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting buildpack: no Location header on async delete response")
 	}
 
-	return &job, nil
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting buildpack: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // Upload implements capi.BuildpacksClient.Upload.

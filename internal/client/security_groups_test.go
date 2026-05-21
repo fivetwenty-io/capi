@@ -297,21 +297,14 @@ func TestSecurityGroupsClient_Update(t *testing.T) {
 func TestSecurityGroupsClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/security_groups/{guid} is async: 202 Accepted, empty
+	// body, Location header pointing at /v3/jobs/{jobGuid}.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/security_groups/sg-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID: "job-guid",
-			},
-			Operation: "security_groups.delete",
-			State:     "PROCESSING",
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -320,9 +313,8 @@ func TestSecurityGroupsClient_Delete(t *testing.T) {
 
 	job, err := securityGroups.Delete(context.Background(), "sg-guid")
 	require.NoError(t, err)
-	assert.NotNil(t, job)
+	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
-	assert.Equal(t, "security_groups.delete", job.Operation)
 }
 
 func TestSecurityGroupsClient_BindRunningSpaces(t *testing.T) {

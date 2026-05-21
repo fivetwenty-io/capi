@@ -157,18 +157,14 @@ func TestSpacesClient_Update(t *testing.T) {
 func TestSpacesClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/spaces/{guid} is async: 202 Accepted, empty body,
+	// Location header pointing at /v3/jobs/{jobGuid}.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/spaces/space-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		job := capi.Job{
-			Resource:  capi.Resource{GUID: "job-guid"},
-			Operation: "space.delete",
-			State:     "PROCESSING",
-		}
-
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -177,8 +173,8 @@ func TestSpacesClient_Delete(t *testing.T) {
 
 	job, err := c.Spaces().Delete(context.Background(), "space-guid")
 	require.NoError(t, err)
+	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
-	assert.Equal(t, "PROCESSING", job.State)
 }
 
 func TestSpacesClient_GetIsolationSegment(t *testing.T) {

@@ -320,29 +320,14 @@ func TestUsersClient_Update(t *testing.T) {
 func TestUsersClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/users/{guid} is async: 202 Accepted, empty body,
+	// Location header pointing at /v3/jobs/{jobGuid}.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/users/user-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID:      "job-guid",
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-				Links: capi.Links{
-					"self": capi.Link{
-						Href: "/v3/jobs/job-guid",
-					},
-				},
-			},
-			Operation: "user.delete",
-			State:     "PROCESSING",
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
 		writer.Header().Set("Location", "https://api.example.org/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -351,8 +336,6 @@ func TestUsersClient_Delete(t *testing.T) {
 
 	job, err := users.Delete(context.Background(), "user-guid")
 	require.NoError(t, err)
-	assert.NotNil(t, job)
+	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
-	assert.Equal(t, "user.delete", job.Operation)
-	assert.Equal(t, "PROCESSING", job.State)
 }
