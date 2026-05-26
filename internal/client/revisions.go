@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -79,4 +80,47 @@ func (c *RevisionsClient) GetEnvironmentVariables(ctx context.Context, guid stri
 	}
 
 	return result.Var, nil
+}
+
+// ListForApp implements capi.RevisionsClient.ListForApp.
+func (c *RevisionsClient) ListForApp(ctx context.Context, appGUID string, params *capi.QueryParams) (*capi.ListResponse[capi.Revision], error) {
+	path := fmt.Sprintf("/v3/apps/%s/revisions", appGUID)
+
+	var queryParams url.Values
+	if params != nil {
+		queryParams = params.ToValues()
+	}
+
+	resp, err := c.httpClient.Get(ctx, path, queryParams)
+	if err != nil {
+		return nil, fmt.Errorf("listing revisions for app: %w", err)
+	}
+
+	var result capi.ListResponse[capi.Revision]
+
+	err = json.Unmarshal(resp.Body, &result)
+	if err != nil {
+		return nil, fmt.Errorf("parsing revisions list response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// GetDeployedForApp implements capi.RevisionsClient.GetDeployedForApp.
+func (c *RevisionsClient) GetDeployedForApp(ctx context.Context, appGUID string) (*capi.ListResponse[capi.Revision], error) {
+	path := fmt.Sprintf("/v3/apps/%s/revisions/deployed", appGUID)
+
+	resp, err := c.httpClient.Get(ctx, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting deployed revisions for app: %w", err)
+	}
+
+	var result capi.ListResponse[capi.Revision]
+
+	err = json.Unmarshal(resp.Body, &result)
+	if err != nil {
+		return nil, fmt.Errorf("parsing deployed revisions response: %w", err)
+	}
+
+	return &result, nil
 }

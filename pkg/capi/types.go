@@ -16,9 +16,24 @@ type Resource struct {
 type Links map[string]Link
 
 // Link represents a single link.
+//
+// Meta is the optional per-link metadata sub-object that CF uses to
+// carry context-specific data alongside an href:
+//
+//   - links.cloud_controller_v{2,3}.meta.version  → API semver
+//     (e.g. "2.245.0", "3.180.0")
+//   - links.app_ssh.meta.host_key_fingerprint     → SSH proxy host-key
+//     fingerprint for client-side verification
+//   - links.app_ssh.meta.oauth_client             → UAA client_id used to
+//     mint short-lived SSH access codes ("ssh-proxy" by convention)
+//
+// The shape of meta varies by link, so we model it as an open map.
+// Callers that don't reference Meta are unaffected (zero value, omitted
+// from JSON).
 type Link struct {
-	Href   string `json:"href"             yaml:"href"`
-	Method string `json:"method,omitempty" yaml:"method,omitempty"`
+	Href   string                 `json:"href"             yaml:"href"`
+	Method string                 `json:"method,omitempty" yaml:"method,omitempty"`
+	Meta   map[string]interface{} `json:"meta,omitempty"   yaml:"meta,omitempty"`
 }
 
 // Metadata represents labels and annotations.
