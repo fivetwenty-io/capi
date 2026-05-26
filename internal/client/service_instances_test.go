@@ -394,24 +394,16 @@ func TestServiceInstancesClient_Update_UserProvided(t *testing.T) {
 func TestServiceInstancesClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/service_instances/{guid} (without purge) is async:
+	// 202 Accepted, empty body, Location header pointing at /v3/jobs/{jobGuid}.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 		// Without WithPurge, the purge query parameter must NOT be present.
 		assert.Equal(t, "", request.URL.Query().Get("purge"), "purge param must be absent when WithPurge is not passed")
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID: "job-guid",
-			},
-			Operation: "service_instance.delete",
-			State:     "PROCESSING",
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
 		writer.Header().Set("Location", "/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -420,32 +412,23 @@ func TestServiceInstancesClient_Delete(t *testing.T) {
 
 	job, err := serviceInstances.Delete(context.Background(), "instance-guid")
 	require.NoError(t, err)
-	assert.NotNil(t, job)
+	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
-	assert.Equal(t, "service_instance.delete", job.Operation)
 }
 
 func TestServiceInstancesClient_DeleteWithPurge(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/service_instances/{guid}?purge=true is the sync
+	// purge path: 204 No Content with no Location header (broker bypass).
+	// The client surfaces this as `nil, nil` — callers treat that as
+	// "delete completed synchronously, no job polling needed."
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
-		// WithPurge(true) must set the purge query parameter.
 		assert.Equal(t, "true", request.URL.Query().Get("purge"), "purge param must be 'true' when WithPurge(true) is passed")
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID: "purge-job-guid",
-			},
-			Operation: "service_instance.delete",
-			State:     "PROCESSING",
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
-		writer.Header().Set("Location", "/v3/jobs/purge-job-guid")
-		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
+		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
 
@@ -454,9 +437,7 @@ func TestServiceInstancesClient_DeleteWithPurge(t *testing.T) {
 
 	job, err := serviceInstances.Delete(context.Background(), "instance-guid", capi.WithPurge(true))
 	require.NoError(t, err)
-	assert.NotNil(t, job)
-	assert.Equal(t, "purge-job-guid", job.GUID)
-	assert.Equal(t, "service_instance.delete", job.Operation)
+	assert.Nil(t, job)
 }
 
 func TestServiceInstancesClient_DeleteWithPurgeFalse(t *testing.T) {
@@ -468,18 +449,8 @@ func TestServiceInstancesClient_DeleteWithPurgeFalse(t *testing.T) {
 		// WithPurge(false) must NOT set the purge query parameter.
 		assert.Equal(t, "", request.URL.Query().Get("purge"), "purge param must be absent when WithPurge(false) is passed")
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID: "job-guid",
-			},
-			Operation: "service_instance.delete",
-			State:     "PROCESSING",
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
 		writer.Header().Set("Location", "/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -488,7 +459,7 @@ func TestServiceInstancesClient_DeleteWithPurgeFalse(t *testing.T) {
 
 	job, err := serviceInstances.Delete(context.Background(), "instance-guid", capi.WithPurge(false))
 	require.NoError(t, err)
-	assert.NotNil(t, job)
+	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
 }
 

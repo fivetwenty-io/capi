@@ -1,6 +1,7 @@
 package capi
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -68,9 +69,21 @@ type Pagination struct {
 }
 
 // ListResponse represents a paginated list response.
+//
+// Included carries v3's `included` block when the request used
+// `?include=...`. v3 returns the joined resources as a top-level
+// object whose keys are resource-type plural names (e.g.
+// `service_brokers`, `service_plans`) and values are arrays of
+// resources of that type. Included resources are heterogeneous, so
+// they're held as raw JSON; callers re-decode the bucket they want
+// using `json.Unmarshal(raw, &[]ServiceBroker{})` etc.
+//
+// `omitempty` keeps existing tests that asserted absence of an
+// `included` key passing for responses without one.
 type ListResponse[T any] struct {
-	Pagination Pagination `json:"pagination" yaml:"pagination"`
-	Resources  []T        `json:"resources"  yaml:"resources"`
+	Pagination Pagination                 `json:"pagination"        yaml:"pagination"`
+	Resources  []T                        `json:"resources"         yaml:"resources"`
+	Included   map[string][]json.RawMessage `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // AppEnv is an alias for AppEnvironment to maintain backward compatibility.

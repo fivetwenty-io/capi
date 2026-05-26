@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -119,6 +120,9 @@ func (c *ServiceRouteBindingsClient) Update(ctx context.Context, guid string, re
 }
 
 // Delete implements capi.ServiceRouteBindingsClient.Delete.
+// CF V3 DELETE /v3/service_route_bindings/{guid} returns 202 Accepted with an
+// empty body and the async job reference in the Location header. See
+// Apps.Delete for the canonical Location-extraction pattern.
 func (c *ServiceRouteBindingsClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/service_route_bindings/" + guid
 
@@ -127,14 +131,20 @@ func (c *ServiceRouteBindingsClient) Delete(ctx context.Context, guid string) (*
 		return nil, fmt.Errorf("deleting service route binding: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting service route binding: no Location header on async delete response")
 	}
 
-	return &job, nil
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting service route binding: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // GetParameters implements capi.ServiceRouteBindingsClient.GetParameters.

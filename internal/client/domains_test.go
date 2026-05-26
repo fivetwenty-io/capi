@@ -362,21 +362,14 @@ func TestDomainsClient_Update(t *testing.T) {
 func TestDomainsClient_Delete(t *testing.T) {
 	t.Parallel()
 
+	// CF v3 DELETE /v3/domains/{guid} is async: 202 Accepted, empty body,
+	// Location header pointing at /v3/jobs/{jobGuid}.
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/domains/test-domain-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		job := capi.Job{
-			Resource: capi.Resource{
-				GUID: "job-guid",
-			},
-			Operation: "domain.delete",
-			State:     "PROCESSING",
-		}
-
-		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(writer).Encode(job)
 	}))
 	defer server.Close()
 
@@ -387,8 +380,6 @@ func TestDomainsClient_Delete(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
-	assert.Equal(t, "domain.delete", job.Operation)
-	assert.Equal(t, "PROCESSING", job.State)
 }
 
 func TestDomainsClient_ShareWithOrganization(t *testing.T) {

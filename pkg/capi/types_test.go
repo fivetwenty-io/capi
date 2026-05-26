@@ -219,6 +219,163 @@ func TestListResponse_JSONMarshaling(t *testing.T) {
 	assert.Equal(t, "test-1", decoded.Resources[0].Name)
 	assert.Equal(t, "guid-2", decoded.Resources[1].GUID)
 	assert.Equal(t, "test-2", decoded.Resources[1].Name)
+	assert.Nil(t, decoded.Included, "Included should be nil when wire payload omits the included key")
+}
+
+// TestListResponse_IncludedRoundTrip verifies that v3's `?include=...`
+// joined resources survive a marshal/unmarshal round-trip on
+// ListResponse[T].Included. The Included bucket is keyed by v3's
+// resource-type plural names (`service_brokers`, `service_plans`,
+// etc.) and holds raw JSON that callers re-decode into the concrete
+// type. Mirrors the v3 wire shape:
+//
+//	{
+//	  "pagination": {...},
+//	  "resources": [...],
+//	  "included": { "service_brokers": [...], "service_plans": [...] }
+//	}
+func TestListResponse_IncludedRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	wire := []byte(`{
+		"pagination": {
+			"total_results": 1,
+			"total_pages": 1,
+			"first": {"href": "https://api.example.org/v3/service_offerings?page=1"},
+			"last":  {"href": "https://api.example.org/v3/service_offerings?page=1"}
+		},
+		"resources": [
+			{"guid": "off-1", "name": "redis"}
+		],
+		"included": {
+			"service_brokers": [
+				{"guid": "broker-1", "name": "core-broker", "url": "https://broker.example.org"}
+			]
+		}
+	}`)
+
+	type TestOffering struct {
+		GUID string `json:"guid"`
+		Name string `json:"name"`
+	}
+
+	type TestBroker struct {
+		GUID string `json:"guid"`
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	}
+
+	var decoded capi.ListResponse[TestOffering]
+
+	err := json.Unmarshal(wire, &decoded)
+	require.NoError(t, err)
+
+	assert.Len(t, decoded.Resources, 1)
+	assert.Equal(t, "off-1", decoded.Resources[0].GUID)
+
+	require.NotNil(t, decoded.Included)
+	require.Contains(t, decoded.Included, "service_brokers")
+	assert.Len(t, decoded.Included["service_brokers"], 1)
+
+	// Late-decode the broker bucket into the concrete type.
+	var brokers []TestBroker
+
+	err = json.Unmarshal(decoded.Included["service_brokers"][0], &brokers)
+	require.Error(t, err, "single raw message can't unmarshal as a slice")
+
+	// Each entry in the bucket is one raw resource — decode entry-by-entry.
+	var broker TestBroker
+
+	err = json.Unmarshal(decoded.Included["service_brokers"][0], &broker)
+	require.NoError(t, err)
+	assert.Equal(t, "broker-1", broker.GUID)
+	assert.Equal(t, "core-broker", broker.Name)
+	assert.Equal(t, "https://broker.example.org", broker.URL)
+
+	// Round-trip: re-marshal and ensure the included key survives.
+	data, err := json.Marshal(decoded)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"included"`)
+	assert.Contains(t, string(data), `"service_brokers"`)
+}
+
+// TestListResponse_IncludedOmittedWhenNil ensures the omitempty tag on
+// Included drops the key from the marshalled output when the value is
+// nil — preserving the existing wire shape for handlers that don't
+// use `?include=`.
+func TestListResponse_IncludedOmittedWhenNil(t *testing.T) {
+	t.Parallel()
+
+	resp := capi.ListResponse[capi.Resource]{
+		Pagination: capi.Pagination{TotalResults: 0, TotalPages: 0},
+		Resources:  []capi.Resource{},
+	}
+
+	data, err := json.Marshal(resp)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), `"included"`)
+}
+
+func TestLink_MetaRoundTripsAppSSHFields(t *testing.T) {
+	t.Parallel()
+
+	// Real CF root response shape for the app_ssh link (CF 3.180.0):
+	//   "app_ssh": {
+	//     "href": "ssh.example.com:2222",
+	//     "meta": {
+	//       "host_key_fingerprint": "AAAA...",
+	//       "oauth_client": "ssh-proxy"
+	//     }
+	//   }
+	raw := []byte(`{
+		"href": "ssh.example.com:2222",
+		"meta": {
+			"host_key_fingerprint": "AAAA-FINGERPRINT-BBBB",
+			"oauth_client": "ssh-proxy"
+		}
+	}`)
+
+	var link capi.Link
+	require.NoError(t, json.Unmarshal(raw, &link))
+
+	assert.Equal(t, "ssh.example.com:2222", link.Href)
+	require.NotNil(t, link.Meta)
+	assert.Equal(t, "AAAA-FINGERPRINT-BBBB", link.Meta["host_key_fingerprint"])
+	assert.Equal(t, "ssh-proxy", link.Meta["oauth_client"])
+
+	// Round-trip back to JSON to confirm omitempty is honored when Meta is set
+	// and the field is wire-compatible.
+	encoded, err := json.Marshal(link)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"meta":`)
+	assert.Contains(t, string(encoded), `"host_key_fingerprint":"AAAA-FINGERPRINT-BBBB"`)
+}
+
+func TestLink_MetaOmittedWhenNil(t *testing.T) {
+	t.Parallel()
+
+	// Existing callers that don't set Meta produce wire-identical output to
+	// pre-Meta versions: no `"meta":` key, no `null`.
+	link := capi.Link{Href: "https://example.com/v3/apps", Method: "GET"}
+	encoded, err := json.Marshal(link)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), `"meta"`)
+}
+
+func TestLink_MetaCarriesAPIVersion(t *testing.T) {
+	t.Parallel()
+
+	// links.cloud_controller_v3.meta.version is the CF v3 API semver,
+	// e.g. "3.180.0" — the second concrete shape Stratos consumes.
+	raw := []byte(`{
+		"href": "https://api.example.com/v3",
+		"meta": {"version": "3.180.0"}
+	}`)
+
+	var link capi.Link
+	require.NoError(t, json.Unmarshal(raw, &link))
+	assert.Equal(t, "3.180.0", link.Meta["version"])
 }
 
 func TestLink_MetaRoundTripsAppSSHFields(t *testing.T) {
