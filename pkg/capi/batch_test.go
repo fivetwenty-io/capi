@@ -655,15 +655,17 @@ func (m *MockAppsClient) Update(ctx context.Context, guid string, request *capi.
 	return result, nil
 }
 
-func (m *MockAppsClient) Delete(ctx context.Context, guid string) error {
+func (m *MockAppsClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	args := m.Called(ctx, guid)
 
-	err := args.Error(0)
+	err := args.Error(1)
 	if err != nil {
-		return fmt.Errorf("delete app failed: %w", err)
+		return nil, fmt.Errorf("delete app failed: %w", err)
 	}
 
-	return nil
+	job, _ := args.Get(0).(*capi.Job)
+
+	return job, nil
 }
 
 func (m *MockAppsClient) GetCurrentDroplet(ctx context.Context, guid string) (*capi.Droplet, error) {
@@ -815,7 +817,7 @@ func (m *MockAppsClient) GetSSHEnabled(ctx context.Context, guid string) (*capi.
 	return result, nil
 }
 
-func (m *MockAppsClient) Start(ctx context.Context, guid string) (*capi.App, error) {
+func (m *MockAppsClient) Start(ctx context.Context, guid string) (*capi.Job, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
 		err := args.Error(1)
@@ -831,12 +833,12 @@ func (m *MockAppsClient) Start(ctx context.Context, guid string) (*capi.App, err
 		return nil, fmt.Errorf("start app failed: %w", err)
 	}
 
-	result, _ := args.Get(0).(*capi.App)
+	result, _ := args.Get(0).(*capi.Job)
 
 	return result, nil
 }
 
-func (m *MockAppsClient) Stop(ctx context.Context, guid string) (*capi.App, error) {
+func (m *MockAppsClient) Stop(ctx context.Context, guid string) (*capi.Job, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
 		err := args.Error(1)
@@ -852,12 +854,12 @@ func (m *MockAppsClient) Stop(ctx context.Context, guid string) (*capi.App, erro
 		return nil, fmt.Errorf("stop app failed: %w", err)
 	}
 
-	result, _ := args.Get(0).(*capi.App)
+	result, _ := args.Get(0).(*capi.Job)
 
 	return result, nil
 }
 
-func (m *MockAppsClient) Restart(ctx context.Context, guid string) (*capi.App, error) {
+func (m *MockAppsClient) Restart(ctx context.Context, guid string) (*capi.Job, error) {
 	args := m.Called(ctx, guid)
 	if args.Get(0) == nil {
 		err := args.Error(1)
@@ -873,28 +875,7 @@ func (m *MockAppsClient) Restart(ctx context.Context, guid string) (*capi.App, e
 		return nil, fmt.Errorf("restart app failed: %w", err)
 	}
 
-	result, _ := args.Get(0).(*capi.App)
-
-	return result, nil
-}
-
-func (m *MockAppsClient) Restage(ctx context.Context, guid string) (*capi.Build, error) {
-	args := m.Called(ctx, guid)
-	if args.Get(0) == nil {
-		err := args.Error(1)
-		if err != nil {
-			return nil, fmt.Errorf("restage app failed: %w", err)
-		}
-
-		return nil, nil
-	}
-
-	err := args.Error(1)
-	if err != nil {
-		return nil, fmt.Errorf("restage app failed: %w", err)
-	}
-
-	result, _ := args.Get(0).(*capi.Build)
+	result, _ := args.Get(0).(*capi.Job)
 
 	return result, nil
 }

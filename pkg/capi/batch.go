@@ -273,12 +273,7 @@ func (b *BatchExecutor) executeAppOperation(ctx context.Context, operation Batch
 		},
 		func() (interface{}, error) {
 			if guid, ok := operation.Data.(string); ok {
-				err := b.client.Apps().Delete(ctx, guid)
-				if err != nil {
-					return nil, fmt.Errorf("failed to delete app: %w", err)
-				}
-
-				return nil, nil
+				return b.client.Apps().Delete(ctx, guid)
 			}
 
 			return nil, fmt.Errorf("%w delete", ErrInvalidDataTypeApp)

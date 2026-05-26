@@ -202,12 +202,14 @@ func scaleApplicationExample(client capi.Client, ctx context.Context, processes 
 
 	scaleReq := buildScaleRequest()
 
-	scaledProcess, err := client.Processes().Scale(ctx, webProcess.GUID, scaleReq)
+	// Scale is async — returns a job whose GUID we log. Callers that need
+	// terminal state should poll Jobs().Get.
+	job, err := client.Processes().Scale(ctx, webProcess.GUID, scaleReq)
 	if err != nil {
 		log.Fatalf("Failed to scale process: %v", err)
 	}
 
-	printScaledProcess(scaledProcess)
+	log.Printf("Queued scale of %s process (job %s)\n", webProcess.Type, job.GUID)
 }
 
 func buildScaleRequest() *capi.ProcessScaleRequest {
@@ -220,14 +222,6 @@ func buildScaleRequest() *capi.ProcessScaleRequest {
 		MemoryInMB: &memory,
 		DiskInMB:   &disk,
 	}
-}
-
-func printScaledProcess(process *capi.Process) {
-	log.Printf("Scaled %s process:\n", process.Type)
-	log.Printf("  Instances: %d\n", process.Instances)
-	log.Printf("  Memory: %d MB\n", process.MemoryInMB)
-	log.Printf("  Disk: %d MB\n", process.DiskInMB)
-	log.Println()
 }
 
 func manageEnvironmentVariablesExample(client capi.Client, ctx context.Context, app *capi.App) {
@@ -332,24 +326,25 @@ func startStopApplicationExample(client capi.Client, ctx context.Context, app *c
 func startApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
 	log.Println("=== Starting Application ===")
 
-	startedApp, err := client.Apps().Start(ctx, app.GUID)
+	// CF v3 /actions/start is async — returns a job whose GUID we can
+	// poll for terminal state. For the example we just log it and fall
+	// through to the next step.
+	job, err := client.Apps().Start(ctx, app.GUID)
 	if err != nil {
 		log.Printf("Failed to start application: %v", err)
 	} else {
-		log.Printf("Application state changed to: %s\n", startedApp.State)
-		*app = *startedApp // Update the app reference
+		log.Printf("Queued start of application (job %s)\n", job.GUID)
 	}
 }
 
 func stopApplicationExample(client capi.Client, ctx context.Context, app *capi.App) {
 	log.Println("=== Stopping Application ===")
 
-	stoppedApp, err := client.Apps().Stop(ctx, app.GUID)
+	job, err := client.Apps().Stop(ctx, app.GUID)
 	if err != nil {
 		log.Printf("Failed to stop application: %v", err)
 	} else {
-		log.Printf("Application state changed to: %s\n", stoppedApp.State)
-		*app = *stoppedApp // Update the app reference
+		log.Printf("Queued stop of application (job %s)\n", job.GUID)
 	}
 
 	log.Println()
@@ -358,10 +353,10 @@ func stopApplicationExample(client capi.Client, ctx context.Context, app *capi.A
 func cleanup(client capi.Client, ctx context.Context, app *capi.App) {
 	log.Println("=== Deleting Application ===")
 
-	err := client.Apps().Delete(ctx, app.GUID)
+	job, err := client.Apps().Delete(ctx, app.GUID)
 	if err != nil {
 		log.Fatalf("Failed to delete application: %v", err)
 	}
 
-	log.Println("Application deleted successfully!")
+	log.Printf("Application delete queued (job %s) — poll Jobs().Get to observe completion.", job.GUID)
 }

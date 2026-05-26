@@ -383,20 +383,64 @@ func TestServiceCredentialBindingsClient_Update(t *testing.T) {
 	assert.Equal(t, "binding-guid", binding.GUID)
 }
 
-func TestServiceCredentialBindingsClient_Delete(t *testing.T) {
+func TestServiceCredentialBindingsClient_Delete_ManagedAsync(t *testing.T) {
 	t.Parallel()
-	RunJobDeleteTest(t, "service credential binding delete", "/v3/service_credential_bindings/binding-guid", "service_credential_binding.delete",
-		func(httpClient *internalhttp.Client) interface{} {
-			return NewServiceCredentialBindingsClient(httpClient)
-		},
-		func(client interface{}) (*capi.Job, error) {
-			if serviceClient, ok := client.(*ServiceCredentialBindingsClient); ok {
-				return serviceClient.Delete(context.Background(), "binding-guid")
-			}
 
-			return nil, constants.ErrNotServiceCredentialBindingsClient
-		},
-	)
+	// Managed service instances: CF deletes asynchronously and returns 202
+	// Accepted with an empty body + Location header pointing at /v3/jobs/{guid}.
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_credential_bindings/binding-guid", request.URL.Path)
+		assert.Equal(t, "DELETE", request.Method)
+
+		writer.Header().Set("Location", "/v3/jobs/job-guid")
+		writer.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	job, err := client.ServiceCredentialBindings().Delete(context.Background(), "binding-guid")
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	assert.Equal(t, "job-guid", job.GUID)
+}
+
+func TestServiceCredentialBindingsClient_Delete_UserProvidedSync(t *testing.T) {
+	t.Parallel()
+
+	// User-provided service instances: CF deletes synchronously and returns
+	// 204 No Content. The client returns (nil, nil) so callers can treat a
+	// nil Job as "no async work pending — already complete."
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	job, err := client.ServiceCredentialBindings().Delete(context.Background(), "binding-guid")
+	require.NoError(t, err)
+	assert.Nil(t, job)
+}
+
+func TestServiceCredentialBindingsClient_Delete_MissingLocationOn202(t *testing.T) {
+	t.Parallel()
+
+	// 202 without Location is a protocol violation; we return an error
+	// rather than a Job with an empty GUID.
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	job, err := client.ServiceCredentialBindings().Delete(context.Background(), "binding-guid")
+	require.Error(t, err)
+	assert.Nil(t, job)
 }
 
 func TestServiceCredentialBindingsClient_GetDetails(t *testing.T) {

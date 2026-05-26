@@ -329,11 +329,16 @@ func RunDeleteJobTests(
 }
 
 // TestAppActionOperation represents a test case for app action operations.
+//
+// start/stop/restart/restage all POST to /v3/apps/{guid}/actions/{action}
+// and return a job (async per CF v3 API). ExpectedState is retained for
+// readability in test names; the server responds with 202 + Location
+// header pointing at a fixed test job GUID, and the client extracts it.
 type TestAppActionOperation struct {
 	Name          string
 	Action        string
 	ExpectedState string
-	ActionFunc    func(*Client) func(context.Context, string) (*capi.App, error)
+	ActionFunc    func(*Client) func(context.Context, string) (*capi.Job, error)
 }
 
 // RunAppActionTests runs a series of app action tests.
@@ -345,14 +350,8 @@ func RunAppActionTests(t *testing.T, tests []TestAppActionOperation) {
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				assert.Equal(t, "/v3/apps/app-guid/actions/"+testCase.Action, request.URL.Path)
 				assert.Equal(t, "POST", request.Method)
-
-				app := capi.App{
-					Resource: capi.Resource{GUID: "app-guid"},
-					Name:     "test-app",
-					State:    testCase.ExpectedState,
-				}
-
-				_ = json.NewEncoder(writer).Encode(app)
+				writer.Header().Set("Location", "/v3/jobs/test-job-guid")
+				writer.WriteHeader(http.StatusAccepted)
 			}))
 			defer server.Close()
 
@@ -360,9 +359,10 @@ func RunAppActionTests(t *testing.T, tests []TestAppActionOperation) {
 			require.NoError(t, err)
 
 			actionFunc := testCase.ActionFunc(client)
-			app, err := actionFunc(context.Background(), "app-guid")
+			job, err := actionFunc(context.Background(), "app-guid")
 			require.NoError(t, err)
-			assert.Equal(t, testCase.ExpectedState, app.State)
+			require.NotNil(t, job)
+			assert.Equal(t, "test-job-guid", job.GUID)
 		})
 	}
 }

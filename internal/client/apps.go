@@ -125,72 +125,111 @@ func (c *AppsClient) Update(ctx context.Context, guid string, request *capi.AppU
 }
 
 // Delete implements capi.AppsClient.Delete.
-func (c *AppsClient) Delete(ctx context.Context, guid string) error {
+//
+// DELETE /v3/apps/{guid} is async: CF returns 202 Accepted with an empty
+// body and a Location header pointing at /v3/jobs/{jobGuid}. We extract
+// the job GUID from that header and return a Job with its GUID populated;
+// callers use Jobs().Get or Jobs().PollUntilComplete for full state.
+//
+// Location header contract is defined in the CF v3 OpenAPI spec for
+// `delete` on /v3/apps/{guid}. If the header is missing or malformed we
+// return a sentinel error rather than a partially-populated Job, so
+// callers don't accidentally poll an empty job id.
+func (c *AppsClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/apps/" + guid
 
-	_, err := c.httpClient.Delete(ctx, path)
+	resp, err := c.httpClient.Delete(ctx, path)
 	if err != nil {
-		return fmt.Errorf("deleting app: %w", err)
+		return nil, fmt.Errorf("deleting app: %w", err)
 	}
 
-	return nil
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting app: no Location header on async delete response")
+	}
+
+	// Location format: .../v3/jobs/{jobGuid}
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting app: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // Start implements capi.AppsClient.Start.
-func (c *AppsClient) Start(ctx context.Context, guid string) (*capi.App, error) {
+//
+// POST /v3/apps/{guid}/actions/start is async per the CF v3 API spec:
+// CF returns 202 Accepted with a Location header pointing at
+// /v3/jobs/{jobGuid}. We extract the job GUID from that header and
+// return a Job with its GUID populated; callers use Jobs().Get or
+// Jobs().PollUntilComplete for full state — same pattern as Delete.
+//
+// The prior implementation unmarshalled the response body as App and
+// discarded the Location header. CF's 202 body is effectively empty
+// for job-returning actions, so callers got a zero-value App and no
+// way to observe the action's completion. Returning the Job instead
+// lets Stratos-style frontends surface progress / terminal state.
+func (c *AppsClient) Start(ctx context.Context, guid string) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/apps/%s/actions/start", guid)
-
-	resp, err := c.httpClient.Post(ctx, path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("starting app: %w", err)
-	}
-
-	var app capi.App
-
-	err = json.Unmarshal(resp.Body, &app)
-	if err != nil {
-		return nil, fmt.Errorf("parsing app response: %w", err)
-	}
-
-	return &app, nil
+	return c.postActionJob(ctx, path, "starting app")
 }
 
-// Stop implements capi.AppsClient.Stop.
-func (c *AppsClient) Stop(ctx context.Context, guid string) (*capi.App, error) {
+// Stop implements capi.AppsClient.Stop. Same async contract as Start.
+func (c *AppsClient) Stop(ctx context.Context, guid string) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/apps/%s/actions/stop", guid)
-
-	resp, err := c.httpClient.Post(ctx, path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("stopping app: %w", err)
-	}
-
-	var app capi.App
-
-	err = json.Unmarshal(resp.Body, &app)
-	if err != nil {
-		return nil, fmt.Errorf("parsing app response: %w", err)
-	}
-
-	return &app, nil
+	return c.postActionJob(ctx, path, "stopping app")
 }
 
-// Restart implements capi.AppsClient.Restart.
-func (c *AppsClient) Restart(ctx context.Context, guid string) (*capi.App, error) {
+// Restart implements capi.AppsClient.Restart. Same async contract as Start.
+func (c *AppsClient) Restart(ctx context.Context, guid string) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/apps/%s/actions/restart", guid)
+	return c.postActionJob(ctx, path, "restarting app")
+}
 
+// postActionJob POSTs to a /v3/apps/{guid}/actions/{action} path and
+// extracts the async job GUID from the Location header. Shared across
+// start/stop/restart/restage because CF's async-action response shape
+// is identical for all four endpoints.
+//
+// CF v3 transitioned these actions from synchronous (200 + App body) to
+// asynchronous (202 + Location → /v3/jobs/{jobGuid}) somewhere in the
+// 3.18x–3.20x range. We support both shapes so the client works against
+// older and newer targets:
+//
+//  1. If the response carries a Location header → parse it, return a
+//     Job with the extracted GUID. Callers poll via Jobs().Get.
+//  2. Otherwise → treat the call as synchronously complete and return
+//     (nil, nil). Callers that need to know "is the action done?" can
+//     treat nil-Job-nil-error as COMPLETE; callers that want to poll
+//     regardless should branch on job != nil.
+//
+// Non-2xx is surfaced as an error by the httpClient layer and doesn't
+// reach this parse path.
+func (c *AppsClient) postActionJob(ctx context.Context, path, opLabel string) (*capi.Job, error) {
 	resp, err := c.httpClient.Post(ctx, path, nil)
 	if err != nil {
-		return nil, fmt.Errorf("restarting app: %w", err)
+		return nil, fmt.Errorf("%s: %w", opLabel, err)
 	}
 
-	var app capi.App
-
-	err = json.Unmarshal(resp.Body, &app)
-	if err != nil {
-		return nil, fmt.Errorf("parsing app response: %w", err)
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		// Sync-complete (older CF) — no job to poll.
+		return nil, nil
 	}
 
-	return &app, nil
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("%s: malformed Location header %q", opLabel, location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
 // GetEnv implements capi.AppsClient.GetEnv.
@@ -363,54 +402,6 @@ func (c *AppsClient) GetManifest(ctx context.Context, guid string) (string, erro
 
 	// The manifest is returned as YAML, so we return it as a string
 	return string(resp.Body), nil
-}
-
-// Restage implements capi.AppsClient.Restage.
-func (c *AppsClient) Restage(ctx context.Context, guid string) (*capi.Build, error) {
-	// In API v3, restaging is done by creating a new build from the app's most recent package
-	// 1. Get packages for the app to find the most recent one
-	params := &capi.QueryParams{}
-	params.WithFilter("app_guids", guid)
-	params.WithOrderBy("-created_at") // Most recent first
-	params.PerPage = 1                // Only need the most recent
-
-	packagesResp, err := c.httpClient.Get(ctx, "/v3/packages", params.ToValues())
-	if err != nil {
-		return nil, fmt.Errorf("getting app packages: %w", err)
-	}
-
-	var packagesList capi.ListResponse[capi.Package]
-
-	err = json.Unmarshal(packagesResp.Body, &packagesList)
-	if err != nil {
-		return nil, fmt.Errorf("parsing packages response: %w", err)
-	}
-
-	if len(packagesList.Resources) == 0 {
-		return nil, ErrNoPackagesFound
-	}
-
-	// 2. Create a new build from the most recent package
-	mostRecentPackage := packagesList.Resources[0]
-	buildRequest := &capi.BuildCreateRequest{
-		Package: &capi.BuildPackageRef{
-			GUID: mostRecentPackage.GUID,
-		},
-	}
-
-	buildResp, err := c.httpClient.Post(ctx, "/v3/builds", buildRequest)
-	if err != nil {
-		return nil, fmt.Errorf("creating build for restage: %w", err)
-	}
-
-	var build capi.Build
-
-	err = json.Unmarshal(buildResp.Body, &build)
-	if err != nil {
-		return nil, fmt.Errorf("parsing build response: %w", err)
-	}
-
-	return &build, nil
 }
 
 // GetRecentLogs implements capi.AppsClient.GetRecentLogs.

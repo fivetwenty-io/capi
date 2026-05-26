@@ -12,15 +12,30 @@ type AppCRUDClient interface {
 	Get(ctx context.Context, guid string) (*App, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[App], error)
 	Update(ctx context.Context, guid string, request *AppUpdateRequest) (*App, error)
-	Delete(ctx context.Context, guid string) error
+	// Delete issues DELETE /v3/apps/{guid}. CF v3 returns 202 Accepted with a
+	// Job resource describing the async deletion; callers poll Jobs().Get
+	// (or Jobs().PollUntilComplete) until the job is terminal. Matches the
+	// pattern used by OrganizationsClient.Delete and SpacesClient.Delete.
+	Delete(ctx context.Context, guid string) (*Job, error)
 }
 
 // AppLifecycleClient provides app lifecycle operations.
+//
+// start/stop/restart/restage all POST to /v3/apps/{guid}/actions/{action}
+// which CF v3 treats as async: 202 + Location → /v3/jobs/{jobGuid}.
+// Each method returns a Job with GUID populated from the Location
+// header; callers poll via Jobs().Get / Jobs().PollUntilComplete for
+// terminal state.
+//
+// Restage is deliberately absent: CF v3 has no /v3/apps/{guid}/actions/restage
+// endpoint — restage was replaced by the builds resource (see v3 API docs).
+// Callers needing restage semantics must compose: find READY package →
+// Builds.Create → poll Builds.Get → Apps.Stop → Apps.SetCurrentDroplet →
+// Apps.Start. The cf-cli `shared.AppStager` is the reference composition.
 type AppLifecycleClient interface {
-	Start(ctx context.Context, guid string) (*App, error)
-	Stop(ctx context.Context, guid string) (*App, error)
-	Restart(ctx context.Context, guid string) (*App, error)
-	Restage(ctx context.Context, guid string) (*Build, error)
+	Start(ctx context.Context, guid string) (*Job, error)
+	Stop(ctx context.Context, guid string) (*Job, error)
+	Restart(ctx context.Context, guid string) (*Job, error)
 }
 
 // AppEnvironmentClient provides app environment operations.
@@ -334,7 +349,10 @@ type ProcessesClient interface {
 	Get(ctx context.Context, guid string) (*Process, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Process], error)
 	Update(ctx context.Context, guid string, request *ProcessUpdateRequest) (*Process, error)
-	Scale(ctx context.Context, guid string, request *ProcessScaleRequest) (*Process, error)
+	// Scale adjusts instances/memory/disk/log rate for a process. CF v3
+	// responds 202 + Location → /v3/jobs/{jobGuid}; the returned Job has
+	// its GUID populated from that header. Callers poll via Jobs().Get.
+	Scale(ctx context.Context, guid string, request *ProcessScaleRequest) (*Job, error)
 	GetStats(ctx context.Context, guid string) (*ProcessStats, error)
 	ListInstances(ctx context.Context, guid string) (*ListResponse[ProcessInstance], error)
 	TerminateInstance(ctx context.Context, guid string, index int) error
@@ -369,7 +387,7 @@ type RolesClient interface {
 	Create(ctx context.Context, request *RoleCreateRequest) (*Role, error)
 	Get(ctx context.Context, guid string) (*Role, error)
 	List(ctx context.Context, params *QueryParams) (*ListResponse[Role], error)
-	Delete(ctx context.Context, guid string) error
+	Delete(ctx context.Context, guid string) (*Job, error)
 }
 
 type SecurityGroupsClient interface {

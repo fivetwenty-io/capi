@@ -323,58 +323,22 @@ func TestProcessesClient_Scale(t *testing.T) {
 				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.ProcessScaleRequest
-
 				err := json.NewDecoder(request.Body).Decode(&requestBody)
 				assert.NoError(t, err)
 
-				response := capi.Process{
-					Resource: capi.Resource{
-						GUID:      testCase.guid,
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-					Type: "web",
-				}
-
-				if requestBody.Instances != nil {
-					response.Instances = *requestBody.Instances
-				}
-
-				if requestBody.MemoryInMB != nil {
-					response.MemoryInMB = *requestBody.MemoryInMB
-				}
-
-				if requestBody.DiskInMB != nil {
-					response.DiskInMB = *requestBody.DiskInMB
-				}
-
-				if requestBody.LogRateLimitInBytesPerSecond != nil {
-					response.LogRateLimitInBytesPerSecond = requestBody.LogRateLimitInBytesPerSecond
-				}
-
-				writer.Header().Set("Content-Type", "application/json")
+				// Scale returns 202 + Location → /v3/jobs/{jobGuid}.
+				writer.Header().Set("Location", "/v3/jobs/scale-job-guid")
 				writer.WriteHeader(http.StatusAccepted)
-				_ = json.NewEncoder(writer).Encode(response)
 			}))
 			defer server.Close()
 
 			client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
 			require.NoError(t, err)
 
-			process, err := client.Processes().Scale(context.Background(), testCase.guid, testCase.request)
+			job, err := client.Processes().Scale(context.Background(), testCase.guid, testCase.request)
 			require.NoError(t, err)
-			require.NotNil(t, process)
-			assert.Equal(t, testCase.guid, process.GUID)
-
-			switch testCase.name {
-			case "scale instances and resources":
-				assert.Equal(t, 10, process.Instances)
-				assert.Equal(t, 512, process.MemoryInMB)
-				assert.Equal(t, 2048, process.DiskInMB)
-			case "scale with log rate limit":
-				assert.Equal(t, 5, process.Instances)
-				assert.Equal(t, 2048, *process.LogRateLimitInBytesPerSecond)
-			}
+			require.NotNil(t, job)
+			assert.Equal(t, "scale-job-guid", job.GUID)
 		})
 	}
 }

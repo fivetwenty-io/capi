@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -85,13 +86,38 @@ func (c *RolesClient) List(ctx context.Context, params *capi.QueryParams) (*capi
 }
 
 // Delete implements capi.RolesClient.Delete.
-func (c *RolesClient) Delete(ctx context.Context, guid string) error {
+//
+// CF v3 DELETE /v3/roles/{guid} is async: 202 Accepted with a
+// Location header pointing at /v3/jobs/{jobGuid}. We extract the
+// job GUID from the header and return a Job with its GUID populated;
+// callers use Jobs().Get or Jobs().PollUntilComplete for full state.
+// Same pattern as Apps().Delete and Routes().Delete.
+//
+// The prior implementation discarded the Location header, leaving
+// callers with no way to observe completion. For fast role deletes
+// this was harmless, but slow operations would silently appear to
+// succeed before V3 finished the work.
+func (c *RolesClient) Delete(ctx context.Context, guid string) (*capi.Job, error) {
 	path := "/v3/roles/" + guid
 
-	_, err := c.httpClient.Delete(ctx, path)
+	resp, err := c.httpClient.Delete(ctx, path)
 	if err != nil {
-		return fmt.Errorf("deleting role: %w", err)
+		return nil, fmt.Errorf("deleting role: %w", err)
 	}
 
-	return nil
+	location := resp.Headers.Get("Location")
+	if location == "" {
+		return nil, fmt.Errorf("deleting role: no Location header on async delete response")
+	}
+
+	// Location format: .../v3/jobs/{jobGuid}
+	jobGUID := location
+	if idx := strings.LastIndex(location, "/"); idx >= 0 {
+		jobGUID = location[idx+1:]
+	}
+	if jobGUID == "" {
+		return nil, fmt.Errorf("deleting role: malformed Location header %q", location)
+	}
+
+	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }

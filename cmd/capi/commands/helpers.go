@@ -1411,7 +1411,7 @@ func (rm *RoleManager) RemoveUserRole(ctx context.Context, resourceNameOrGUID, u
 
 	// Delete each role
 	for _, role := range roles.Resources {
-		err = rolesClient.Delete(ctx, role.GUID)
+		_, err = rolesClient.Delete(ctx, role.GUID)
 		if err != nil {
 			return fmt.Errorf("failed to remove role '%s': %w", role.Type, err)
 		}
