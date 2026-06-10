@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -112,18 +111,5 @@ func (c *UsersClient) Delete(ctx context.Context, guid string) (*capi.Job, error
 		return nil, fmt.Errorf("deleting user: %w", err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		return nil, fmt.Errorf("deleting user: no Location header on async delete response")
-	}
-
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("deleting user: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromLocationHeader(resp, "deleting user")
 }

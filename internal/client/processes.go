@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -99,21 +98,7 @@ func (c *ProcessesClient) Scale(ctx context.Context, guid string, request *capi.
 		return nil, fmt.Errorf("scaling process: %w", err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		// Sync-complete (older CF) — no job to poll.
-		return nil, nil
-	}
-
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("scaling process: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromOptionalLocation(resp, "scaling process")
 }
 
 // GetStats retrieves runtime statistics for all instances of a process.

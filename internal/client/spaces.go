@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -112,21 +111,7 @@ func (c *SpacesClient) Delete(ctx context.Context, guid string) (*capi.Job, erro
 		return nil, fmt.Errorf("deleting space: %w", err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		return nil, fmt.Errorf("deleting space: no Location header on async delete response")
-	}
-
-	// Location format: .../v3/jobs/{jobGuid}
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("deleting space: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromLocationHeader(resp, "deleting space")
 }
 
 // GetIsolationSegment implements capi.SpacesClient.GetIsolationSegment.
@@ -489,14 +474,8 @@ func (c *SpacesClient) ApplyManifest(ctx context.Context, guid string, manifest 
 		return nil, fmt.Errorf("applying manifest: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
-	}
-
-	return &job, nil
+	// Async: job in body or Location header.
+	return jobFromAsyncResponse(resp, "applying manifest")
 }
 
 // CreateManifestDiff implements capi.SpacesClient.CreateManifestDiff.
@@ -528,12 +507,6 @@ func (c *SpacesClient) DeleteUnmappedRoutes(ctx context.Context, guid string) (*
 		return nil, fmt.Errorf("deleting unmapped routes: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
-	}
-
-	return &job, nil
+	// Async: job in body or Location header.
+	return jobFromAsyncResponse(resp, "deleting unmapped routes")
 }

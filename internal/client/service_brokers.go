@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -33,14 +32,8 @@ func (c *ServiceBrokersClient) Create(ctx context.Context, request *capi.Service
 		return nil, fmt.Errorf("creating service broker: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
-	}
-
-	return &job, nil
+	// Async: job in body or Location header.
+	return jobFromAsyncResponse(resp, "creating service broker")
 }
 
 // Get retrieves a specific service broker.
@@ -99,14 +92,8 @@ func (c *ServiceBrokersClient) Update(ctx context.Context, guid string, request 
 
 	// Check if response is a Job (202 Accepted) or ServiceBroker (200 OK)
 	if resp.StatusCode == http.StatusAccepted {
-		var job capi.Job
-
-		err := json.Unmarshal(resp.Body, &job)
-		if err != nil {
-			return nil, fmt.Errorf("parsing job response: %w", err)
-		}
-
-		return &job, nil
+		// Async catalog sync: job in body or Location header.
+		return jobFromAsyncResponse(resp, "updating service broker")
 	}
 
 	// For 200 OK responses (metadata-only updates), we still return a Job
@@ -144,18 +131,5 @@ func (c *ServiceBrokersClient) Delete(ctx context.Context, guid string) (*capi.J
 		return nil, fmt.Errorf("deleting service broker: %w", err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		return nil, fmt.Errorf("deleting service broker: no Location header on async delete response")
-	}
-
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("deleting service broker: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromLocationHeader(resp, "deleting service broker")
 }

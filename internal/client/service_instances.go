@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -36,15 +35,8 @@ func (c *ServiceInstancesClient) Create(ctx context.Context, request *capi.Servi
 
 	// Check if it's a managed instance (returns 202 with Job) or user-provided (returns 201 with instance)
 	if resp.StatusCode == http.StatusAccepted {
-		// Managed instance - returns a job
-		var job capi.Job
-
-		err := json.Unmarshal(resp.Body, &job)
-		if err != nil {
-			return nil, fmt.Errorf("parsing job response: %w", err)
-		}
-
-		return &job, nil
+		// Managed instance - async; job in body or Location header
+		return jobFromAsyncResponse(resp, "creating service instance")
 	} else {
 		// User-provided instance - returns the instance directly
 		var instance capi.ServiceInstance
@@ -113,15 +105,8 @@ func (c *ServiceInstancesClient) Update(ctx context.Context, guid string, reques
 
 	// Check if it's a managed instance (returns 202 with Job) or user-provided (returns 200 with instance)
 	if resp.StatusCode == http.StatusAccepted {
-		// Managed instance - returns a job
-		var job capi.Job
-
-		err := json.Unmarshal(resp.Body, &job)
-		if err != nil {
-			return nil, fmt.Errorf("parsing job response: %w", err)
-		}
-
-		return &job, nil
+		// Managed instance - async; job in body or Location header
+		return jobFromAsyncResponse(resp, "updating service instance")
 	} else {
 		// User-provided instance - returns the instance directly
 		var instance capi.ServiceInstance
@@ -160,23 +145,10 @@ func (c *ServiceInstancesClient) Delete(ctx context.Context, guid string, opts .
 	// (sync delete bypassing the broker); callers get a nil job + nil
 	// error and treat that as "delete completed synchronously, no polling
 	// needed."
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		if deleteOpts.Purge {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("deleting service instance: no Location header on async delete response")
+	if deleteOpts.Purge {
+		return jobFromOptionalLocation(resp, "deleting service instance")
 	}
-
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("deleting service instance: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromLocationHeader(resp, "deleting service instance")
 }
 
 // GetParameters retrieves parameters for a managed service instance.
