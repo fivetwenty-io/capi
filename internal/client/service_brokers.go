@@ -33,14 +33,8 @@ func (c *ServiceBrokersClient) Create(ctx context.Context, request *capi.Service
 		return nil, fmt.Errorf("creating service broker: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
-	}
-
-	return &job, nil
+	// Async: job in body or Location header.
+	return jobFromAsyncResponse(resp, "creating service broker")
 }
 
 // Get retrieves a specific service broker.
@@ -99,14 +93,8 @@ func (c *ServiceBrokersClient) Update(ctx context.Context, guid string, request 
 
 	// Check if response is a Job (202 Accepted) or ServiceBroker (200 OK)
 	if resp.StatusCode == http.StatusAccepted {
-		var job capi.Job
-
-		err := json.Unmarshal(resp.Body, &job)
-		if err != nil {
-			return nil, fmt.Errorf("parsing job response: %w", err)
-		}
-
-		return &job, nil
+		// Async catalog sync: job in body or Location header.
+		return jobFromAsyncResponse(resp, "updating service broker")
 	}
 
 	// For 200 OK responses (metadata-only updates), we still return a Job

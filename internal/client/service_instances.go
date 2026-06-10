@@ -36,15 +36,8 @@ func (c *ServiceInstancesClient) Create(ctx context.Context, request *capi.Servi
 
 	// Check if it's a managed instance (returns 202 with Job) or user-provided (returns 201 with instance)
 	if resp.StatusCode == http.StatusAccepted {
-		// Managed instance - returns a job
-		var job capi.Job
-
-		err := json.Unmarshal(resp.Body, &job)
-		if err != nil {
-			return nil, fmt.Errorf("parsing job response: %w", err)
-		}
-
-		return &job, nil
+		// Managed instance - async; job in body or Location header
+		return jobFromAsyncResponse(resp, "creating service instance")
 	} else {
 		// User-provided instance - returns the instance directly
 		var instance capi.ServiceInstance
@@ -113,15 +106,8 @@ func (c *ServiceInstancesClient) Update(ctx context.Context, guid string, reques
 
 	// Check if it's a managed instance (returns 202 with Job) or user-provided (returns 200 with instance)
 	if resp.StatusCode == http.StatusAccepted {
-		// Managed instance - returns a job
-		var job capi.Job
-
-		err := json.Unmarshal(resp.Body, &job)
-		if err != nil {
-			return nil, fmt.Errorf("parsing job response: %w", err)
-		}
-
-		return &job, nil
+		// Managed instance - async; job in body or Location header
+		return jobFromAsyncResponse(resp, "updating service instance")
 	} else {
 		// User-provided instance - returns the instance directly
 		var instance capi.ServiceInstance

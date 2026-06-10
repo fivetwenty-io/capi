@@ -376,14 +376,8 @@ func (c *Client) ClearBuildpackCache(ctx context.Context) (*capi.Job, error) {
 		return nil, fmt.Errorf("clearing buildpack cache: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
-	}
-
-	return &job, nil
+	// Async: job in body or Location header.
+	return jobFromAsyncResponse(resp, "clearing buildpack cache")
 }
 
 // Resource client accessors

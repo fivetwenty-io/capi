@@ -35,15 +35,8 @@ func (c *ServiceRouteBindingsClient) Create(ctx context.Context, request *capi.S
 
 	// Check if it's an async operation (returns 202 with Job) or sync (returns 201 with binding)
 	if resp.StatusCode == http.StatusAccepted {
-		// Async operation - returns a job
-		var job capi.Job
-
-		err := json.Unmarshal(resp.Body, &job)
-		if err != nil {
-			return nil, fmt.Errorf("parsing job response: %w", err)
-		}
-
-		return &job, nil
+		// Async operation - job in body or Location header
+		return jobFromAsyncResponse(resp, "creating service route binding")
 	} else {
 		// Sync operation - returns the binding directly
 		var binding capi.ServiceRouteBinding

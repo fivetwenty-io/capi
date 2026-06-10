@@ -489,14 +489,8 @@ func (c *SpacesClient) ApplyManifest(ctx context.Context, guid string, manifest 
 		return nil, fmt.Errorf("applying manifest: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
-	}
-
-	return &job, nil
+	// Async: job in body or Location header.
+	return jobFromAsyncResponse(resp, "applying manifest")
 }
 
 // CreateManifestDiff implements capi.SpacesClient.CreateManifestDiff.
@@ -528,12 +522,6 @@ func (c *SpacesClient) DeleteUnmappedRoutes(ctx context.Context, guid string) (*
 		return nil, fmt.Errorf("deleting unmapped routes: %w", err)
 	}
 
-	var job capi.Job
-
-	err = json.Unmarshal(resp.Body, &job)
-	if err != nil {
-		return nil, fmt.Errorf("parsing job response: %w", err)
-	}
-
-	return &job, nil
+	// Async: job in body or Location header.
+	return jobFromAsyncResponse(resp, "deleting unmapped routes")
 }
