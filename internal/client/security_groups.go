@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -116,20 +115,7 @@ func (c *SecurityGroupsClient) Delete(ctx context.Context, guid string) (*capi.J
 		return nil, fmt.Errorf("deleting security group: %w", err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		return nil, fmt.Errorf("deleting security group: no Location header on async delete response")
-	}
-
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("deleting security group: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromLocationHeader(resp, "deleting security group")
 }
 
 // BindRunningSpaces implements capi.SecurityGroupsClient.BindRunningSpaces.

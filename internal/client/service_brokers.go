@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
@@ -132,18 +131,5 @@ func (c *ServiceBrokersClient) Delete(ctx context.Context, guid string) (*capi.J
 		return nil, fmt.Errorf("deleting service broker: %w", err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		return nil, fmt.Errorf("deleting service broker: no Location header on async delete response")
-	}
-
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("deleting service broker: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromLocationHeader(resp, "deleting service broker")
 }

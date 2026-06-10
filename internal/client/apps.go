@@ -143,21 +143,7 @@ func (c *AppsClient) Delete(ctx context.Context, guid string) (*capi.Job, error)
 		return nil, fmt.Errorf("deleting app: %w", err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		return nil, fmt.Errorf("deleting app: no Location header on async delete response")
-	}
-
-	// Location format: .../v3/jobs/{jobGuid}
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("deleting app: malformed Location header %q", location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromLocationHeader(resp, "deleting app")
 }
 
 // Start implements capi.AppsClient.Start.
@@ -215,21 +201,7 @@ func (c *AppsClient) postActionJob(ctx context.Context, path, opLabel string) (*
 		return nil, fmt.Errorf("%s: %w", opLabel, err)
 	}
 
-	location := resp.Headers.Get("Location")
-	if location == "" {
-		// Sync-complete (older CF) — no job to poll.
-		return nil, nil
-	}
-
-	jobGUID := location
-	if idx := strings.LastIndex(location, "/"); idx >= 0 {
-		jobGUID = location[idx+1:]
-	}
-	if jobGUID == "" {
-		return nil, fmt.Errorf("%s: malformed Location header %q", opLabel, location)
-	}
-
-	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
+	return jobFromOptionalLocation(resp, opLabel)
 }
 
 // GetEnv implements capi.AppsClient.GetEnv.
