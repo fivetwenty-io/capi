@@ -3,12 +3,14 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	. "github.com/fivetwenty-io/capi/v3/internal/client"
+	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,6 +58,104 @@ func TestSpaceQuotasClient_Create(t *testing.T) {
 	)
 }
 
+// TestSpaceQuotaRelationships_SpacesOmittedWhenEmpty asserts that when no
+// Spaces are provided in SpaceQuotaRelationships the "spaces" key is absent
+// from the serialized JSON (CF v3 treats spaces as optional on create and
+// rejects a null data payload with 422).
+func TestSpaceQuotaRelationships_SpacesOmittedWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	var capturedBody []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/space_quotas", request.URL.Path)
+		assert.Equal(t, "POST", request.Method)
+
+		var err error
+		capturedBody, err = io.ReadAll(request.Body)
+		require.NoError(t, err)
+
+		quota := capi.SpaceQuotaV3{
+			Resource: capi.Resource{GUID: "quota-guid"},
+			Name:     "no-spaces-quota",
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(quota)
+	}))
+	defer server.Close()
+
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	_, err = c.SpaceQuotas().Create(context.Background(), &capi.SpaceQuotaV3CreateRequest{
+		Name: "no-spaces-quota",
+		Relationships: capi.SpaceQuotaRelationships{
+			Organization: capi.Relationship{
+				Data: &capi.RelationshipData{GUID: "org-guid"},
+			},
+			// Spaces intentionally omitted
+		},
+	})
+	require.NoError(t, err)
+
+	var body map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(capturedBody, &body))
+
+	var rels map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body["relationships"], &rels))
+
+	assert.Contains(t, rels, "organization", "organization must be present in relationships")
+	assert.NotContains(t, rels, "spaces", "spaces must be absent from relationships when not provided")
+}
+
+// TestSpaceQuotaRelationships_SpacesPresentWhenProvided asserts that when
+// Spaces are explicitly provided they are serialized into the request body.
+func TestSpaceQuotaRelationships_SpacesPresentWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	var capturedBody []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var err error
+		capturedBody, err = io.ReadAll(request.Body)
+		require.NoError(t, err)
+
+		quota := capi.SpaceQuotaV3{
+			Resource: capi.Resource{GUID: "quota-guid"},
+			Name:     "with-spaces-quota",
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(writer).Encode(quota)
+	}))
+	defer server.Close()
+
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	_, err = c.SpaceQuotas().Create(context.Background(), &capi.SpaceQuotaV3CreateRequest{
+		Name: "with-spaces-quota",
+		Relationships: capi.SpaceQuotaRelationships{
+			Organization: capi.Relationship{
+				Data: &capi.RelationshipData{GUID: "org-guid"},
+			},
+			Spaces: &capi.ToManyRelationship{
+				Data: []capi.RelationshipData{{GUID: "space-1"}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var body map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(capturedBody, &body))
+
+	var rels map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body["relationships"], &rels))
+
+	assert.Contains(t, rels, "spaces", "spaces must be present in relationships when provided")
+}
+
 func TestSpaceQuotasClient_Get(t *testing.T) {
 	t.Parallel()
 
@@ -86,6 +186,45 @@ func TestSpaceQuotasClient_Get(t *testing.T) {
 	assert.Equal(t, "space-quota-guid", quota.GUID)
 	assert.Equal(t, "test-space-quota", quota.Name)
 	assert.Equal(t, 1024, *quota.Apps.TotalMemoryInMB)
+}
+
+// TestSpaceQuotasClient_Get_AppFields verifies that the real CF v3 JSON field names
+// per_process_memory_in_mb and per_app_tasks are correctly unmarshalled into the renamed
+// Go struct fields PerProcessMemoryInMB and PerAppTasks. A real CF returns these names;
+// the old names (total_instance_memory_in_mb / total_app_tasks) were rejected with 422.
+func TestSpaceQuotasClient_Get_AppFields(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/space_quotas/space-quota-guid", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		// Simulate a real CF response with the correct field names.
+		_, _ = writer.Write([]byte(`{
+			"guid": "space-quota-guid",
+			"created_at": "2024-01-01T00:00:00Z",
+			"updated_at": "2024-01-01T00:00:00Z",
+			"name": "test-space-quota",
+			"apps": {
+				"total_memory_in_mb": 1024,
+				"per_process_memory_in_mb": 256,
+				"per_app_tasks": 5,
+				"total_instances": 3,
+				"log_rate_limit_in_bytes_per_second": 512
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+	require.NoError(t, err)
+
+	quota, err := c.SpaceQuotas().Get(context.Background(), "space-quota-guid")
+	require.NoError(t, err)
+	require.NotNil(t, quota.Apps)
+	assert.Equal(t, 1024, *quota.Apps.TotalMemoryInMB)
+	assert.Equal(t, 256, *quota.Apps.PerProcessMemoryInMB)
+	assert.Equal(t, 5, *quota.Apps.PerAppTasks)
 }
 
 func TestSpaceQuotasClient_List(t *testing.T) {
@@ -163,22 +302,40 @@ func TestSpaceQuotasClient_Update(t *testing.T) {
 	})
 }
 
+// TestSpaceQuotasClient_Delete verifies that DELETE /v3/space_quotas/{guid} returns a
+// *Job populated from the Location header (CF v3 async contract: 202 + Location).
 func TestSpaceQuotasClient_Delete(t *testing.T) {
+	t.Parallel()
+
+	RunJobDeleteTest(t, "space quota delete", "/v3/space_quotas/space-quota-guid", "space_quota.delete",
+		func(httpClient *internalhttp.Client) interface{} {
+			return NewSpaceQuotasClient(httpClient)
+		},
+		func(client interface{}) (*capi.Job, error) {
+			return client.(*SpaceQuotasClient).Delete(context.Background(), "space-quota-guid")
+		},
+	)
+}
+
+// TestSpaceQuotasClient_DeleteMissingLocation pins the failure mode when CF returns
+// 202 without a Location header — must error rather than return a nil-GUID Job.
+func TestSpaceQuotasClient_DeleteMissingLocation(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "/v3/space_quotas/space-quota-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 
-		writer.WriteHeader(http.StatusNoContent)
+		writer.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
 
-	c, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
-	require.NoError(t, err)
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	client := NewSpaceQuotasClient(httpClient)
 
-	err = c.SpaceQuotas().Delete(context.Background(), "space-quota-guid")
-	require.NoError(t, err)
+	job, err := client.Delete(context.Background(), "space-quota-guid")
+	require.Error(t, err)
+	assert.Nil(t, job)
 }
 
 //nolint:dupl // Acceptable duplication - each test validates different relationship endpoints for different resource types

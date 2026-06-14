@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Breaking/corrective**: `OrganizationQuotaApps` and `SpaceQuotaApps` had two fields
+  with wrong names that were never valid against a real CF v3 API. A live CF rejects
+  create/update requests containing these fields with 422 CF-UnprocessableEntity
+  "Unknown field(s): 'total_instance_memory_in_mb', 'total_app_tasks'"; reads silently
+  unmarshalled them to nil because the JSON keys were absent from real CF responses.
+  Both structs now use the correct CF v3 field names per the API 3.222.0 docs:
+  - `TotalInstanceMemoryInMB` / `total_instance_memory_in_mb` →
+    `PerProcessMemoryInMB` / `per_process_memory_in_mb`
+  - `TotalAppTasks` / `total_app_tasks` →
+    `PerAppTasks` / `per_app_tasks`
+  All usage sites updated: `helpers.go` interfaces and builders, `org_quotas.go`,
+  `space_quotas.go`, `examples/quota-management/main.go`, and client test fixtures
+  which now use the real CF JSON field names.
+
+- `DropletsClient.Delete`, `PackagesClient.Delete`, `OrganizationQuotasClient.Delete`,
+  and `SpaceQuotasClient.Delete` now return `(*Job, error)` instead of bare `error`.
+  CF v3 DELETE endpoints for these resources are async: 202 Accepted with an empty
+  body and the job reference in the `Location` header (`/v3/jobs/{guid}`). The prior
+  implementations discarded the header, leaving callers unable to poll for completion.
+  Interfaces, impls, tests, CLI call sites, and examples updated in lockstep.
+
+- `SpaceQuotaRelationships.Spaces` is now `*ToManyRelationship` with
+  `omitempty` so that creating a space quota without pre-assigned spaces no
+  longer serializes `"spaces":{"data":null}`, which caused CF to reject the
+  request with a 422 "Relationships Spaces must be structured like this" error.
+  `relationships.spaces` is optional per CF v3 API docs.
+
 ## [3.216.4] - 2026-04-24
 
 ### Removed
