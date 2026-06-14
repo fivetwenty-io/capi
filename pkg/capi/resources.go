@@ -12,6 +12,9 @@ type App struct {
 	Metadata             *Metadata              `json:"metadata,omitempty"              yaml:"metadata,omitempty"`
 	Relationships        AppRelationships       `json:"relationships"                   yaml:"relationships"`
 	EnvironmentVariables map[string]interface{} `json:"environment_variables,omitempty" yaml:"environment_variables,omitempty"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *AppIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // AppCreateRequest represents a request to create an app.
@@ -130,6 +133,9 @@ type Space struct {
 	Name          string             `json:"name"               yaml:"name"`
 	Metadata      *Metadata          `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	Relationships SpaceRelationships `json:"relationships"      yaml:"relationships"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *SpaceIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // SpaceCreateRequest represents a request to create a space.
@@ -238,6 +244,9 @@ type Route struct {
 	Options       *RouteOptions      `json:"options,omitempty"  yaml:"options,omitempty"`
 	Metadata      *Metadata          `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	Relationships RouteRelationships `json:"relationships"      yaml:"relationships"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *RouteIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // RouteCreateRequest represents a request to create a route.
@@ -358,6 +367,9 @@ type Role struct {
 
 	Type          string            `json:"type"          yaml:"type"`
 	Relationships RoleRelationships `json:"relationships" yaml:"relationships"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *RoleIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // RoleCreateRequest represents a request to create a role.
@@ -1138,6 +1150,9 @@ type ServiceOffering struct {
 	BrokerCatalog    ServiceOfferingCatalog       `json:"broker_catalog"              yaml:"broker_catalog"`
 	Relationships    ServiceOfferingRelationships `json:"relationships"               yaml:"relationships"`
 	Metadata         *Metadata                    `json:"metadata,omitempty"          yaml:"metadata,omitempty"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *ServiceOfferingIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // ServiceOfferingCatalog represents catalog information for a service offering.
@@ -1181,6 +1196,9 @@ type ServicePlan struct {
 	Schemas         ServicePlanSchemas       `json:"schemas"                    yaml:"schemas"`
 	Relationships   ServicePlanRelationships `json:"relationships"              yaml:"relationships"`
 	Metadata        *Metadata                `json:"metadata,omitempty"         yaml:"metadata,omitempty"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *ServicePlanIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // ServicePlanCost represents the cost information for a service plan.
@@ -1294,6 +1312,9 @@ type ServiceInstance struct {
 	RouteServiceURL        *string                                `json:"route_service_url,omitempty"        yaml:"route_service_url,omitempty"` // For user-provided
 	Relationships          ServiceInstanceRelationships           `json:"relationships"                      yaml:"relationships"`
 	Metadata               *Metadata                              `json:"metadata,omitempty"                 yaml:"metadata,omitempty"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *ServiceInstanceIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // ServiceInstanceMaintenance represents maintenance information for a service instance.
@@ -1413,6 +1434,9 @@ type ServiceCredentialBinding struct {
 	Metadata      *Metadata                              `json:"metadata,omitempty"       yaml:"metadata,omitempty"`
 	Relationships ServiceCredentialBindingRelationships  `json:"relationships"            yaml:"relationships"`
 	Links         Links                                  `json:"links,omitempty"          yaml:"links,omitempty"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *ServiceCredentialBindingIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // ServiceCredentialBindingLastOperation represents the last operation for a service credential binding.
@@ -1477,6 +1501,9 @@ type ServiceRouteBinding struct {
 	Metadata        *Metadata                         `json:"metadata,omitempty"          yaml:"metadata,omitempty"`
 	Relationships   ServiceRouteBindingRelationships  `json:"relationships"               yaml:"relationships"`
 	Links           Links                             `json:"links,omitempty"             yaml:"links,omitempty"`
+	// Included carries related resources when the request used typed
+	// include options. Nil when no includes were requested.
+	Included *ServiceRouteBindingIncludedResources `json:"included,omitempty" yaml:"included,omitempty"`
 }
 
 // ServiceRouteBindingLastOperation represents the last operation for a service route binding.

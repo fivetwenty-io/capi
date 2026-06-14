@@ -216,7 +216,37 @@ func (b *BatchExecutor) executeGenericCrudOperation(ctx context.Context, operati
 
 // createSpaceOperationConfig creates CRUD operation configuration for spaces.
 func (b *BatchExecutor) createSpaceOperationConfig() CRUDOperationConfig {
-	return createCRUDOperationConfig(ErrInvalidDataTypeSpace, b.client.Spaces())
+	return CRUDOperationConfig{
+		InvalidDataTypeErr: ErrInvalidDataTypeSpace,
+		CreateFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if req, ok := operation.Data.(*SpaceCreateRequest); ok {
+				return b.client.Spaces().Create(ctx, req)
+			}
+
+			return nil, fmt.Errorf("%w create", ErrInvalidDataTypeSpace)
+		},
+		UpdateFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if data, ok := operation.Data.(*UpdateDataWrapper[SpaceUpdateRequest]); ok {
+				return b.client.Spaces().Update(ctx, data.GUID, data.Request)
+			}
+
+			return nil, fmt.Errorf("%w update", ErrInvalidDataTypeSpace)
+		},
+		DeleteFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if guid, ok := operation.Data.(string); ok {
+				return b.client.Spaces().Delete(ctx, guid)
+			}
+
+			return nil, fmt.Errorf("%w delete", ErrInvalidDataTypeSpace)
+		},
+		GetFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if guid, ok := operation.Data.(string); ok {
+				return b.client.Spaces().Get(ctx, guid)
+			}
+
+			return nil, fmt.Errorf("%w get", ErrInvalidDataTypeSpace)
+		},
+	}
 }
 
 // createOrgOperationConfig creates CRUD operation configuration for organizations.
@@ -226,7 +256,37 @@ func (b *BatchExecutor) createOrgOperationConfig() CRUDOperationConfig {
 
 // createRouteOperationConfig creates CRUD operation configuration for routes.
 func (b *BatchExecutor) createRouteOperationConfig() CRUDOperationConfig {
-	return createCRUDOperationConfig(ErrInvalidDataTypeRoute, b.client.Routes())
+	return CRUDOperationConfig{
+		InvalidDataTypeErr: ErrInvalidDataTypeRoute,
+		CreateFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if req, ok := operation.Data.(*RouteCreateRequest); ok {
+				return b.client.Routes().Create(ctx, req)
+			}
+
+			return nil, fmt.Errorf("%w create", ErrInvalidDataTypeRoute)
+		},
+		UpdateFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if data, ok := operation.Data.(*UpdateDataWrapper[RouteUpdateRequest]); ok {
+				return b.client.Routes().Update(ctx, data.GUID, data.Request)
+			}
+
+			return nil, fmt.Errorf("%w update", ErrInvalidDataTypeRoute)
+		},
+		DeleteFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if guid, ok := operation.Data.(string); ok {
+				return b.client.Routes().Delete(ctx, guid)
+			}
+
+			return nil, fmt.Errorf("%w delete", ErrInvalidDataTypeRoute)
+		},
+		GetFunc: func(ctx context.Context, operation BatchOperation) (interface{}, error) {
+			if guid, ok := operation.Data.(string); ok {
+				return b.client.Routes().Get(ctx, guid)
+			}
+
+			return nil, fmt.Errorf("%w get", ErrInvalidDataTypeRoute)
+		},
+	}
 }
 
 // executeOperation executes a single operation.

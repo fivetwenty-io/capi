@@ -9,8 +9,8 @@ import (
 // AppCRUDClient provides basic CRUD operations for apps.
 type AppCRUDClient interface {
 	Create(ctx context.Context, request *AppCreateRequest) (*App, error)
-	Get(ctx context.Context, guid string) (*App, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[App], error)
+	Get(ctx context.Context, guid string, opts ...AppGetOption) (*App, error)
+	List(ctx context.Context, params *QueryParams, opts ...AppListOption) (*ListResponse[App], error)
 	Update(ctx context.Context, guid string, request *AppUpdateRequest) (*App, error)
 	// Delete issues DELETE /v3/apps/{guid}. CF v3 returns 202 Accepted with a
 	// Job resource describing the async deletion; callers poll Jobs().Get
@@ -113,8 +113,8 @@ type OrganizationsClient interface {
 // SpaceCRUDClient provides basic CRUD operations for spaces.
 type SpaceCRUDClient interface {
 	Create(ctx context.Context, request *SpaceCreateRequest) (*Space, error)
-	Get(ctx context.Context, guid string) (*Space, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Space], error)
+	Get(ctx context.Context, guid string, opts ...SpaceGetOption) (*Space, error)
+	List(ctx context.Context, params *QueryParams, opts ...SpaceListOption) (*ListResponse[Space], error)
 	Update(ctx context.Context, guid string, request *SpaceUpdateRequest) (*Space, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 }
@@ -191,15 +191,15 @@ type DomainsClient interface {
 // RouteCRUDClient provides basic CRUD operations for routes.
 type RouteCRUDClient interface {
 	Create(ctx context.Context, request *RouteCreateRequest) (*Route, error)
-	Get(ctx context.Context, guid string) (*Route, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Route], error)
+	Get(ctx context.Context, guid string, opts ...RouteGetOption) (*Route, error)
+	List(ctx context.Context, params *QueryParams, opts ...RouteListOption) (*ListResponse[Route], error)
 	Update(ctx context.Context, guid string, request *RouteUpdateRequest) (*Route, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 }
 
 // RouteDestinationClient provides route destination operations.
 type RouteDestinationClient interface {
-	ListDestinations(ctx context.Context, guid string) (*RouteDestinations, error)
+	ListDestinations(ctx context.Context, guid string, opts ...RouteDestinationsOption) (*RouteDestinations, error)
 	InsertDestinations(ctx context.Context, guid string, destinations []RouteDestination) (*RouteDestinations, error)
 	ReplaceDestinations(ctx context.Context, guid string, destinations []RouteDestination) (*RouteDestinations, error)
 	UpdateDestination(ctx context.Context, guid string, destGUID string, protocol string) (*RouteDestination, error)
@@ -232,16 +232,16 @@ type ServiceBrokersClient interface {
 
 // ServiceOfferingsClient defines operations for service offerings.
 type ServiceOfferingsClient interface {
-	Get(ctx context.Context, guid string) (*ServiceOffering, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceOffering], error)
+	Get(ctx context.Context, guid string, opts ...ServiceOfferingGetOption) (*ServiceOffering, error)
+	List(ctx context.Context, params *QueryParams, opts ...ServiceOfferingListOption) (*ListResponse[ServiceOffering], error)
 	Update(ctx context.Context, guid string, request *ServiceOfferingUpdateRequest) (*ServiceOffering, error)
-	Delete(ctx context.Context, guid string) error
+	Delete(ctx context.Context, guid string, opts ...ServiceOfferingDeleteOption) error
 }
 
 // ServicePlansClient defines operations for service plans.
 type ServicePlansClient interface {
-	Get(ctx context.Context, guid string) (*ServicePlan, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[ServicePlan], error)
+	Get(ctx context.Context, guid string, opts ...ServicePlanGetOption) (*ServicePlan, error)
+	List(ctx context.Context, params *QueryParams, opts ...ServicePlanListOption) (*ListResponse[ServicePlan], error)
 	Update(ctx context.Context, guid string, request *ServicePlanUpdateRequest) (*ServicePlan, error)
 	Delete(ctx context.Context, guid string) error
 
@@ -255,8 +255,8 @@ type ServicePlansClient interface {
 // ServiceInstancesClient defines operations for service instances.
 type ServiceInstancesClient interface {
 	Create(ctx context.Context, request *ServiceInstanceCreateRequest) (interface{}, error) // Returns *ServiceInstance for user-provided, *Job for managed
-	Get(ctx context.Context, guid string) (*ServiceInstance, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceInstance], error)
+	Get(ctx context.Context, guid string, opts ...ServiceInstanceGetOption) (*ServiceInstance, error)
+	List(ctx context.Context, params *QueryParams, opts ...ServiceInstanceListOption) (*ListResponse[ServiceInstance], error)
 	Update(ctx context.Context, guid string, request *ServiceInstanceUpdateRequest) (interface{}, error) // Returns *ServiceInstance for user-provided, *Job for managed
 	Delete(ctx context.Context, guid string, opts ...DeleteOption) (*Job, error)
 
@@ -272,8 +272,8 @@ type ServiceInstancesClient interface {
 // ServiceCredentialBindingsClient provides operations for Service Credential Bindings (v3 name for service bindings).
 type ServiceCredentialBindingsClient interface {
 	Create(ctx context.Context, request *ServiceCredentialBindingCreateRequest) (interface{}, error) // Returns *ServiceCredentialBinding or *Job
-	Get(ctx context.Context, guid string) (*ServiceCredentialBinding, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceCredentialBinding], error)
+	Get(ctx context.Context, guid string, opts ...ServiceCredentialBindingGetOption) (*ServiceCredentialBinding, error)
+	List(ctx context.Context, params *QueryParams, opts ...ServiceCredentialBindingListOption) (*ListResponse[ServiceCredentialBinding], error)
 	Update(ctx context.Context, guid string, request *ServiceCredentialBindingUpdateRequest) (*ServiceCredentialBinding, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 	GetDetails(ctx context.Context, guid string) (*ServiceCredentialBindingDetails, error)
@@ -286,8 +286,8 @@ type ServiceBindingsClient = ServiceCredentialBindingsClient
 // ServiceRouteBindingsClient defines operations for service route bindings.
 type ServiceRouteBindingsClient interface {
 	Create(ctx context.Context, request *ServiceRouteBindingCreateRequest) (interface{}, error) // Returns *ServiceRouteBinding or *Job
-	Get(ctx context.Context, guid string) (*ServiceRouteBinding, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceRouteBinding], error)
+	Get(ctx context.Context, guid string, opts ...ServiceRouteBindingGetOption) (*ServiceRouteBinding, error)
+	List(ctx context.Context, params *QueryParams, opts ...ServiceRouteBindingListOption) (*ListResponse[ServiceRouteBinding], error)
 	Update(ctx context.Context, guid string, request *ServiceRouteBindingUpdateRequest) (*ServiceRouteBinding, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 	GetParameters(ctx context.Context, guid string) (*ServiceRouteBindingParameters, error)
@@ -354,8 +354,8 @@ type PackagesClient interface {
 }
 
 type ProcessesClient interface {
-	Get(ctx context.Context, guid string) (*Process, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Process], error)
+	Get(ctx context.Context, guid string, opts ...ProcessGetOption) (*Process, error)
+	List(ctx context.Context, params *QueryParams, opts ...ProcessListOption) (*ListResponse[Process], error)
 	Update(ctx context.Context, guid string, request *ProcessUpdateRequest) (*Process, error)
 	// Scale adjusts instances/memory/disk/log rate for a process. CF v3
 	// responds 202 + Location → /v3/jobs/{jobGuid}; the returned Job has
@@ -393,8 +393,8 @@ type UsersClient interface {
 
 type RolesClient interface {
 	Create(ctx context.Context, request *RoleCreateRequest) (*Role, error)
-	Get(ctx context.Context, guid string) (*Role, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Role], error)
+	Get(ctx context.Context, guid string, opts ...RoleGetOption) (*Role, error)
+	List(ctx context.Context, params *QueryParams, opts ...RoleListOption) (*ListResponse[Role], error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 }
 
@@ -422,8 +422,8 @@ type IsolationSegmentsClient interface {
 	// Organization entitlements
 	EntitleOrganizations(ctx context.Context, guid string, orgGUIDs []string) (*ToManyRelationship, error)
 	RevokeOrganization(ctx context.Context, guid string, orgGUID string) error
-	ListOrganizations(ctx context.Context, guid string) (*ListResponse[Organization], error)
-	ListSpaces(ctx context.Context, guid string) (*ListResponse[Space], error)
+	ListOrganizations(ctx context.Context, guid string, params *QueryParams) (*ListResponse[Organization], error)
+	ListSpaces(ctx context.Context, guid string, params *QueryParams) (*ListResponse[Space], error)
 }
 
 // FeatureFlagsClient provides access to Feature Flags resources.
