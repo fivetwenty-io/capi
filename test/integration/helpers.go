@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package integration
@@ -27,7 +28,7 @@ type TestConfig struct {
 func LoadTestConfig() *TestConfig {
 	return &TestConfig{
 		UAAEndpoint:   os.Getenv("UAA_ENDPOINT"),
-		ClientID:      os.Getenv("UAA_CLIENT_ID"), 
+		ClientID:      os.Getenv("UAA_CLIENT_ID"),
 		ClientSecret:  os.Getenv("UAA_CLIENT_SECRET"),
 		AdminUser:     os.Getenv("UAA_ADMIN_USER"),
 		AdminPassword: os.Getenv("UAA_ADMIN_PASSWORD"),
@@ -41,20 +42,20 @@ func getCapiPath() string {
 	if path := os.Getenv("CAPI_BINARY_PATH"); path != "" {
 		return path
 	}
-	
+
 	// Try common locations
 	candidates := []string{
 		"../../capi",
 		"./capi",
 		"../capi",
 	}
-	
+
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}
 	}
-	
+
 	return "capi" // Fallback to PATH
 }
 
@@ -63,7 +64,7 @@ func (config *TestConfig) SkipIfMissingConfig(t *testing.T) {
 	if config.UAAEndpoint == "" {
 		t.Skip("UAA_ENDPOINT not set, skipping integration test")
 	}
-	
+
 	if _, err := os.Stat(config.CapiPath); os.IsNotExist(err) {
 		t.Skipf("capi binary not found at %s, skipping integration test", config.CapiPath)
 	}
@@ -89,19 +90,19 @@ func (runner *CommandRunner) Run(args ...string) (stdout, stderr string, err err
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
-	
+
 	if runner.config.Verbose {
 		runner.t.Logf("Running: %s %s", runner.config.CapiPath, strings.Join(args, " "))
 	}
-	
+
 	err = cmd.Run()
 	stdout = stdoutBuf.String()
 	stderr = stderrBuf.String()
-	
+
 	if runner.config.Verbose && err != nil {
 		runner.t.Logf("Command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
-	
+
 	return stdout, stderr, err
 }
 
@@ -112,19 +113,19 @@ func (runner *CommandRunner) RunWithInput(input string, args ...string) (stdout,
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	cmd.Stdin = strings.NewReader(input)
-	
+
 	if runner.config.Verbose {
 		runner.t.Logf("Running with input: %s %s", runner.config.CapiPath, strings.Join(args, " "))
 	}
-	
+
 	err = cmd.Run()
 	stdout = stdoutBuf.String()
 	stderr = stderrBuf.String()
-	
+
 	if runner.config.Verbose && err != nil {
 		runner.t.Logf("Command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
-	
+
 	return stdout, stderr, err
 }
 
@@ -182,7 +183,7 @@ func (runner *CommandRunner) CleanupResource(resourceType, name string) {
 		runner.t.Logf("Unknown resource type for cleanup: %s", resourceType)
 		return
 	}
-	
+
 	stdout, stderr, err := runner.Run(args...)
 	if err != nil && runner.config.Verbose {
 		runner.t.Logf("Cleanup warning for %s %s: %s\nStderr: %s", resourceType, name, stdout, stderr)
@@ -193,9 +194,9 @@ func (runner *CommandRunner) CleanupResource(resourceType, name string) {
 func WaitForCondition(t *testing.T, condition func() bool, timeout time.Duration, message string) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-	
+
 	timeoutChan := time.After(timeout)
-	
+
 	for {
 		select {
 		case <-ticker.C:

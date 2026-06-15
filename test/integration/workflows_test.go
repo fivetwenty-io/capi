@@ -1,11 +1,12 @@
+//go:build integration
 // +build integration
 
-package integration_test
+package integration
 
 import (
 	"fmt"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,18 +16,18 @@ import (
 func TestUAAWorkflow_CompleteUserJourney(t *testing.T) {
 	config := LoadTestConfig()
 	config.SkipIfMissingConfig(t)
-	
+
 	runner := NewCommandRunner(config, t)
-	
+
 	// Setup
 	require.NoError(t, runner.SetupUAATarget())
 	require.NoError(t, runner.AuthenticateAdmin())
-	
+
 	// Generate unique test names
 	userName := GenerateTestName("workflow-user")
 	groupName := GenerateTestName("workflow-group")
 	clientName := GenerateTestName("workflow-client")
-	
+
 	defer func() {
 		// Cleanup
 		runner.CleanupResource("user", userName)
@@ -91,7 +92,7 @@ func TestUAAWorkflow_CompleteUserJourney(t *testing.T) {
 		"--client-secret", "workflow-secret-123")
 	if err == nil {
 		assert.Contains(t, stdout, "Access Token")
-		
+
 		// 9. Test userinfo with user token
 		stdout, stderr, err = runner.Run("users", "userinfo")
 		if err == nil {
@@ -118,21 +119,21 @@ func TestUAAWorkflow_CompleteUserJourney(t *testing.T) {
 func TestUAAWorkflow_OutputFormats(t *testing.T) {
 	config := LoadTestConfig()
 	config.SkipIfMissingConfig(t)
-	
+
 	runner := NewCommandRunner(config, t)
-	
+
 	// Setup
 	require.NoError(t, runner.SetupUAATarget())
 	require.NoError(t, runner.AuthenticateAdmin())
 
 	// Test output formats for info command
 	formats := []string{"table", "json", "yaml"}
-	
+
 	for _, format := range formats {
 		t.Run(fmt.Sprintf("info_%s_format", format), func(t *testing.T) {
 			stdout, stderr, err := runner.Run("users", "info", "--output", format)
 			require.NoError(t, err, "Failed to get info with %s format: %s", format, stderr)
-			
+
 			switch format {
 			case "json":
 				AssertJSONOutput(t, stdout)
@@ -150,9 +151,9 @@ func TestUAAWorkflow_OutputFormats(t *testing.T) {
 func TestUAAWorkflow_ErrorScenarios(t *testing.T) {
 	config := LoadTestConfig()
 	config.SkipIfMissingConfig(t)
-	
+
 	runner := NewCommandRunner(config, t)
-	
+
 	// Setup target but don't authenticate
 	require.NoError(t, runner.SetupUAATarget())
 
@@ -185,7 +186,7 @@ func TestUAAWorkflow_ErrorScenarios(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			stdout, stderr, err := runner.Run(tc.args...)
+			_, stderr, err := runner.Run(tc.args...)
 			if tc.expectError {
 				assert.Error(t, err, "Expected error for: %s", tc.name)
 				if tc.errorText != "" {
@@ -202,9 +203,9 @@ func TestUAAWorkflow_ErrorScenarios(t *testing.T) {
 func TestUAAWorkflow_PaginationAndFiltering(t *testing.T) {
 	config := LoadTestConfig()
 	config.SkipIfMissingConfig(t)
-	
+
 	runner := NewCommandRunner(config, t)
-	
+
 	// Setup
 	require.NoError(t, runner.SetupUAATarget())
 	require.NoError(t, runner.AuthenticateAdmin())
@@ -236,9 +237,9 @@ func TestUAAWorkflow_TokenManagement(t *testing.T) {
 		t.Skip("Client credentials not provided, skipping token management tests")
 	}
 	config.SkipIfMissingConfig(t)
-	
+
 	runner := NewCommandRunner(config, t)
-	
+
 	// Setup
 	require.NoError(t, runner.SetupUAATarget())
 
@@ -270,9 +271,9 @@ func TestUAAWorkflow_TokenManagement(t *testing.T) {
 func TestUAAWorkflow_DirectAPIAccess(t *testing.T) {
 	config := LoadTestConfig()
 	config.SkipIfMissingConfig(t)
-	
+
 	runner := NewCommandRunner(config, t)
-	
+
 	// Setup
 	require.NoError(t, runner.SetupUAATarget())
 	require.NoError(t, runner.AuthenticateAdmin())

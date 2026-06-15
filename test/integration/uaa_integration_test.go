@@ -1,10 +1,10 @@
+//go:build integration
 // +build integration
 
-package integration_test
+package integration
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -130,17 +129,17 @@ func (suite *UAAIntegrationTestSuite) TestUAAContextManagement() {
 	suite.Contains(stdout, "UAA endpoint set to")
 
 	// Test context command
-	stdout, stderr, err = suite.runCapiCommand("users", "context")
+	_, stderr, err = suite.runCapiCommand("users", "context")
 	suite.NoError(err, "Failed to get UAA context: %s", stderr)
 	suite.Contains(stdout, suite.uaaEndpoint)
 
 	// Test info command
-	stdout, stderr, err = suite.runCapiCommand("users", "info")
+	_, stderr, err = suite.runCapiCommand("users", "info")
 	suite.NoError(err, "Failed to get UAA info: %s", stderr)
 	suite.Contains(strings.ToLower(stdout), "uaa")
 
 	// Test version command
-	stdout, stderr, err = suite.runCapiCommand("users", "version")
+	_, stderr, err = suite.runCapiCommand("users", "version")
 	suite.NoError(err, "Failed to get UAA version: %s", stderr)
 	suite.Contains(stdout, suite.uaaEndpoint)
 }
@@ -159,11 +158,11 @@ func (suite *UAAIntegrationTestSuite) TestTokenManagement() {
 	suite.Contains(stdout, "Access Token")
 
 	// Test token keys
-	stdout, stderr, err = suite.runCapiCommand("users", "get-token-keys")
+	_, stderr, err = suite.runCapiCommand("users", "get-token-keys")
 	suite.NoError(err, "Failed to get token keys: %s", stderr)
 
 	// Test single token key
-	stdout, stderr, err = suite.runCapiCommand("users", "get-token-key")
+	_, stderr, err = suite.runCapiCommand("users", "get-token-key")
 	suite.NoError(err, "Failed to get token key: %s", stderr)
 	suite.Contains(stdout, "Key Type")
 }
@@ -182,28 +181,28 @@ func (suite *UAAIntegrationTestSuite) TestUserLifecycle() {
 	suite.Contains(stdout, suite.testUserName)
 
 	// Test get user
-	stdout, stderr, err = suite.runCapiCommand("users", "get-user", suite.testUserName)
+	_, stderr, err = suite.runCapiCommand("users", "get-user", suite.testUserName)
 	suite.NoError(err, "Failed to get user: %s", stderr)
 	suite.Contains(stdout, suite.testUserName)
 
 	// Test list users with filter
-	stdout, stderr, err = suite.runCapiCommand("users", "list-users",
+	_, stderr, err = suite.runCapiCommand("users", "list-users",
 		"--filter", fmt.Sprintf("userName eq \"%s\"", suite.testUserName))
 	suite.NoError(err, "Failed to list users: %s", stderr)
 	suite.Contains(stdout, suite.testUserName)
 
 	// Test update user
-	stdout, stderr, err = suite.runCapiCommand("users", "update-user", suite.testUserName,
+	_, stderr, err = suite.runCapiCommand("users", "update-user", suite.testUserName,
 		"--phone-number", "+1-555-0123")
 	suite.NoError(err, "Failed to update user: %s", stderr)
 
 	// Test deactivate user
-	stdout, stderr, err = suite.runCapiCommand("users", "deactivate-user", suite.testUserName)
+	_, stderr, err = suite.runCapiCommand("users", "deactivate-user", suite.testUserName)
 	suite.NoError(err, "Failed to deactivate user: %s", stderr)
 	suite.Contains(stdout, "has been deactivated")
 
 	// Test activate user
-	stdout, stderr, err = suite.runCapiCommand("users", "activate-user", suite.testUserName)
+	_, stderr, err = suite.runCapiCommand("users", "activate-user", suite.testUserName)
 	suite.NoError(err, "Failed to activate user: %s", stderr)
 	suite.Contains(stdout, "has been activated")
 
@@ -221,12 +220,12 @@ func (suite *UAAIntegrationTestSuite) TestGroupManagement() {
 	suite.Contains(stdout, suite.testGroupName)
 
 	// Test get group
-	stdout, stderr, err = suite.runCapiCommand("users", "get-group", suite.testGroupName)
+	_, stderr, err = suite.runCapiCommand("users", "get-group", suite.testGroupName)
 	suite.NoError(err, "Failed to get group: %s", stderr)
 	suite.Contains(stdout, suite.testGroupName)
 
 	// Test list groups
-	stdout, stderr, err = suite.runCapiCommand("users", "list-groups",
+	_, stderr, err = suite.runCapiCommand("users", "list-groups",
 		"--filter", fmt.Sprintf("displayName eq \"%s\"", suite.testGroupName))
 	suite.NoError(err, "Failed to list groups: %s", stderr)
 	suite.Contains(stdout, suite.testGroupName)
@@ -234,12 +233,12 @@ func (suite *UAAIntegrationTestSuite) TestGroupManagement() {
 	// Test group membership (requires a user)
 	if suite.testUserName != "" {
 		// Add user to group
-		stdout, stderr, err = suite.runCapiCommand("users", "add-member", suite.testGroupName, suite.testUserName)
+		_, stderr, err = suite.runCapiCommand("users", "add-member", suite.testGroupName, suite.testUserName)
 		if err == nil {
 			suite.Contains(stdout, "Successfully added member")
 
 			// Remove user from group
-			stdout, stderr, err = suite.runCapiCommand("users", "remove-member", suite.testGroupName, suite.testUserName)
+			_, stderr, err = suite.runCapiCommand("users", "remove-member", suite.testGroupName, suite.testUserName)
 			suite.NoError(err, "Failed to remove member from group: %s", stderr)
 			suite.Contains(stdout, "Successfully removed member")
 		}
@@ -260,28 +259,28 @@ func (suite *UAAIntegrationTestSuite) TestClientManagement() {
 	suite.Contains(stdout, suite.testClientID)
 
 	// Test get client
-	stdout, stderr, err = suite.runCapiCommand("users", "get-client", suite.testClientID)
+	_, stderr, err = suite.runCapiCommand("users", "get-client", suite.testClientID)
 	suite.NoError(err, "Failed to get client: %s", stderr)
 	suite.Contains(stdout, suite.testClientID)
 	suite.Contains(stdout, "***") // Secret should be masked
 
 	// Test get client with secret
-	stdout, stderr, err = suite.runCapiCommand("users", "get-client", suite.testClientID, "--show-secret")
+	_, stderr, err = suite.runCapiCommand("users", "get-client", suite.testClientID, "--show-secret")
 	suite.NoError(err, "Failed to get client with secret: %s", stderr)
 	suite.Contains(stdout, "client-secret-123")
 
 	// Test list clients
-	stdout, stderr, err = suite.runCapiCommand("users", "list-clients")
+	_, stderr, err = suite.runCapiCommand("users", "list-clients")
 	suite.NoError(err, "Failed to list clients: %s", stderr)
 	suite.Contains(stdout, suite.testClientID)
 
 	// Test update client
-	stdout, stderr, err = suite.runCapiCommand("users", "update-client", suite.testClientID,
+	_, stderr, err = suite.runCapiCommand("users", "update-client", suite.testClientID,
 		"--name", "Updated Integration Test Client")
 	suite.NoError(err, "Failed to update client: %s", stderr)
 
 	// Test set client secret
-	stdout, stderr, err = suite.runCapiCommand("users", "set-client-secret", suite.testClientID,
+	_, stderr, err = suite.runCapiCommand("users", "set-client-secret", suite.testClientID,
 		"--secret", "new-client-secret-456")
 	suite.NoError(err, "Failed to set client secret: %s", stderr)
 	suite.Contains(stdout, "Successfully updated secret")
@@ -298,7 +297,7 @@ func (suite *UAAIntegrationTestSuite) TestUtilityCommands() {
 	}
 
 	// Test curl command
-	stdout, stderr, err = suite.runCapiCommand("users", "curl", "/info")
+	_, stderr, err = suite.runCapiCommand("users", "curl", "/info")
 	suite.NoError(err, "Failed to curl UAA info: %s", stderr)
 	suite.Contains(strings.ToLower(stdout), "app")
 }
@@ -308,7 +307,7 @@ func (suite *UAAIntegrationTestSuite) TestEndToEndUserWorkflow() {
 	suite.authenticateAsAdmin()
 
 	userEmail := fmt.Sprintf("%s@example.com", suite.testUserName)
-	
+
 	// Complete user lifecycle workflow
 	// 1. Create user
 	stdout, _, err := suite.runCapiCommand("users", "create-user", suite.testUserName,
@@ -352,20 +351,20 @@ func (suite *UAAIntegrationTestSuite) TestEndToEndUserWorkflow() {
 // Test Error Handling and Edge Cases
 func (suite *UAAIntegrationTestSuite) TestErrorHandling() {
 	// Test operations without authentication
-	stdout, stderr, err := suite.runCapiCommand("users", "create-user", "should-fail")
+	_, stderr, err := suite.runCapiCommand("users", "create-user", "should-fail")
 	suite.Error(err, "Expected error for unauthenticated request")
 	suite.Contains(stderr, "not authenticated")
 
 	// Test non-existent resource operations
 	suite.authenticateAsAdmin()
-	
-	stdout, stderr, err = suite.runCapiCommand("users", "get-user", "non-existent-user-12345")
+
+	_, stderr, err = suite.runCapiCommand("users", "get-user", "non-existent-user-12345")
 	suite.Error(err, "Expected error for non-existent user")
 
-	stdout, stderr, err = suite.runCapiCommand("users", "get-group", "non-existent-group-12345")
+	_, stderr, err = suite.runCapiCommand("users", "get-group", "non-existent-group-12345")
 	suite.Error(err, "Expected error for non-existent group")
 
-	stdout, stderr, err = suite.runCapiCommand("users", "get-client", "non-existent-client-12345")
+	_, stderr, err = suite.runCapiCommand("users", "get-client", "non-existent-client-12345")
 	suite.Error(err, "Expected error for non-existent client")
 }
 
@@ -407,7 +406,7 @@ func TestUAACommandHelp(t *testing.T) {
 			var stdout bytes.Buffer
 			cmd.Stdout = &stdout
 			err := cmd.Run()
-			
+
 			// Help commands should exit with code 0 and contain usage information
 			assert.NoError(t, err, "Help command should not error")
 			output := stdout.String()
