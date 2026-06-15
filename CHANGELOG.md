@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hatch for unmapped include types.
 - `IsolationSegmentsClient.ListOrganizations`/`ListSpaces` accept
   `*QueryParams` (names/guids/paging filters per CF v3 docs).
+- CLI command behavior tests: a reusable harness drives real cobra command
+  trees through a client seam, captures stdout, and asserts on parsed
+  arguments, client calls, rendered output, and error propagation (covering
+  `sidecars get`/`delete` and `isolation-segments get`, including its
+  name-lookup fallback). Previously the command tests asserted only on command
+  structure. A sleep-free `CircuitBreaker` lifecycle test was added via an
+  injectable clock.
 
 ### Changed
 
@@ -58,11 +65,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   verified at implementation time; live-CF verification is pending.
 - Process `embed` response typing and `service_instances` shared-spaces
   `fields` support are deferred pending live wire capture.
-- Remaining `golangci-lint` style findings (`goconst`, `varnamelen`) and the
-  `gosec` G117 secret-marshaling annotations on CLI config/credential commands
-  are deferred; none affect behavior.
-- CLI display-format and flag-name string literals are candidates for shared
-  constants (a large mechanical change kept out of this remediation).
+- Remaining `golangci-lint` style findings are limited to `varnamelen`
+  (short idiomatic names such as `i`/`v`/`w`) and `wrapcheck` at
+  RoundTripper/interface boundaries — both subjective and left as-is — plus
+  `goconst` hits that are overwhelmingly test fixtures. `gosec` G117 is
+  already excluded in `.golangci.yml` (credential structs are legitimate
+  config), so no annotations are needed.
+- Cobra command-verb and display-label string literals are intentionally left
+  inline; forcing constants there harms readability for no behavioral gain.
 
 ### Fixed
 
