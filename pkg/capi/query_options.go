@@ -414,4 +414,4 @@ func (serviceOfferingPurge) serviceOfferingDelete() {}
 
 // PurgeServiceOffering deletes the offering and all associated records
 // from the database without broker interaction (?purge=true).
-var PurgeServiceOffering ServiceOfferingDeleteOption = serviceOfferingPurge{scalarOption{"purge", "true"}}
+var PurgeServiceOffering ServiceOfferingDeleteOption = serviceOfferingPurge{scalarOption{"purge", "true"}} //nolint:gochecknoglobals // sealed-option sentinel; part of the public option API

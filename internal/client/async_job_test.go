@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/fivetwenty-io/capi/v3/internal/client"
 	internalhttp "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
@@ -18,6 +19,8 @@ import (
 // operation in this table previously json.Unmarshal'ed the empty body and
 // failed with "parsing job response: unexpected end of JSON input"
 // (cloudfoundry/stratos#5431).
+//
+//nolint:funlen // one table covering every async operation; splitting it would hide the shared 202/Location contract
 func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 	t.Parallel()
 
@@ -47,7 +50,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "service instance create (managed)",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewServiceInstancesClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewServiceInstancesClient(internalhttp.NewClient(baseURL, nil))
 
 				return c.Create(context.Background(), managedSICreate)
 			},
@@ -55,7 +58,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "service instance update (managed)",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewServiceInstancesClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewServiceInstancesClient(internalhttp.NewClient(baseURL, nil))
 
 				return c.Update(context.Background(), "si-guid", &capi.ServiceInstanceUpdateRequest{
 					Parameters: map[string]interface{}{"foo": "bar"},
@@ -65,7 +68,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "service broker create",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewServiceBrokersClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewServiceBrokersClient(internalhttp.NewClient(baseURL, nil))
 
 				return c.Create(context.Background(), &capi.ServiceBrokerCreateRequest{Name: "broker"})
 			},
@@ -73,7 +76,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "service broker update (catalog sync)",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewServiceBrokersClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewServiceBrokersClient(internalhttp.NewClient(baseURL, nil))
 				name := "broker"
 
 				return c.Update(context.Background(), "broker-guid", &capi.ServiceBrokerUpdateRequest{Name: &name})
@@ -82,7 +85,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "service credential binding create",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewServiceCredentialBindingsClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewServiceCredentialBindingsClient(internalhttp.NewClient(baseURL, nil))
 
 				return c.Create(context.Background(), &capi.ServiceCredentialBindingCreateRequest{Type: "app"})
 			},
@@ -90,7 +93,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "service route binding create",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewServiceRouteBindingsClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewServiceRouteBindingsClient(internalhttp.NewClient(baseURL, nil))
 
 				return c.Create(context.Background(), &capi.ServiceRouteBindingCreateRequest{})
 			},
@@ -98,7 +101,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "space apply manifest",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewSpacesClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewSpacesClient(internalhttp.NewClient(baseURL, nil))
 
 				return c.ApplyManifest(context.Background(), "space-guid", "applications: []")
 			},
@@ -106,15 +109,15 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 		{
 			name: "space delete unmapped routes",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
-				c := NewSpacesClient(internalhttp.NewClient(baseURL, nil))
+				c := client.NewSpacesClient(internalhttp.NewClient(baseURL, nil))
 
 				return c.DeleteUnmappedRoutes(context.Background(), "space-guid")
 			},
 		},
 		{
 			name: "clear buildpack cache",
-			call: func(t *testing.T, baseURL string) (interface{}, error) {
-				c, err := New(context.Background(), &capi.Config{APIEndpoint: baseURL})
+			call: func(t *testing.T, baseURL string) (interface{}, error) { //nolint:thelper // table-driven operation invoker, not a shared assertion helper
+				c, err := client.New(context.Background(), &capi.Config{APIEndpoint: baseURL})
 				require.NoError(t, err)
 
 				return c.ClearBuildpackCache(context.Background())
@@ -154,7 +157,7 @@ func TestAsyncJobOperations_202BodyStillPreferred(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := NewServiceInstancesClient(internalhttp.NewClient(server.URL, nil))
+	c := client.NewServiceInstancesClient(internalhttp.NewClient(server.URL, nil))
 	out, err := c.Update(context.Background(), "si-guid", &capi.ServiceInstanceUpdateRequest{
 		Parameters: map[string]interface{}{"foo": "bar"},
 	})
@@ -176,7 +179,7 @@ func TestAsyncJobOperations_Empty202NoLocationErrors(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := NewServiceInstancesClient(internalhttp.NewClient(server.URL, nil))
+	c := client.NewServiceInstancesClient(internalhttp.NewClient(server.URL, nil))
 	_, err := c.Update(context.Background(), "si-guid", &capi.ServiceInstanceUpdateRequest{
 		Parameters: map[string]interface{}{"foo": "bar"},
 	})

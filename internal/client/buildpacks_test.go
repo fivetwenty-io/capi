@@ -332,7 +332,7 @@ func TestBuildpacksClient_Upload(t *testing.T) {
 		assert.Contains(t, request.Header.Get("Content-Type"), "multipart/form-data")
 
 		// Parse multipart form
-		err := request.ParseMultipartForm(10 << 20) // 10 MB
+		err := request.ParseMultipartForm(10 << 20) //nolint:gosec // G120: test-only handler with a fixed 10 MB cap
 		assert.NoError(t, err)
 
 		// Check that bits file is present

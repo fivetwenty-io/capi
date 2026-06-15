@@ -200,6 +200,8 @@ func (c *AppsClient) Restart(ctx context.Context, guid string) (*capi.Job, error
 //
 // Non-2xx is surfaced as an error by the httpClient layer and doesn't
 // reach this parse path.
+//
+//nolint:funcorder // helper kept next to the start/stop/restart methods that call it
 func (c *AppsClient) postActionJob(ctx context.Context, path, opLabel string) (*capi.Job, error) {
 	resp, err := c.httpClient.Post(ctx, path, nil)
 	if err != nil {
