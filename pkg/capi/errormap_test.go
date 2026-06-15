@@ -1,9 +1,8 @@
 package capi_test
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -59,9 +58,10 @@ func TestMapHTTPError_BelowThresholdReturnsNil(t *testing.T) {
 	}
 
 	for _, status := range successStatuses {
-		status := status
+
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			t.Parallel()
+
 			err := capi.MapHTTPError(status, []byte(wellFormedNotFoundEnvelope))
 			assert.NoError(t, err, "status %d should produce nil error", status)
 		})
@@ -99,22 +99,22 @@ func TestMapHTTPError_WellFormedBodyWrapsSentinel(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range allSentinelCases() {
-		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			err := capi.MapHTTPError(tc.status, []byte(wellFormedNotFoundEnvelope))
 			require.Error(t, err)
 
-			assert.True(
+			assert.ErrorIs(
 				t,
-				errors.Is(err, tc.sentinel),
+				err, tc.sentinel,
 				"errors.Is(err, %v) must be true for status %d",
 				tc.sentinel, tc.status,
 			)
 
 			var envelope *capi.ResponseError
-			require.True(t, errors.As(err, &envelope),
+			require.ErrorAs(t, err, &envelope,
 				"errors.As(err, *ResponseError) must be true when body is well-formed")
 			require.NotNil(t, envelope)
 			require.Len(t, envelope.Errors, 1)
@@ -145,18 +145,18 @@ func TestMapHTTPError_MalformedBodyStillWrapsSentinel(t *testing.T) {
 	}
 
 	for _, tc := range allSentinelCases() {
-		tc := tc
+
 		for _, input := range malformedInputs {
-			input := input
+
 			t.Run(tc.name+"/"+input.name, func(t *testing.T) {
 				t.Parallel()
 
 				err := capi.MapHTTPError(tc.status, input.body)
 				require.Error(t, err)
 
-				assert.True(
+				assert.ErrorIs(
 					t,
-					errors.Is(err, tc.sentinel),
+					err, tc.sentinel,
 					"errors.Is(err, %v) must be true for status %d with malformed body",
 					tc.sentinel, tc.status,
 				)
@@ -165,9 +165,9 @@ func TestMapHTTPError_MalformedBodyStillWrapsSentinel(t *testing.T) {
 				// *ResponseError in the error chain (the body did not
 				// parse as one).
 				var envelope *capi.ResponseError
-				assert.False(
+				assert.NotErrorAs(
 					t,
-					errors.As(err, &envelope),
+					err, &envelope,
 					"errors.As should not find a *ResponseError for malformed body %q", string(input.body),
 				)
 
@@ -187,19 +187,21 @@ func TestMapHTTPError_EmptyBody(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range allSentinelCases() {
-		tc := tc
+
 		t.Run(tc.name+"/nil body", func(t *testing.T) {
 			t.Parallel()
+
 			err := capi.MapHTTPError(tc.status, nil)
 			require.Error(t, err)
-			assert.True(t, errors.Is(err, tc.sentinel))
+			assert.ErrorIs(t, err, tc.sentinel)
 			assert.Contains(t, err.Error(), "status")
 		})
 		t.Run(tc.name+"/empty body", func(t *testing.T) {
 			t.Parallel()
+
 			err := capi.MapHTTPError(tc.status, []byte{})
 			require.Error(t, err)
-			assert.True(t, errors.Is(err, tc.sentinel))
+			assert.ErrorIs(t, err, tc.sentinel)
 			assert.Contains(t, err.Error(), "status")
 		})
 	}
@@ -214,10 +216,10 @@ func TestMapHTTPError_MultiErrorEnvelope(t *testing.T) {
 	err := capi.MapHTTPError(http.StatusUnprocessableEntity, []byte(wellFormedMultiErrorEnvelope))
 	require.Error(t, err)
 
-	assert.True(t, errors.Is(err, capi.ErrUnprocessable))
+	assert.ErrorIs(t, err, capi.ErrUnprocessable)
 
 	var envelope *capi.ResponseError
-	require.True(t, errors.As(err, &envelope))
+	require.ErrorAs(t, err, &envelope)
 	require.Len(t, envelope.Errors, 2)
 	assert.Equal(t, "CF-UnprocessableEntity", envelope.Errors[0].Title)
 	assert.Equal(t, "name must be unique", envelope.Errors[0].Detail)
@@ -271,7 +273,7 @@ func TestMapHTTPError_UnknownClient4xxMapsToBadRequest(t *testing.T) {
 	}
 
 	for _, status := range unknownStatuses {
-		status := status
+
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			t.Parallel()
 
@@ -281,18 +283,18 @@ func TestMapHTTPError_UnknownClient4xxMapsToBadRequest(t *testing.T) {
 			// Regression pin: unknown 4xx MUST be classified as ErrBadRequest
 			// so callers can use errors.Is(err, capi.ErrBadRequest) to
 			// detect "client error, do not retry" failures.
-			assert.True(t, errors.Is(err, capi.ErrBadRequest),
+			assert.ErrorIs(t, err, capi.ErrBadRequest,
 				"status %d must unwrap to ErrBadRequest via errors.Is", status)
 
 			for _, s := range nonMatchingSentinels {
-				assert.False(t, errors.Is(err, s),
+				assert.NotErrorIs(t, err, s,
 					"unknown 4xx status %d must not match sentinel %v", status, s)
 			}
 
 			// The error message should still mention the status code for
 			// human debuggability.
 			assert.Contains(t, err.Error(),
-				fmt.Sprintf("%d", status),
+				strconv.Itoa(status),
 				"error message must include the raw status code %d", status)
 		})
 	}
@@ -317,14 +319,20 @@ func TestMapHTTPError_ErrBadRequestSentinelIdentity(t *testing.T) {
 		capi.ErrServerError,
 	}
 
-	require.NotNil(t, capi.ErrBadRequest)
+	require.Error(t, capi.ErrBadRequest)
 	assert.True(t, strings.HasPrefix(capi.ErrBadRequest.Error(), "capi: "))
 
+	// The sentinels are errors.New leaves, so a sentinel-vs-sentinel
+	// errors.Is collapses to pointer equality and proves nothing about the
+	// unwrap chain. Exercise the real chain instead: a mapped 400 wraps
+	// ErrBadRequest, so it must unwrap to ErrBadRequest and to no other
+	// sentinel. This is what would catch a regression in MapHTTPError.
+	badRequest := capi.MapHTTPError(http.StatusBadRequest, nil)
+	require.ErrorIs(t, badRequest, capi.ErrBadRequest)
+
 	for _, s := range other {
-		assert.False(t, errors.Is(capi.ErrBadRequest, s),
-			"ErrBadRequest must not unwrap to %v", s)
-		assert.False(t, errors.Is(s, capi.ErrBadRequest),
-			"%v must not unwrap to ErrBadRequest", s)
+		assert.NotErrorIs(t, badRequest, s,
+			"a mapped 400 must not unwrap to %v", s)
 	}
 }
 
@@ -336,9 +344,9 @@ func TestMapHTTPError_ServerErrorSentinelCatchesAll5xx(t *testing.T) {
 	for status := 500; status <= 599; status++ {
 		err := capi.MapHTTPError(status, nil)
 		require.Error(t, err, "status %d must produce a non-nil error", status)
-		assert.True(
+		assert.ErrorIs(
 			t,
-			errors.Is(err, capi.ErrServerError),
+			err, capi.ErrServerError,
 			"status %d must unwrap to ErrServerError", status,
 		)
 	}
@@ -361,7 +369,7 @@ func TestMapHTTPError_SentinelIdentity(t *testing.T) {
 	}
 
 	for name, s := range sentinels {
-		require.NotNil(t, s, "%s must not be nil", name)
+		require.Error(t, s, "%s must not be nil", name)
 		require.NotEmpty(t, s.Error(), "%s must have a non-empty message", name)
 		assert.True(t, strings.HasPrefix(s.Error(), "capi: "),
 			"%s message %q must start with 'capi: '", name, s.Error())
@@ -372,7 +380,8 @@ func TestMapHTTPError_SentinelIdentity(t *testing.T) {
 			if nameA == nameB {
 				continue
 			}
-			assert.False(t, errors.Is(a, b),
+
+			assert.NotErrorIs(t, a, b,
 				"sentinels must be distinct: %s must not unwrap to %s", nameA, nameB)
 		}
 	}
