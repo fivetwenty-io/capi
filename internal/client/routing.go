@@ -11,6 +11,10 @@ import (
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
 
+// ErrGroupTypeRequired is returned when GetRouterGroupByType is called with an
+// empty group type. Wrapped so callers can match it with errors.Is.
+var ErrGroupTypeRequired = errors.New("groupType must not be empty")
+
 // RoutingClient implements the capi.RoutingClient interface.
 // It accesses the CF Routing API endpoints at /routing/v1/ which are
 // typically proxied through the same base URL as the CF API v3.
@@ -48,7 +52,7 @@ func (c *RoutingClient) ListRouterGroups(ctx context.Context) ([]capi.RouterGrou
 // (e.g., "tcp" or "http"). Returns nil, nil if no group matches the type.
 func (c *RoutingClient) GetRouterGroupByType(ctx context.Context, groupType string) (*capi.RouterGroup, error) {
 	if groupType == "" {
-		return nil, errors.New("getting router group by type: groupType must not be empty")
+		return nil, fmt.Errorf("getting router group by type: %w", ErrGroupTypeRequired)
 	}
 
 	path := "/routing/v1/router_groups"

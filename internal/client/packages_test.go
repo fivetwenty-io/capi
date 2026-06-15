@@ -410,7 +410,7 @@ func TestPackagesClient_Delete(t *testing.T) {
 			return NewPackagesClient(httpClient)
 		},
 		func(client interface{}) (*capi.Job, error) {
-			return client.(*PackagesClient).Delete(context.Background(), "test-package-guid")
+			return client.(*PackagesClient).Delete(context.Background(), "test-package-guid") //nolint:forcetypeassert // test factory supplies concrete client type
 		},
 	)
 }

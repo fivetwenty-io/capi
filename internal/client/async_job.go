@@ -2,11 +2,20 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	http_internal "github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
+)
+
+// Async job reference errors. Wrapped (not formatted inline) so callers can
+// match them with errors.Is while the opLabel prefix and original wording are
+// preserved.
+var (
+	ErrMalformedLocationHeader = errors.New("malformed Location header")
+	ErrNoLocationHeader        = errors.New("no Location header on async delete response")
 )
 
 // CF v3 async responses carry the job reference in the Location header
@@ -33,7 +42,7 @@ func jobRefFromLocation(location, opLabel string) (*capi.Job, error) {
 	}
 
 	if jobGUID == "" {
-		return nil, fmt.Errorf("%s: malformed Location header %q", opLabel, location)
+		return nil, fmt.Errorf("%s: %w %q", opLabel, ErrMalformedLocationHeader, location)
 	}
 
 	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
@@ -45,7 +54,7 @@ func jobRefFromLocation(location, opLabel string) (*capi.Job, error) {
 func jobFromLocationHeader(resp *http_internal.Response, opLabel string) (*capi.Job, error) {
 	location := resp.Headers.Get("Location")
 	if location == "" {
-		return nil, fmt.Errorf("%s: no Location header on async delete response", opLabel)
+		return nil, fmt.Errorf("%s: %w", opLabel, ErrNoLocationHeader)
 	}
 
 	return jobRefFromLocation(location, opLabel)

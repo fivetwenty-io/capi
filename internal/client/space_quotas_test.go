@@ -316,7 +316,7 @@ func TestSpaceQuotasClient_Delete(t *testing.T) {
 			return NewSpaceQuotasClient(httpClient)
 		},
 		func(client interface{}) (*capi.Job, error) {
-			return client.(*SpaceQuotasClient).Delete(context.Background(), "space-quota-guid")
+			return client.(*SpaceQuotasClient).Delete(context.Background(), "space-quota-guid") //nolint:forcetypeassert // test factory supplies concrete client type
 		},
 	)
 }

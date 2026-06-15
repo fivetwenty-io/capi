@@ -360,7 +360,7 @@ func TestDropletsClient_Delete(t *testing.T) {
 			return NewDropletsClient(httpClient)
 		},
 		func(client interface{}) (*capi.Job, error) {
-			return client.(*DropletsClient).Delete(context.Background(), "test-droplet-guid")
+			return client.(*DropletsClient).Delete(context.Background(), "test-droplet-guid") //nolint:forcetypeassert // test factory supplies concrete client type
 		},
 	)
 }

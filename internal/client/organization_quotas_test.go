@@ -208,7 +208,7 @@ func TestOrganizationQuotasClient_Delete(t *testing.T) {
 			return NewOrganizationQuotasClient(httpClient)
 		},
 		func(client interface{}) (*capi.Job, error) {
-			return client.(*OrganizationQuotasClient).Delete(context.Background(), "quota-guid")
+			return client.(*OrganizationQuotasClient).Delete(context.Background(), "quota-guid") //nolint:forcetypeassert // test factory supplies concrete client type
 		},
 	)
 }

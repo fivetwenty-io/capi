@@ -161,12 +161,12 @@ type routeDestinationsScalar struct{ scalarOption }
 func (routeDestinationsScalar) routeDestinations() {}
 
 // WithDestinationGUIDs filters destinations by destination GUIDs.
-func WithDestinationGUIDs(guids ...string) RouteDestinationsOption {
+func WithDestinationGUIDs(guids ...string) RouteDestinationsOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
 	return routeDestinationsScalar{scalarOption{"guids", strings.Join(guids, ",")}}
 }
 
 // WithDestinationAppGUIDs filters destinations by app GUIDs.
-func WithDestinationAppGUIDs(guids ...string) RouteDestinationsOption {
+func WithDestinationAppGUIDs(guids ...string) RouteDestinationsOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
 	return routeDestinationsScalar{scalarOption{"app_guids", strings.Join(guids, ",")}}
 }
 
@@ -266,7 +266,7 @@ func (servicePlanFields) servicePlanGet()  {}
 func (servicePlanFields) servicePlanList() {}
 
 // WithServicePlanFields selects fields of a related resource.
-func WithServicePlanFields(key ServicePlanFieldsKey, fields ...string) ServicePlanGetListOption {
+func WithServicePlanFields(key ServicePlanFieldsKey, fields ...string) ServicePlanGetListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
 	return servicePlanFields{fieldsOption{string(key), fields}}
 }
 
@@ -359,7 +359,7 @@ func (serviceInstanceFields) serviceInstanceGet()  {}
 func (serviceInstanceFields) serviceInstanceList() {}
 
 // WithServiceInstanceFields selects fields of a related resource.
-func WithServiceInstanceFields(key ServiceInstanceFieldsKey, fields ...string) ServiceInstanceGetListOption {
+func WithServiceInstanceFields(key ServiceInstanceFieldsKey, fields ...string) ServiceInstanceGetListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
 	return serviceInstanceFields{fieldsOption{string(key), fields}}
 }
 
@@ -404,7 +404,7 @@ func (serviceOfferingFields) serviceOfferingGet()  {}
 func (serviceOfferingFields) serviceOfferingList() {}
 
 // WithServiceOfferingFields selects fields of a related resource.
-func WithServiceOfferingFields(key ServiceOfferingFieldsKey, fields ...string) ServiceOfferingGetListOption {
+func WithServiceOfferingFields(key ServiceOfferingFieldsKey, fields ...string) ServiceOfferingGetListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
 	return serviceOfferingFields{fieldsOption{string(key), fields}}
 }
 

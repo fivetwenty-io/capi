@@ -61,6 +61,11 @@ var (
 	// grain can still inspect the embedded *ResponseError via errors.As or
 	// the raw status via the error message.
 	ErrBadRequest = errors.New("capi: bad request")
+
+	// ErrUnexpectedStatus is the sentinel for any error status not matched by
+	// a more specific sentinel above. The exact status is wrapped into the
+	// message; callers can match the class with errors.Is.
+	ErrUnexpectedStatus = errors.New("capi: unexpected HTTP status")
 )
 
 // MapHTTPError constructs an error value from the HTTP status code and
@@ -160,5 +165,5 @@ func mapStatusToSentinel(status int) error {
 	// Any other non-success status not otherwise matched. Return a distinct
 	// error value so callers still observe a non-nil error and can inspect
 	// the status via the message.
-	return fmt.Errorf("capi: HTTP %d", status)
+	return fmt.Errorf("%w %d", ErrUnexpectedStatus, status)
 }
