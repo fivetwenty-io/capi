@@ -44,14 +44,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   external mocks implementing these interfaces must be updated, and
   isolation-segment list callers must pass params (or `nil`).
 
+### Removed
+
+- **Breaking**: `ClientWithCache`, `NewClientWithCache`, and `CachedRequest`
+  are removed. `ClientWithCache.Execute` always returned `ErrNotImplemented`
+  via a placeholder, so the type could never serve a request and no working
+  caller existed. Response caching remains available through the interceptor
+  framework (`CacheInterceptor`, `ConditionalRequestInterceptor`).
+
 ### Known follow-ups
 
 - `fields[...]` valid keys were taken from the CF v3 3.222.0 docs and
   verified at implementation time; live-CF verification is pending.
 - Process `embed` response typing and `service_instances` shared-spaces
   `fields` support are deferred pending live wire capture.
+- Remaining `golangci-lint` style findings (`goconst`, `varnamelen`) and the
+  `gosec` G117 secret-marshaling annotations on CLI config/credential commands
+  are deferred; none affect behavior.
+- CLI display-format and flag-name string literals are candidates for shared
+  constants (a large mechanical change kept out of this remediation).
 
 ### Fixed
+
+- **Concurrency**: `MetricsCollector` and `CircuitBreaker` mutated shared map
+  and counter state from per-request interceptors without synchronization
+  (a concurrent map write could panic); both are now guarded by a mutex.
+  `ConfigTokenManager.GetToken` updated its cached token under a read lock
+  while `RefreshToken` wrote under a write lock, racing concurrent callers;
+  `GetToken` now takes the write lock.
+- The integration test suite (`test/integration`) did not compile — `helpers.go`
+  and the test files declared different packages, so shared helpers were
+  undefined — and therefore could never have run in CI. The suite now compiles
+  under `-tags=integration` and carries modern `//go:build` constraints.
+- `BatchTransaction` rollback was a stub that built delete operations from the
+  wrong data and discarded their errors, silently leaving created resources
+  behind. Rollback now deletes created resources in reverse order and reports
+  what could not be reversed via `ErrRollbackIncomplete`. It is **disabled by
+  default** (it is destructive); opt in with `SetRollback(true)`.
+- `CacheManager` started its cleanup goroutine bound to `context.Background()`
+  with no way to stop it; added `CacheManager.Close()` to cancel it.
+- Pagination parsing no longer records a non-numeric `page`/`per_page` as 0,
+  which could corrupt a follow-up request.
+- The token-endpoint error body echoed into `ErrTokenRequestStatusFailed` is
+  now bounded to 512 bytes.
+
+
 
 - `capi isolation-segments list-spaces` worked for the first time: the
   command's internal type assertion never matched the concrete client
