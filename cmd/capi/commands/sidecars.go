@@ -81,8 +81,8 @@ func newSidecarsGetCommand() *cobra.Command {
 				}
 
 				_ = table.Append("Origin", sidecar.Origin)
-				_ = table.Append("Created", sidecar.CreatedAt.Format("2006-01-02 15:04:05"))
-				_ = table.Append("Updated", sidecar.UpdatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Created", sidecar.CreatedAt.Format(TimeFormatDisplay))
+				_ = table.Append("Updated", sidecar.UpdatedAt.Format(TimeFormatDisplay))
 
 				if sidecar.Relationships.App.Data != nil {
 					_ = table.Append("App GUID", sidecar.Relationships.App.Data.GUID)

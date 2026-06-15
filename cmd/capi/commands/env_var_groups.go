@@ -146,7 +146,7 @@ func buildEnvVarGroupResult(envVarGroup interface{}, envVarsList []EnvVar) map[s
 	return map[string]interface{}{
 		"name":                  envVarGroup,
 		"updated_at":            nil,
-		"environment_variables": envVarsList,
+		keyEnvironmentVariables: envVarsList,
 	}
 }
 

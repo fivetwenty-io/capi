@@ -196,7 +196,7 @@ func outputAppUsageEventsTable(events []capi.AppUsageEvent, pagination capi.Pagi
 			stateTransition,
 			strconv.Itoa(event.InstanceCount),
 			strconv.Itoa(event.MemoryInMBPerInstance),
-			event.CreatedAt.Format("2006-01-02 15:04:05"),
+			event.CreatedAt.Format(TimeFormatDisplay),
 		)
 	}
 
@@ -294,8 +294,8 @@ func outputAppUsageEventText(event *capi.AppUsageEvent) error {
 
 func printAppUsageEventHeader(event *capi.AppUsageEvent) {
 	_, _ = fmt.Fprintf(os.Stdout, "App Usage Event: %s\n", event.GUID)
-	_, _ = fmt.Fprintf(os.Stdout, "  Created: %s\n", event.CreatedAt.Format("2006-01-02 15:04:05"))
-	_, _ = fmt.Fprintf(os.Stdout, "  Updated: %s\n", event.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_, _ = fmt.Fprintf(os.Stdout, "  Created: %s\n", event.CreatedAt.Format(TimeFormatDisplay))
+	_, _ = fmt.Fprintf(os.Stdout, "  Updated: %s\n", event.UpdatedAt.Format(TimeFormatDisplay))
 	_, _ = os.Stdout.WriteString("\n")
 }
 

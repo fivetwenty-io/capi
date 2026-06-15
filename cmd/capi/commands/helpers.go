@@ -29,8 +29,17 @@ const (
 	OutputFormatJSON = "json"
 	OutputFormatYAML = "yaml"
 
+	// TimeFormatDisplay is the layout used to render timestamps in CLI output.
+	TimeFormatDisplay = "2006-01-02 15:04:05"
+
 	// JSON formatting.
 	defaultJSONIndent = 2
+
+	// Output map keys. Centralized so the same key is never misspelled across
+	// the maps that back JSON/YAML rendering (a typo would silently drop data).
+	keyAuthenticated        = "authenticated"
+	keyServerInfo           = "server_info"
+	keyEnvironmentVariables = "environment_variables"
 
 	// Common values.
 	Yes          = "yes"

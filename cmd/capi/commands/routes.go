@@ -205,7 +205,7 @@ func formatRouteTimestamp(timestamp time.Time) string {
 		return ""
 	}
 
-	return timestamp.Format("2006-01-02 15:04:05")
+	return timestamp.Format(TimeFormatDisplay)
 }
 
 func newRoutesCreateCommand() *cobra.Command {

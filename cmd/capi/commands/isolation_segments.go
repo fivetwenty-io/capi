@@ -113,12 +113,12 @@ func renderIsolationSegmentsTable(segments []capi.IsolationSegment, pagination c
 	for _, segment := range segments {
 		createdAt := ""
 		if !segment.CreatedAt.IsZero() {
-			createdAt = segment.CreatedAt.Format("2006-01-02 15:04:05")
+			createdAt = segment.CreatedAt.Format(TimeFormatDisplay)
 		}
 
 		updatedAt := ""
 		if !segment.UpdatedAt.IsZero() {
-			updatedAt = segment.UpdatedAt.Format("2006-01-02 15:04:05")
+			updatedAt = segment.UpdatedAt.Format(TimeFormatDisplay)
 		}
 
 		_ = table.Append(segment.Name, segment.GUID, createdAt, updatedAt)
@@ -230,8 +230,8 @@ func renderIsolationSegmentTable(segment *capi.IsolationSegment) error {
 
 	_ = table.Append("Name", segment.Name)
 	_ = table.Append("GUID", segment.GUID)
-	_ = table.Append("Created", segment.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", segment.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", segment.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", segment.UpdatedAt.Format(TimeFormatDisplay))
 
 	_, _ = os.Stdout.WriteString("Isolation Segment Details:\n\n")
 
@@ -721,12 +721,12 @@ func renderIsolationSegmentOrgsTable(orgs []capi.Organization, segmentName strin
 	for _, org := range orgs {
 		createdAt := ""
 		if !org.CreatedAt.IsZero() {
-			createdAt = org.CreatedAt.Format("2006-01-02 15:04:05")
+			createdAt = org.CreatedAt.Format(TimeFormatDisplay)
 		}
 
 		updatedAt := ""
 		if !org.UpdatedAt.IsZero() {
-			updatedAt = org.UpdatedAt.Format("2006-01-02 15:04:05")
+			updatedAt = org.UpdatedAt.Format(TimeFormatDisplay)
 		}
 
 		_ = table.Append(org.Name, org.GUID, createdAt, updatedAt)
@@ -866,12 +866,12 @@ func outputIsolationSegmentSpacesTable(spaces []capi.Space, segmentName string) 
 	for _, space := range spaces {
 		createdAt := ""
 		if !space.CreatedAt.IsZero() {
-			createdAt = space.CreatedAt.Format("2006-01-02 15:04:05")
+			createdAt = space.CreatedAt.Format(TimeFormatDisplay)
 		}
 
 		updatedAt := ""
 		if !space.UpdatedAt.IsZero() {
-			updatedAt = space.UpdatedAt.Format("2006-01-02 15:04:05")
+			updatedAt = space.UpdatedAt.Format(TimeFormatDisplay)
 		}
 
 		_ = table.Append(space.Name, space.GUID, createdAt, updatedAt)

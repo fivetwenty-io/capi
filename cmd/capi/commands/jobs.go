@@ -83,8 +83,8 @@ func renderJobTable(job *capi.Job) error {
 	_ = table.Append("GUID", job.GUID)
 	_ = table.Append("Operation", job.Operation)
 	_ = table.Append("State", job.State)
-	_ = table.Append("Created", job.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", job.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", job.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", job.UpdatedAt.Format(TimeFormatDisplay))
 
 	if len(job.Errors) > 0 {
 		errorStrings := make([]string, 0, len(job.Errors))

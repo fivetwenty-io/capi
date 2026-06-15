@@ -269,9 +269,9 @@ func createUsersVersionCommand() *cobra.Command {
 
 func showContextJSON(config *Config, clientError error) error {
 	context := map[string]interface{}{
-		"uaa_endpoint":  config.UAAEndpoint,
-		"authenticated": config.UAAToken != "" || config.Token != "",
-		"client_error":  nil,
+		"uaa_endpoint":   config.UAAEndpoint,
+		keyAuthenticated: config.UAAToken != "" || config.Token != "",
+		"client_error":   nil,
 	}
 
 	if clientError != nil {
@@ -291,9 +291,9 @@ func showContextJSON(config *Config, clientError error) error {
 
 func showContextYAML(config *Config, clientError error) error {
 	context := map[string]interface{}{
-		"uaa_endpoint":  config.UAAEndpoint,
-		"authenticated": config.UAAToken != "" || config.Token != "",
-		"client_error":  nil,
+		"uaa_endpoint":   config.UAAEndpoint,
+		keyAuthenticated: config.UAAToken != "" || config.Token != "",
+		"client_error":   nil,
 	}
 
 	if clientError != nil {
@@ -341,9 +341,9 @@ func showContextTable(config *Config, clientError error) error {
 func showContextWithServerInfoJSON(client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
 	context := map[string]interface{}{
 		"uaa_endpoint":      client.Endpoint(),
-		"authenticated":     client.IsAuthenticated(),
+		keyAuthenticated:    client.IsAuthenticated(),
 		"connection_status": connectionError == nil,
-		"server_info":       serverInfo,
+		keyServerInfo:       serverInfo,
 	}
 	if connectionError != nil {
 		context["connection_error"] = connectionError.Error()
@@ -363,9 +363,9 @@ func showContextWithServerInfoJSON(client *UAAClientWrapper, serverInfo map[stri
 func showContextWithServerInfoYAML(client *UAAClientWrapper, serverInfo map[string]interface{}, connectionError error) error {
 	context := map[string]interface{}{
 		"uaa_endpoint":      client.Endpoint(),
-		"authenticated":     client.IsAuthenticated(),
+		keyAuthenticated:    client.IsAuthenticated(),
 		"connection_status": connectionError == nil,
-		"server_info":       serverInfo,
+		keyServerInfo:       serverInfo,
 	}
 	if connectionError != nil {
 		context["connection_error"] = connectionError.Error()

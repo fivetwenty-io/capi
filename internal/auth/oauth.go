@@ -26,6 +26,9 @@ var (
 // is echoed into an error, limiting exposure of unexpected response content.
 const maxErrorBodyLen = 512
 
+// paramGrantType is the OAuth2 token-request form field naming the grant type.
+const paramGrantType = "grant_type"
+
 // truncateBody returns body capped at maxErrorBodyLen, appending an ellipsis
 // marker when truncated, for safe inclusion in error messages.
 func truncateBody(body []byte) string {
@@ -159,7 +162,7 @@ func (m *OAuth2TokenManager) refreshToken(ctx context.Context) (string, error) {
 // doClientCredentialsGrant performs client credentials OAuth2 flow.
 func (m *OAuth2TokenManager) doClientCredentialsGrant(ctx context.Context) (*Token, error) {
 	data := url.Values{
-		"grant_type": {"client_credentials"},
+		paramGrantType: {"client_credentials"},
 	}
 
 	if len(m.config.Scopes) > 0 {
@@ -172,9 +175,9 @@ func (m *OAuth2TokenManager) doClientCredentialsGrant(ctx context.Context) (*Tok
 // doPasswordGrant performs password OAuth2 flow.
 func (m *OAuth2TokenManager) doPasswordGrant(ctx context.Context) (*Token, error) {
 	data := url.Values{
-		"grant_type": {"password"},
-		"username":   {m.config.Username},
-		"password":   {m.config.Password},
+		paramGrantType: {"password"},
+		"username":     {m.config.Username},
+		"password":     {m.config.Password},
 	}
 
 	if len(m.config.Scopes) > 0 {
@@ -187,7 +190,7 @@ func (m *OAuth2TokenManager) doPasswordGrant(ctx context.Context) (*Token, error
 // doRefreshTokenGrant performs refresh token OAuth2 flow.
 func (m *OAuth2TokenManager) doRefreshTokenGrant(ctx context.Context, refreshToken string) (*Token, error) {
 	data := url.Values{
-		"grant_type":    {"refresh_token"},
+		paramGrantType:  {"refresh_token"},
 		"refresh_token": {refreshToken},
 	}
 

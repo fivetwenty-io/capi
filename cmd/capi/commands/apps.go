@@ -311,7 +311,7 @@ func formatTime(t time.Time) string {
 		return ""
 	}
 
-	return t.Format("2006-01-02 15:04:05")
+	return t.Format(TimeFormatDisplay)
 }
 
 func newAppsStartCommand() *cobra.Command {
@@ -875,7 +875,7 @@ func outputAppEnv(data *appEnvData) error {
 
 func outputAppEnvJSON(data *appEnvData) error {
 	result := map[string]interface{}{
-		"environment_variables": data.EnvVars,
+		keyEnvironmentVariables: data.EnvVars,
 		"vcap_services":         data.VcapServices,
 		"vcap_application":      data.VcapApplication,
 	}
@@ -892,7 +892,7 @@ func outputAppEnvJSON(data *appEnvData) error {
 
 func outputAppEnvYAML(data *appEnvData) error {
 	result := map[string]interface{}{
-		"environment_variables": data.EnvVars,
+		keyEnvironmentVariables: data.EnvVars,
 		"vcap_services":         data.VcapServices,
 		"vcap_application":      data.VcapApplication,
 	}
@@ -2402,7 +2402,7 @@ func outputEventsTable(events []appEvent, appName string) error {
 	for _, event := range events {
 		eventTime, err := time.Parse(time.RFC3339, event.Time)
 		if err == nil {
-			event.Time = eventTime.Format("2006-01-02 15:04:05")
+			event.Time = eventTime.Format(TimeFormatDisplay)
 		}
 
 		_ = table.Append(event.Type, event.Time, event.Actor, event.Description)
@@ -2964,7 +2964,7 @@ func renderTaskTable(tasks []capi.Task) error {
 	for _, task := range tasks {
 		createdAt := ""
 		if !task.CreatedAt.IsZero() {
-			createdAt = task.CreatedAt.Format("2006-01-02 15:04:05")
+			createdAt = task.CreatedAt.Format(TimeFormatDisplay)
 		}
 
 		appName := ""
@@ -3205,7 +3205,7 @@ func formatDeploymentTime(t time.Time) string {
 		return ""
 	}
 
-	return t.Format("2006-01-02 15:04:05")
+	return t.Format(TimeFormatDisplay)
 }
 
 func extractAppGUIDFromDeployment(deployment capi.Deployment) string {
@@ -3388,12 +3388,12 @@ func renderPackagesTable(packages []capi.Package) error {
 func buildPackageTableRow(pkg capi.Package) []string {
 	createdAt := ""
 	if !pkg.CreatedAt.IsZero() {
-		createdAt = pkg.CreatedAt.Format("2006-01-02 15:04:05")
+		createdAt = pkg.CreatedAt.Format(TimeFormatDisplay)
 	}
 
 	updatedAt := ""
 	if !pkg.UpdatedAt.IsZero() {
-		updatedAt = pkg.UpdatedAt.Format("2006-01-02 15:04:05")
+		updatedAt = pkg.UpdatedAt.Format(TimeFormatDisplay)
 	}
 
 	appName := ""
@@ -3472,7 +3472,7 @@ func renderDropletTable(droplets []capi.Droplet) error {
 	for _, droplet := range droplets {
 		createdAt := ""
 		if !droplet.CreatedAt.IsZero() {
-			createdAt = droplet.CreatedAt.Format("2006-01-02 15:04:05")
+			createdAt = droplet.CreatedAt.Format(TimeFormatDisplay)
 		}
 
 		appName := ""
@@ -3576,12 +3576,12 @@ func renderBuildTable(builds []capi.Build) error {
 	for _, build := range builds {
 		createdAt := ""
 		if !build.CreatedAt.IsZero() {
-			createdAt = build.CreatedAt.Format("2006-01-02 15:04:05")
+			createdAt = build.CreatedAt.Format(TimeFormatDisplay)
 		}
 
 		updatedAt := ""
 		if !build.UpdatedAt.IsZero() {
-			updatedAt = build.UpdatedAt.Format("2006-01-02 15:04:05")
+			updatedAt = build.UpdatedAt.Format(TimeFormatDisplay)
 		}
 
 		appName := ""

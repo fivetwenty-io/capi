@@ -173,8 +173,8 @@ func renderRolesTable(allRoles []capi.Role) error {
 			role.Relationships.User.Data.GUID,
 			orgGUID,
 			spaceGUID,
-			role.CreatedAt.Format("2006-01-02 15:04:05"),
-			role.UpdatedAt.Format("2006-01-02 15:04:05"),
+			role.CreatedAt.Format(TimeFormatDisplay),
+			role.UpdatedAt.Format(TimeFormatDisplay),
 		})
 	}
 
@@ -232,8 +232,8 @@ func newRolesGetCommand() *cobra.Command {
 					_ = table.Append("Space GUID", role.Relationships.Space.Data.GUID)
 				}
 
-				_ = table.Append("Created", role.CreatedAt.Format("2006-01-02 15:04:05"))
-				_ = table.Append("Updated", role.UpdatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Created", role.CreatedAt.Format(TimeFormatDisplay))
+				_ = table.Append("Updated", role.UpdatedAt.Format(TimeFormatDisplay))
 
 				_, _ = os.Stdout.WriteString("Role details:\n\n")
 				_ = table.Render()

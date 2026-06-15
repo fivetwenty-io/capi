@@ -382,8 +382,8 @@ func addBuildpackBasicInfo(table *tablewriter.Table, buildpack *capi.Buildpack) 
 	_ = table.Append("Enabled", strconv.FormatBool(buildpack.Enabled))
 	_ = table.Append("Locked", strconv.FormatBool(buildpack.Locked))
 	_ = table.Append("Lifecycle", buildpack.Lifecycle)
-	_ = table.Append("Created", buildpack.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", buildpack.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", buildpack.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", buildpack.UpdatedAt.Format(TimeFormatDisplay))
 }
 
 func addBuildpackOptionalInfo(table *tablewriter.Table, buildpack *capi.Buildpack) {

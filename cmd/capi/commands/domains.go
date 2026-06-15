@@ -369,8 +369,8 @@ func addDomainBasicInfo(table *tablewriter.Table, domain *capi.Domain) {
 	_ = table.Append("GUID", domain.GUID)
 	_ = table.Append("Internal", strconv.FormatBool(domain.Internal))
 	_ = table.Append("Protocols", strings.Join(domain.SupportedProtocols, ", "))
-	_ = table.Append("Created", domain.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", domain.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", domain.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", domain.UpdatedAt.Format(TimeFormatDisplay))
 }
 
 func addDomainOptionalInfo(table *tablewriter.Table, domain *capi.Domain) {

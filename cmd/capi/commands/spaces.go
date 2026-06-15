@@ -290,8 +290,8 @@ func outputSpaceAsDetailedTable(ctx context.Context, client capi.Client, space *
 	table.Header("Property", "Value")
 	_ = table.Append("Name", space.Name)
 	_ = table.Append("GUID", space.GUID)
-	_ = table.Append("Created", space.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", space.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", space.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", space.UpdatedAt.Format(TimeFormatDisplay))
 
 	if space.Relationships.Organization.Data != nil {
 		org, _ := client.Organizations().Get(ctx, space.Relationships.Organization.Data.GUID)

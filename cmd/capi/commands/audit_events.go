@@ -277,7 +277,7 @@ func outputAuditEventsTable(allEvents []capi.AuditEvent, events *capi.AuditEvent
 			targetInfo,
 			spaceName,
 			orgName,
-			event.CreatedAt.Format("2006-01-02 15:04:05"),
+			event.CreatedAt.Format(TimeFormatDisplay),
 		)
 	}
 
@@ -415,8 +415,8 @@ func outputAuditEventDetailsTable(event *capi.AuditEvent) error {
 func printEventBasicInfo(event *capi.AuditEvent) {
 	_, _ = fmt.Fprintf(os.Stdout, "Audit Event: %s\n", event.GUID)
 	_, _ = fmt.Fprintf(os.Stdout, "  Type: %s\n", event.Type)
-	_, _ = fmt.Fprintf(os.Stdout, "  Created: %s\n", event.CreatedAt.Format("2006-01-02 15:04:05"))
-	_, _ = fmt.Fprintf(os.Stdout, "  Updated: %s\n", event.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_, _ = fmt.Fprintf(os.Stdout, "  Created: %s\n", event.CreatedAt.Format(TimeFormatDisplay))
+	_, _ = fmt.Fprintf(os.Stdout, "  Updated: %s\n", event.UpdatedAt.Format(TimeFormatDisplay))
 	_, _ = os.Stdout.WriteString("\n")
 }
 

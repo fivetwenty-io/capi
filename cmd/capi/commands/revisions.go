@@ -100,8 +100,8 @@ func renderRevisionTable(revision *capi.Revision) {
 		_ = table.Append("Description", *revision.Description)
 	}
 
-	_ = table.Append("Created", revision.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", revision.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", revision.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", revision.UpdatedAt.Format(TimeFormatDisplay))
 	_ = table.Append("Droplet GUID", revision.Droplet.GUID)
 
 	if revision.Relationships.App.Data != nil {

@@ -222,8 +222,8 @@ func renderOrganizationDetailsTable(org *capi.Organization) error {
 	}
 
 	_ = table.Append("Status", status)
-	_ = table.Append("Created", org.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", org.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", org.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", org.UpdatedAt.Format(TimeFormatDisplay))
 
 	_, _ = os.Stdout.WriteString("Organization details:\n\n")
 

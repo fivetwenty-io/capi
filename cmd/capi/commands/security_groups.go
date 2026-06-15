@@ -213,8 +213,8 @@ func renderSecurityGroupsTable(allGroups []capi.SecurityGroup, pagination *capi.
 func printSecurityGroupDetails(securityGroup *capi.SecurityGroup) {
 	_, _ = fmt.Fprintf(os.Stdout, "Security Group: %s\n", securityGroup.Name)
 	_, _ = fmt.Fprintf(os.Stdout, "  GUID:     %s\n", securityGroup.GUID)
-	_, _ = fmt.Fprintf(os.Stdout, "  Created:  %s\n", securityGroup.CreatedAt.Format("2006-01-02 15:04:05"))
-	_, _ = fmt.Fprintf(os.Stdout, "  Updated:  %s\n", securityGroup.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_, _ = fmt.Fprintf(os.Stdout, "  Created:  %s\n", securityGroup.CreatedAt.Format(TimeFormatDisplay))
+	_, _ = fmt.Fprintf(os.Stdout, "  Updated:  %s\n", securityGroup.UpdatedAt.Format(TimeFormatDisplay))
 
 	_, _ = os.Stdout.WriteString("  Globally Enabled:\n")
 	_, _ = fmt.Fprintf(os.Stdout, "    Running: %t\n", securityGroup.GloballyEnabled.Running)

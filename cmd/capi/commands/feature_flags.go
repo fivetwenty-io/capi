@@ -226,7 +226,7 @@ func newFeatureFlagsGetCommand() *cobra.Command {
 				}
 
 				if flag.UpdatedAt != nil && !flag.UpdatedAt.IsZero() {
-					_ = table.Append("Updated", flag.UpdatedAt.Format("2006-01-02 15:04:05"))
+					_ = table.Append("Updated", flag.UpdatedAt.Format(TimeFormatDisplay))
 				}
 
 				_, _ = fmt.Fprintf(os.Stdout, "Feature Flag: %s\n\n", flag.Name)

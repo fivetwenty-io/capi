@@ -525,8 +525,8 @@ func addBasicServiceInfo(table *tablewriter.Table, service *capi.ServiceInstance
 	_ = table.Append("Name", service.Name)
 	_ = table.Append("GUID", service.GUID)
 	_ = table.Append("Type", service.Type)
-	_ = table.Append("Created", service.CreatedAt.Format("2006-01-02 15:04:05"))
-	_ = table.Append("Updated", service.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", service.CreatedAt.Format(TimeFormatDisplay))
+	_ = table.Append("Updated", service.UpdatedAt.Format(TimeFormatDisplay))
 }
 
 // addServicePlanInfo adds service plan and offering information.
@@ -573,7 +573,7 @@ func addServiceLastOperationInfo(table *tablewriter.Table, service *capi.Service
 	_ = table.Append("Last Operation Description", service.LastOperation.Description)
 
 	if service.LastOperation.UpdatedAt != nil {
-		_ = table.Append("Last Operation Updated", service.LastOperation.UpdatedAt.Format("2006-01-02 15:04:05"))
+		_ = table.Append("Last Operation Updated", service.LastOperation.UpdatedAt.Format(TimeFormatDisplay))
 	}
 }
 
@@ -1694,8 +1694,8 @@ func renderServiceBrokerDetails(ctx context.Context, client capi.Client, broker 
 		_ = table.Append("Name", broker.Name)
 		_ = table.Append("GUID", broker.GUID)
 		_ = table.Append("URL", broker.URL)
-		_ = table.Append("Created", broker.CreatedAt.Format("2006-01-02 15:04:05"))
-		_ = table.Append("Updated", broker.UpdatedAt.Format("2006-01-02 15:04:05"))
+		_ = table.Append("Created", broker.CreatedAt.Format(TimeFormatDisplay))
+		_ = table.Append("Updated", broker.UpdatedAt.Format(TimeFormatDisplay))
 
 		if broker.Relationships.Space != nil && broker.Relationships.Space.Data != nil {
 			space, _ := client.Spaces().Get(ctx, broker.Relationships.Space.Data.GUID)
@@ -1912,7 +1912,7 @@ func renderServiceOfferingDetails(offering *capi.ServiceOffering, output string)
 		_ = table.Append("Description", offering.Description)
 		_ = table.Append("Available", strconv.FormatBool(offering.Available))
 		_ = table.Append("Shareable", strconv.FormatBool(offering.Shareable))
-		_ = table.Append("Created", offering.CreatedAt.Format("2006-01-02 15:04:05"))
+		_ = table.Append("Created", offering.CreatedAt.Format(TimeFormatDisplay))
 
 		if len(offering.Tags) > 0 {
 			_ = table.Append("Tags", strings.Join(offering.Tags, ", "))
@@ -2121,7 +2121,7 @@ func renderServicePlanDetails(ctx context.Context, client capi.Client, plan *cap
 		_ = table.Append("Free", strconv.FormatBool(plan.Free))
 		_ = table.Append("Available", strconv.FormatBool(plan.Available))
 		_ = table.Append("Visibility", plan.VisibilityType)
-		_ = table.Append("Created", plan.CreatedAt.Format("2006-01-02 15:04:05"))
+		_ = table.Append("Created", plan.CreatedAt.Format(TimeFormatDisplay))
 
 		// Get service offering name
 		if plan.Relationships.ServiceOffering.Data != nil {

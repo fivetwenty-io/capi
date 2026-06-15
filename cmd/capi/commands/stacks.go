@@ -129,8 +129,8 @@ func renderStacksTable(stacks []capi.Stack) error {
 			defaultStack,
 			buildImage,
 			runImage,
-			stack.CreatedAt.Format("2006-01-02 15:04:05"),
-			stack.UpdatedAt.Format("2006-01-02 15:04:05"),
+			stack.CreatedAt.Format(TimeFormatDisplay),
+			stack.UpdatedAt.Format(TimeFormatDisplay),
 		})
 	}
 
@@ -157,8 +157,8 @@ func renderAppsTable(apps []capi.App) error {
 			app.GUID,
 			app.State,
 			lifecycle,
-			app.CreatedAt.Format("2006-01-02 15:04:05"),
-			app.UpdatedAt.Format("2006-01-02 15:04:05"),
+			app.CreatedAt.Format(TimeFormatDisplay),
+			app.UpdatedAt.Format(TimeFormatDisplay),
 		})
 	}
 
@@ -308,8 +308,8 @@ func newStacksGetCommand() *cobra.Command {
 				_ = table.Append("Default", strconv.FormatBool(stack.Default))
 				_ = table.Append("Build Image", stack.BuildRootfsImage)
 				_ = table.Append("Run Image", stack.RunRootfsImage)
-				_ = table.Append("Created", stack.CreatedAt.Format("2006-01-02 15:04:05"))
-				_ = table.Append("Updated", stack.UpdatedAt.Format("2006-01-02 15:04:05"))
+				_ = table.Append("Created", stack.CreatedAt.Format(TimeFormatDisplay))
+				_ = table.Append("Updated", stack.UpdatedAt.Format(TimeFormatDisplay))
 
 				err := table.Render()
 				if err != nil {

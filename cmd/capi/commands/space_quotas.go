@@ -255,9 +255,9 @@ func displaySpaceQuotaTable(quota *capi.SpaceQuotaV3) error {
 	table.Header("Property", "Value")
 	_ = table.Append("Name", quota.Name)
 	_ = table.Append("GUID", quota.GUID)
-	_ = table.Append("Created", quota.CreatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Created", quota.CreatedAt.Format(TimeFormatDisplay))
 
-	_ = table.Append("Updated", quota.UpdatedAt.Format("2006-01-02 15:04:05"))
+	_ = table.Append("Updated", quota.UpdatedAt.Format(TimeFormatDisplay))
 
 	err := table.Render()
 	if err != nil {

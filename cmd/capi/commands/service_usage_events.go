@@ -168,7 +168,7 @@ func renderServiceUsageEventsTable(events []capi.ServiceUsageEvent, pagination *
 			stateTransition,
 			event.SpaceName,
 			event.OrganizationName,
-			event.CreatedAt.Format("2006-01-02 15:04:05"),
+			event.CreatedAt.Format(TimeFormatDisplay),
 		)
 	}
 
@@ -216,8 +216,8 @@ func newServiceUsageEventsGetCommand() *cobra.Command {
 				return encoder.Encode(event)
 			default:
 				_, _ = fmt.Fprintf(os.Stdout, "Service Usage Event: %s\n", event.GUID)
-				_, _ = fmt.Fprintf(os.Stdout, "  Created: %s\n", event.CreatedAt.Format("2006-01-02 15:04:05"))
-				_, _ = fmt.Fprintf(os.Stdout, "  Updated: %s\n", event.UpdatedAt.Format("2006-01-02 15:04:05"))
+				_, _ = fmt.Fprintf(os.Stdout, "  Created: %s\n", event.CreatedAt.Format(TimeFormatDisplay))
+				_, _ = fmt.Fprintf(os.Stdout, "  Updated: %s\n", event.UpdatedAt.Format(TimeFormatDisplay))
 				_, _ = os.Stdout.WriteString("\n")
 
 				_, _ = os.Stdout.WriteString("Service Instance Information:\n")
