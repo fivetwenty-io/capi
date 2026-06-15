@@ -430,8 +430,7 @@ func TestAuthRetryTransport_ConcurrentRefresh(t *testing.T) {
 	errs := make([]error, concurrency)
 	statuses := make([]int, concurrency)
 
-	for i := 0; i < concurrency; i++ {
-
+	for i := range concurrency {
 		go func() {
 			defer wg.Done()
 

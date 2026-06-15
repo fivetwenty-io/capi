@@ -58,7 +58,6 @@ func TestMapHTTPError_BelowThresholdReturnsNil(t *testing.T) {
 	}
 
 	for _, status := range successStatuses {
-
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			t.Parallel()
 
@@ -99,7 +98,6 @@ func TestMapHTTPError_WellFormedBodyWrapsSentinel(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range allSentinelCases() {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -145,9 +143,7 @@ func TestMapHTTPError_MalformedBodyStillWrapsSentinel(t *testing.T) {
 	}
 
 	for _, tc := range allSentinelCases() {
-
 		for _, input := range malformedInputs {
-
 			t.Run(tc.name+"/"+input.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -187,7 +183,6 @@ func TestMapHTTPError_EmptyBody(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range allSentinelCases() {
-
 		t.Run(tc.name+"/nil body", func(t *testing.T) {
 			t.Parallel()
 
@@ -273,7 +268,6 @@ func TestMapHTTPError_UnknownClient4xxMapsToBadRequest(t *testing.T) {
 	}
 
 	for _, status := range unknownStatuses {
-
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			t.Parallel()
 

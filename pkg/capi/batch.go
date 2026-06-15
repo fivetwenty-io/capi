@@ -620,7 +620,8 @@ func (t *BatchTransaction) Execute(ctx context.Context) ([]BatchResult, error) {
 		failed := fmt.Errorf("%w, %d operations failed: %v", ErrTransactionFailed, len(failedOps), failedOps)
 
 		// Attempt to undo the successful operations.
-		if rollbackErr := t.performRollback(ctx); rollbackErr != nil {
+		rollbackErr := t.performRollback(ctx)
+		if rollbackErr != nil {
 			return results, fmt.Errorf("%w; %w", failed, rollbackErr)
 		}
 
