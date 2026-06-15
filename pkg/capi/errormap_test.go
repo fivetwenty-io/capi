@@ -193,7 +193,7 @@ func TestMapHTTPError_EmptyBody(t *testing.T) {
 
 			err := capi.MapHTTPError(tc.status, nil)
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tc.sentinel)
+			require.ErrorIs(t, err, tc.sentinel)
 			assert.Contains(t, err.Error(), "status")
 		})
 		t.Run(tc.name+"/empty body", func(t *testing.T) {
@@ -201,7 +201,7 @@ func TestMapHTTPError_EmptyBody(t *testing.T) {
 
 			err := capi.MapHTTPError(tc.status, []byte{})
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tc.sentinel)
+			require.ErrorIs(t, err, tc.sentinel)
 			assert.Contains(t, err.Error(), "status")
 		})
 	}
@@ -216,7 +216,7 @@ func TestMapHTTPError_MultiErrorEnvelope(t *testing.T) {
 	err := capi.MapHTTPError(http.StatusUnprocessableEntity, []byte(wellFormedMultiErrorEnvelope))
 	require.Error(t, err)
 
-	assert.ErrorIs(t, err, capi.ErrUnprocessable)
+	require.ErrorIs(t, err, capi.ErrUnprocessable)
 
 	var envelope *capi.ResponseError
 	require.ErrorAs(t, err, &envelope)
