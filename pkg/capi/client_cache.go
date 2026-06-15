@@ -5,122 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/constants"
 )
-
-// ClientWithCache wraps a client with caching capabilities.
-type ClientWithCache struct {
-	client  Client
-	manager *CacheManager
-	policy  *CachingPolicy
-}
-
-// NewClientWithCache creates a new client with caching.
-func NewClientWithCache(client Client, cacheConfig *CacheConfig, policy *CachingPolicy) (*ClientWithCache, error) {
-	if cacheConfig == nil {
-		cacheConfig = DefaultCacheConfig()
-	}
-
-	if policy == nil {
-		policy = DefaultCachingPolicy()
-	}
-
-	cache, err := NewCacheFromConfig(cacheConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cache: %w", err)
-	}
-
-	manager := NewCacheManager(cache, cacheConfig.Options)
-
-	return &ClientWithCache{
-		client:  client,
-		manager: manager,
-		policy:  policy,
-	}, nil
-}
-
-// CachedRequest represents a cacheable request.
-type CachedRequest struct {
-	Method  string
-	Path    string
-	Headers http.Header
-	Body    []byte
-	Params  interface{}
-}
-
-// Execute performs a cached request.
-func (c *ClientWithCache) Execute(ctx context.Context, req *CachedRequest) ([]byte, error) {
-	// Generate cache key
-	cacheKey := c.manager.GetCacheKey(req.Method, req.Path, req.Params)
-
-	// Check if request should be cached
-	if c.policy.ShouldCache(req.Method, req.Path, 0) {
-		// Try to get from cache
-		data, err := c.manager.Get(ctx, cacheKey)
-		if err == nil {
-			return data, nil
-		}
-	}
-
-	// Execute the actual request
-	// This would need to be integrated with the actual HTTP client
-	// For now, this is a placeholder
-	data, statusCode, err := c.executeRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Cache the response if appropriate
-	if c.policy.ShouldCache(req.Method, req.Path, statusCode) {
-		ttl := c.calculateTTL()
-
-		err := c.manager.Set(ctx, cacheKey, data, ttl)
-		if err != nil {
-			// Log cache error but don't fail the request
-			// In production, you'd want proper logging here
-			fmt.Fprintf(os.Stderr, "Warning: failed to cache response: %v\n", err)
-		}
-	}
-
-	return data, nil
-}
-
-// executeRequest executes the actual HTTP request.
-
-// InvalidateCache invalidates cache entries.
-func (c *ClientWithCache) InvalidateCache(ctx context.Context, pattern string) error {
-	return c.manager.InvalidatePattern(ctx, pattern)
-}
-
-// ClearCache clears all cache entries.
-func (c *ClientWithCache) ClearCache(ctx context.Context) error {
-	return c.manager.Clear(ctx)
-}
-
-// GetCacheStats returns cache statistics.
-func (c *ClientWithCache) GetCacheStats() *CacheStats {
-	return c.manager.GetStats()
-}
-
-func (c *ClientWithCache) executeRequest(ctx context.Context, req *CachedRequest) ([]byte, int, error) {
-	// This is a simplified placeholder
-	// In reality, this would use the actual HTTP client
-	return nil, 0, ErrNotImplemented
-}
-
-// calculateTTL calculates the TTL for a cache entry.
-func (c *ClientWithCache) calculateTTL() time.Duration {
-	// You could have path-specific TTLs
-	// For now, use the default from options
-	if c.manager.options != nil {
-		return c.manager.options.TTL
-	}
-
-	return constants.DefaultCacheTTL
-}
 
 // CacheInterceptor creates request/response interceptors for caching.
 func CacheInterceptor(manager *CacheManager, policy *CachingPolicy) (RequestInterceptor, ResponseInterceptor) {
@@ -128,25 +16,17 @@ func CacheInterceptor(manager *CacheManager, policy *CachingPolicy) (RequestInte
 		policy = DefaultCachingPolicy()
 	}
 
-	// Request interceptor checks cache
+	// Request interceptor.
+	//
+	// A RequestInterceptor returns only an error: it cannot short-circuit the
+	// request with a cached body, and it cannot hand data to the response
+	// interceptor because ctx is passed by value. Read-through cache-hit
+	// serving is therefore not possible through this hook. Caching value comes
+	// from the response interceptor (which stores responses) and from
+	// ConditionalRequestInterceptor (which adds If-None-Match for 304s). This
+	// interceptor is intentionally a no-op; a real cache-hit lookup here would
+	// fetch and then discard the result, only skewing hit metrics.
 	requestInterceptor := func(ctx context.Context, req *Request) error {
-		// Only check cache for GET requests (or as configured)
-		if !policy.ShouldCache(req.Method, req.Path, 0) {
-			return nil
-		}
-
-		// Generate cache key
-		cacheKey := manager.GetCacheKey(req.Method, req.Path, nil)
-
-		// Try to get from cache
-		data, err := manager.Get(ctx, cacheKey)
-		if err == nil {
-			// Found in cache, store in context for response interceptor
-			// Note: This assignment doesn't propagate since ctx is passed by value
-			// The interceptor design may need to be reconsidered to properly pass cache data
-			_ = data // Use data to silence unused variable warning
-		}
-
 		return nil
 	}
 
