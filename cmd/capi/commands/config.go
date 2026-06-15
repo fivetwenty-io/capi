@@ -722,9 +722,17 @@ func discoverUAAEndpoint(apiEndpoint string) string {
 	return strings.TrimSuffix(apiEndpoint, "/") + "/uaa"
 }
 
+// newClientFunc is the seam through which command RunE handlers obtain a CAPI
+// client. It defaults to the real token-refreshing constructor. Tests reassign
+// it to inject a fake client so RunE behavior can be exercised without standing
+// up on-disk config or a live UAA. Production code must never reassign it.
+//
+//nolint:gochecknoglobals // intentional test seam for dependency injection
+var newClientFunc = CreateClientWithTokenRefresh
+
 // CreateClientWithAPI creates a CAPI client using the specified API or current API.
 func CreateClientWithAPI(apiFlag string) (capi.Client, error) {
-	return CreateClientWithTokenRefresh(apiFlag)
+	return newClientFunc(apiFlag)
 }
 
 // CreateClientWithTokenRefresh creates a CAPI client with automatic token refresh.

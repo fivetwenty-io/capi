@@ -383,6 +383,10 @@ type CircuitBreaker struct {
 	successes   int
 	state       string // "closed", constants.StatusOpen, constants.StatusHalfOpen
 	lastFailure time.Time
+	// now returns the current time. It is an unexported seam defaulting to
+	// time.Now; tests override it to drive the timeout transition
+	// deterministically without sleeping on the wall clock.
+	now func() time.Time
 }
 
 // NewCircuitBreaker creates a new circuit breaker.
@@ -398,6 +402,7 @@ func NewCircuitBreaker(config *CircuitBreakerConfig) *CircuitBreaker {
 	return &CircuitBreaker{
 		config: config,
 		state:  "closed",
+		now:    time.Now,
 	}
 }
 
@@ -409,7 +414,7 @@ func CircuitBreakerRequestInterceptor(breaker *CircuitBreaker) RequestIntercepto
 
 		if breaker.state == constants.StatusOpen {
 			// Check if timeout has passed
-			if time.Since(breaker.lastFailure) > breaker.config.Timeout {
+			if breaker.now().Sub(breaker.lastFailure) > breaker.config.Timeout {
 				breaker.state = constants.StatusHalfOpen
 				breaker.successes = 0
 			} else {
@@ -430,7 +435,7 @@ func CircuitBreakerResponseInterceptor(breaker *CircuitBreaker) ResponseIntercep
 		if resp.Error != nil || resp.StatusCode >= 500 {
 			// Record failure
 			breaker.failures++
-			breaker.lastFailure = time.Now()
+			breaker.lastFailure = breaker.now()
 
 			if breaker.failures >= breaker.config.Threshold {
 				breaker.state = constants.StatusOpen
