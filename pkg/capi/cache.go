@@ -202,6 +202,9 @@ type CacheManager struct {
 	cache   Cache
 	options *CacheOptions
 	stats   *CacheStats
+	// cancel stops the background cleanup goroutine started in
+	// NewCacheManager. nil when no cleanup routine was started.
+	cancel context.CancelFunc
 }
 
 // CacheStats tracks cache statistics.
@@ -242,12 +245,25 @@ func NewCacheManager(cache Cache, options *CacheOptions) *CacheManager {
 		stats:   &CacheStats{},
 	}
 
-	// Start cleanup routine for memory cache
+	// Start cleanup routine for memory cache, tied to a cancelable context so
+	// Close can stop the goroutine instead of leaking it for process lifetime.
 	if memCache, ok := cache.(*MemoryCache); ok && options.CleanupInterval > 0 {
-		memCache.StartCleanupRoutine(context.Background(), options.CleanupInterval)
+		ctx, cancel := context.WithCancel(context.Background())
+		manager.cancel = cancel
+
+		memCache.StartCleanupRoutine(ctx, options.CleanupInterval)
 	}
 
 	return manager
+}
+
+// Close stops the background cleanup goroutine, if one was started. It is safe
+// to call more than once and on a manager that never started a routine.
+func (m *CacheManager) Close() {
+	if m.cancel != nil {
+		m.cancel()
+		m.cancel = nil
+	}
 }
 
 // GetCacheKey generates a cache key for a request.

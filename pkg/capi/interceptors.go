@@ -115,6 +115,11 @@ func LoggingResponseInterceptor(logger Logger) ResponseInterceptor {
 }
 
 // RateLimitInterceptor implements client-side rate limiting.
+//
+// It starts a background refill goroutine that lives for the lifetime of the
+// process: the returned interceptor has no shutdown hook, so call this once at
+// client setup and reuse the result rather than per request, which would leak
+// a goroutine each call.
 func RateLimitInterceptor(requestsPerSecond int) RequestInterceptor {
 	// Simple token bucket implementation
 	bucket := make(chan struct{}, requestsPerSecond)

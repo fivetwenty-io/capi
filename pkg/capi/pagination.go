@@ -153,15 +153,19 @@ func (it *PaginationIterator[T]) extractParamsFromURL(urlStr string) (*QueryPara
 
 	queryValues := parsedURL.Query()
 
-	// Extract pagination parameters
+	// Extract pagination parameters. A non-numeric value is ignored rather
+	// than silently recorded as page 0, which would corrupt a follow-up
+	// request built from these params.
 	if page := queryValues.Get("page"); page != "" {
-		pageNum, _ := strconv.Atoi(page)
-		params.Page = pageNum
+		if pageNum, err := strconv.Atoi(page); err == nil {
+			params.Page = pageNum
+		}
 	}
 
 	if perPage := queryValues.Get("per_page"); perPage != "" {
-		perPageNum, _ := strconv.Atoi(perPage)
-		params.PerPage = perPageNum
+		if perPageNum, err := strconv.Atoi(perPage); err == nil {
+			params.PerPage = perPageNum
+		}
 	}
 
 	if orderBy := queryValues.Get("order_by"); orderBy != "" {
