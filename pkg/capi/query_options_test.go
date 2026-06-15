@@ -15,12 +15,14 @@ func TestApplyQueryOptions_NilValuesNoOpts(t *testing.T) {
 
 func TestApplyQueryOptions_AllocatesWhenOptsPresent(t *testing.T) {
 	t.Parallel()
+
 	v := capi.ApplyQueryOptions(nil, []capi.RoleGetOption{capi.RoleIncludeSpace})
 	assert.Equal(t, "space", v.Get("include"))
 }
 
 func TestApplyQueryOptions_IncludesJoinAndDedupe(t *testing.T) {
 	t.Parallel()
+
 	v := capi.ApplyQueryOptions(nil, []capi.RoleGetOption{
 		capi.RoleIncludeSpace, capi.RoleIncludeOrganization, capi.RoleIncludeSpace,
 	})
@@ -29,6 +31,7 @@ func TestApplyQueryOptions_IncludesJoinAndDedupe(t *testing.T) {
 
 func TestApplyQueryOptions_MergesIntoExistingValues(t *testing.T) {
 	t.Parallel()
+
 	v := url.Values{"include": {"user"}, "page": {"2"}}
 	v = capi.ApplyQueryOptions(v, []capi.RoleListOption{capi.RoleIncludeSpace})
 	assert.Equal(t, "user,space", v.Get("include"))
@@ -57,6 +60,7 @@ func TestIncludeConstants_Encoding(t *testing.T) {
 
 func TestProcessEmbed_Encoding(t *testing.T) {
 	t.Parallel()
+
 	v := capi.ApplyQueryOptions(nil, []capi.ProcessGetOption{capi.ProcessEmbedInstances})
 	assert.Equal(t, "process_instances", v.Get("embed"))
 }
@@ -82,6 +86,7 @@ func TestFieldsOptions_Encoding(t *testing.T) {
 
 func TestRouteDestinationsOptions_Encoding(t *testing.T) {
 	t.Parallel()
+
 	v := capi.ApplyQueryOptions(nil, []capi.RouteDestinationsOption{
 		capi.WithDestinationGUIDs("d1", "d2"),
 		capi.WithDestinationAppGUIDs("a1"),
@@ -92,6 +97,7 @@ func TestRouteDestinationsOptions_Encoding(t *testing.T) {
 
 func TestServiceOfferingPurge_Encoding(t *testing.T) {
 	t.Parallel()
+
 	v := capi.ApplyQueryOptions(nil, []capi.ServiceOfferingDeleteOption{capi.PurgeServiceOffering})
 	assert.Equal(t, "true", v.Get("purge"))
 }
@@ -117,6 +123,7 @@ func TestFieldsOptions_UsableInListCalls(t *testing.T) {
 
 func TestApplyQueryOptions_ScalarOverwritesExistingKey(t *testing.T) {
 	t.Parallel()
+
 	v := url.Values{"purge": {"false"}}
 	v = capi.ApplyQueryOptions(v, []capi.ServiceOfferingDeleteOption{capi.PurgeServiceOffering})
 	assert.Equal(t, "true", v.Get("purge"))
@@ -125,6 +132,7 @@ func TestApplyQueryOptions_ScalarOverwritesExistingKey(t *testing.T) {
 
 func TestApplyQueryOptions_MutatesInPlace(t *testing.T) {
 	t.Parallel()
+
 	base := url.Values{"page": {"2"}}
 	returned := capi.ApplyQueryOptions(base, []capi.RoleListOption{capi.RoleIncludeSpace})
 	// append-style: non-nil input is mutated and aliased by the return

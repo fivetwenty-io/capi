@@ -533,6 +533,7 @@ func runAppsScale(params *appsScaleParams) error {
 	}
 
 	_, _ = fmt.Fprintf(os.Stdout, "Queued scale of application '%s' process '%s' (job %s)\n", appName, targetProcess.Type, job.GUID)
+
 	return outputScaledResult(appName, appGUID, targetProcess, scaleReq)
 }
 
@@ -609,9 +610,11 @@ func outputScaledResult(appName, appGUID string, process *capi.Process, scaleReq
 	if scaleReq.Instances != nil {
 		info.Instances = *scaleReq.Instances
 	}
+
 	if scaleReq.MemoryInMB != nil {
 		info.MemoryMB = *scaleReq.MemoryInMB
 	}
+
 	if scaleReq.DiskInMB != nil {
 		info.DiskMB = *scaleReq.DiskInMB
 	}

@@ -58,6 +58,7 @@ func (s *stubIsolationSegmentsClient) ListSpaces(_ context.Context, _ string, _ 
 // All other methods panic — they must not be called by listSpacesForSegment.
 type stubClient struct {
 	capi.Client // embed to satisfy the interface; concrete methods below override
+
 	isoSegments capi.IsolationSegmentsClient
 }
 

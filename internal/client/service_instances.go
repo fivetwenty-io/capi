@@ -152,6 +152,7 @@ func (c *ServiceInstancesClient) Delete(ctx context.Context, guid string, opts .
 	if deleteOpts.Purge {
 		return jobFromOptionalLocation(resp, "deleting service instance")
 	}
+
 	return jobFromLocationHeader(resp, "deleting service instance")
 }
 

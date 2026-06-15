@@ -324,6 +324,7 @@ func TestProcessesClient_Scale(t *testing.T) {
 				assert.Equal(t, "POST", request.Method)
 
 				var requestBody capi.ProcessScaleRequest
+
 				err := json.NewDecoder(request.Body).Decode(&requestBody)
 				assert.NoError(t, err)
 

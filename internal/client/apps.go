@@ -163,18 +163,21 @@ func (c *AppsClient) Delete(ctx context.Context, guid string) (*capi.Job, error)
 // lets Stratos-style frontends surface progress / terminal state.
 func (c *AppsClient) Start(ctx context.Context, guid string) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/apps/%s/actions/start", guid)
+
 	return c.postActionJob(ctx, path, "starting app")
 }
 
 // Stop implements capi.AppsClient.Stop. Same async contract as Start.
 func (c *AppsClient) Stop(ctx context.Context, guid string) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/apps/%s/actions/stop", guid)
+
 	return c.postActionJob(ctx, path, "stopping app")
 }
 
 // Restart implements capi.AppsClient.Restart. Same async contract as Start.
 func (c *AppsClient) Restart(ctx context.Context, guid string) (*capi.Job, error) {
 	path := fmt.Sprintf("/v3/apps/%s/actions/restart", guid)
+
 	return c.postActionJob(ctx, path, "restarting app")
 }
 

@@ -985,7 +985,9 @@ func RunJobDeleteTest(
 	deleteCall func(interface{}) (*capi.Job, error),
 ) {
 	t.Helper()
+
 	_ = operationType
+
 	t.Run(testName, func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			assert.Equal(t, expectedPath, request.URL.Path)

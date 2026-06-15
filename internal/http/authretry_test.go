@@ -230,6 +230,7 @@ func TestAuthRetryTransport_StreamingBodyNoRetry(t *testing.T) {
 		atomic.AddInt32(&attempts, 1)
 
 		_, _ = io.Copy(io.Discard, r.Body)
+
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
@@ -251,6 +252,7 @@ func TestAuthRetryTransport_StreamingBodyNoRetry(t *testing.T) {
 
 	resp, err := transport.RoundTrip(req)
 	require.NoError(t, err)
+
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -281,6 +283,7 @@ func TestAuthRetryTransport_NilTokenManager(t *testing.T) {
 
 	resp, err := transport.RoundTrip(req)
 	require.NoError(t, err)
+
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -428,7 +431,6 @@ func TestAuthRetryTransport_ConcurrentRefresh(t *testing.T) {
 	statuses := make([]int, concurrency)
 
 	for i := 0; i < concurrency; i++ {
-		i := i
 
 		go func() {
 			defer wg.Done()

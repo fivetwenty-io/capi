@@ -72,6 +72,7 @@ func TestSpaceQuotaRelationships_SpacesOmittedWhenEmpty(t *testing.T) {
 		assert.Equal(t, "POST", request.Method)
 
 		var err error
+
 		capturedBody, err = io.ReadAll(request.Body)
 		require.NoError(t, err)
 
@@ -79,6 +80,7 @@ func TestSpaceQuotaRelationships_SpacesOmittedWhenEmpty(t *testing.T) {
 			Resource: capi.Resource{GUID: "quota-guid"},
 			Name:     "no-spaces-quota",
 		}
+
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(writer).Encode(quota)
@@ -118,6 +120,7 @@ func TestSpaceQuotaRelationships_SpacesPresentWhenProvided(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var err error
+
 		capturedBody, err = io.ReadAll(request.Body)
 		require.NoError(t, err)
 
@@ -125,6 +128,7 @@ func TestSpaceQuotaRelationships_SpacesPresentWhenProvided(t *testing.T) {
 			Resource: capi.Resource{GUID: "quota-guid"},
 			Name:     "with-spaces-quota",
 		}
+
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(writer).Encode(quota)

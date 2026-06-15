@@ -81,8 +81,8 @@ type Pagination struct {
 // `omitempty` keeps existing tests that asserted absence of an
 // `included` key passing for responses without one.
 type ListResponse[T any] struct {
-	Pagination Pagination                 `json:"pagination"        yaml:"pagination"`
-	Resources  []T                        `json:"resources"         yaml:"resources"`
+	Pagination Pagination                   `json:"pagination"         yaml:"pagination"`
+	Resources  []T                          `json:"resources"          yaml:"resources"`
 	Included   map[string][]json.RawMessage `json:"included,omitempty" yaml:"included,omitempty"`
 }
 

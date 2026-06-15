@@ -99,7 +99,8 @@ func MapHTTPError(status int, body []byte) error {
 	// errors.As work on the returned value.
 	if len(body) > 0 {
 		envelope := &ResponseError{}
-		if jsonErr := json.Unmarshal(body, envelope); jsonErr == nil && len(envelope.Errors) > 0 {
+		jsonErr := json.Unmarshal(body, envelope)
+		if jsonErr == nil && len(envelope.Errors) > 0 {
 			return errors.Join(sentinel, envelope)
 		}
 	}

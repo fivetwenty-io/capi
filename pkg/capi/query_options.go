@@ -40,6 +40,7 @@ func appendInclude(v url.Values, value string) {
 	current := v.Get("include")
 	if current == "" {
 		v.Set("include", value)
+
 		return
 	}
 

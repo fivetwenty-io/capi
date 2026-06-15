@@ -135,7 +135,7 @@ func enrichServiceDetails(ctx context.Context, client capi.Client, service *capi
 func getServiceOfferingName(ctx context.Context, client capi.Client, plan interface{}) string {
 	// Use reflection to access plan fields since we don't know the exact type
 	planValue := reflect.ValueOf(plan)
-	if planValue.Kind() == reflect.Ptr {
+	if planValue.Kind() == reflect.Pointer {
 		planValue = planValue.Elem()
 	}
 
@@ -165,7 +165,7 @@ func getServiceOfferingName(ctx context.Context, client capi.Client, plan interf
 	}
 
 	offeringValue := reflect.ValueOf(offering)
-	if offeringValue.Kind() == reflect.Ptr {
+	if offeringValue.Kind() == reflect.Pointer {
 		offeringValue = offeringValue.Elem()
 	}
 

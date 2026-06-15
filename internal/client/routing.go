@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -47,7 +48,7 @@ func (c *RoutingClient) ListRouterGroups(ctx context.Context) ([]capi.RouterGrou
 // (e.g., "tcp" or "http"). Returns nil, nil if no group matches the type.
 func (c *RoutingClient) GetRouterGroupByType(ctx context.Context, groupType string) (*capi.RouterGroup, error) {
 	if groupType == "" {
-		return nil, fmt.Errorf("getting router group by type: groupType must not be empty")
+		return nil, errors.New("getting router group by type: groupType must not be empty")
 	}
 
 	path := "/routing/v1/router_groups"

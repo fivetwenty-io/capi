@@ -18,7 +18,8 @@ func decodeIncluded[R any](raw map[string][]json.RawMessage, key string) ([]R, e
 
 	for _, message := range messages {
 		var single R
-		if err := json.Unmarshal(message, &single); err != nil {
+		err := json.Unmarshal(message, &single)
+		if err != nil {
 			return nil, fmt.Errorf("decoding included %s: %w", key, err)
 		}
 

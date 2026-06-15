@@ -48,6 +48,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			name: "service instance create (managed)",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewServiceInstancesClient(internalhttp.NewClient(baseURL, nil))
+
 				return c.Create(context.Background(), managedSICreate)
 			},
 		},
@@ -55,6 +56,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			name: "service instance update (managed)",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewServiceInstancesClient(internalhttp.NewClient(baseURL, nil))
+
 				return c.Update(context.Background(), "si-guid", &capi.ServiceInstanceUpdateRequest{
 					Parameters: map[string]interface{}{"foo": "bar"},
 				})
@@ -64,6 +66,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			name: "service broker create",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewServiceBrokersClient(internalhttp.NewClient(baseURL, nil))
+
 				return c.Create(context.Background(), &capi.ServiceBrokerCreateRequest{Name: "broker"})
 			},
 		},
@@ -72,6 +75,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewServiceBrokersClient(internalhttp.NewClient(baseURL, nil))
 				name := "broker"
+
 				return c.Update(context.Background(), "broker-guid", &capi.ServiceBrokerUpdateRequest{Name: &name})
 			},
 		},
@@ -79,6 +83,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			name: "service credential binding create",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewServiceCredentialBindingsClient(internalhttp.NewClient(baseURL, nil))
+
 				return c.Create(context.Background(), &capi.ServiceCredentialBindingCreateRequest{Type: "app"})
 			},
 		},
@@ -86,6 +91,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			name: "service route binding create",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewServiceRouteBindingsClient(internalhttp.NewClient(baseURL, nil))
+
 				return c.Create(context.Background(), &capi.ServiceRouteBindingCreateRequest{})
 			},
 		},
@@ -93,6 +99,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			name: "space apply manifest",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewSpacesClient(internalhttp.NewClient(baseURL, nil))
+
 				return c.ApplyManifest(context.Background(), "space-guid", "applications: []")
 			},
 		},
@@ -100,6 +107,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			name: "space delete unmapped routes",
 			call: func(_ *testing.T, baseURL string) (interface{}, error) {
 				c := NewSpacesClient(internalhttp.NewClient(baseURL, nil))
+
 				return c.DeleteUnmappedRoutes(context.Background(), "space-guid")
 			},
 		},
@@ -108,6 +116,7 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 			call: func(t *testing.T, baseURL string) (interface{}, error) {
 				c, err := New(context.Background(), &capi.Config{APIEndpoint: baseURL})
 				require.NoError(t, err)
+
 				return c.ClearBuildpackCache(context.Background())
 			},
 		},
@@ -116,11 +125,13 @@ func TestAsyncJobOperations_Empty202BodyWithLocationHeader(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			server := newServer()
 			defer server.Close()
 
 			out, err := tc.call(t, server.URL)
 			require.NoError(t, err)
+
 			job, ok := out.(*capi.Job)
 			require.True(t, ok, "expected *capi.Job, got %T", out)
 			require.NotNil(t, job)
@@ -148,6 +159,7 @@ func TestAsyncJobOperations_202BodyStillPreferred(t *testing.T) {
 		Parameters: map[string]interface{}{"foo": "bar"},
 	})
 	require.NoError(t, err)
+
 	job, ok := out.(*capi.Job)
 	require.True(t, ok, "expected *capi.Job, got %T", out)
 	assert.Equal(t, "job-from-body", job.GUID)

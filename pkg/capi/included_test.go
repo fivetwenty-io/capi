@@ -72,6 +72,7 @@ func TestDecodeIncluded_MalformedJSON(t *testing.T) {
 	// Passing malformed JSON through json.Unmarshal would fail before
 	// RoleIncludedFrom is called, so inject the raw message directly.
 	var list capi.ListResponse[capi.Role]
+
 	list.Included = map[string][]json.RawMessage{
 		"users": {
 			json.RawMessage(`{"guid":"u1","username":"norm"}`),

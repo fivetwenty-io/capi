@@ -31,9 +31,11 @@ func jobRefFromLocation(location, opLabel string) (*capi.Job, error) {
 	if idx := strings.LastIndex(location, "/"); idx >= 0 {
 		jobGUID = location[idx+1:]
 	}
+
 	if jobGUID == "" {
 		return nil, fmt.Errorf("%s: malformed Location header %q", opLabel, location)
 	}
+
 	return &capi.Job{Resource: capi.Resource{GUID: jobGUID}}, nil
 }
 
@@ -45,6 +47,7 @@ func jobFromLocationHeader(resp *http_internal.Response, opLabel string) (*capi.
 	if location == "" {
 		return nil, fmt.Errorf("%s: no Location header on async delete response", opLabel)
 	}
+
 	return jobRefFromLocation(location, opLabel)
 }
 
@@ -57,6 +60,7 @@ func jobFromOptionalLocation(resp *http_internal.Response, opLabel string) (*cap
 	if location == "" {
 		return nil, nil
 	}
+
 	return jobRefFromLocation(location, opLabel)
 }
 
@@ -74,8 +78,10 @@ func jobFromOptionalLocation(resp *http_internal.Response, opLabel string) (*cap
 //     stay visible.
 func jobFromAsyncResponse(resp *http_internal.Response, opLabel string) (*capi.Job, error) {
 	var parseErr error
+
 	if len(strings.TrimSpace(string(resp.Body))) > 0 {
 		var job capi.Job
+
 		parseErr = json.Unmarshal(resp.Body, &job)
 		if parseErr == nil {
 			return &job, nil
@@ -90,7 +96,9 @@ func jobFromAsyncResponse(resp *http_internal.Response, opLabel string) (*capi.J
 		// Empty body and no Location header — keep the historical error
 		// shape so existing callers' error matching continues to work.
 		var job capi.Job
+
 		parseErr = json.Unmarshal(resp.Body, &job)
 	}
+
 	return nil, fmt.Errorf("parsing job response: %w", parseErr)
 }

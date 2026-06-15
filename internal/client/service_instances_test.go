@@ -400,7 +400,7 @@ func TestServiceInstancesClient_Delete(t *testing.T) {
 		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 		// Without WithPurge, the purge query parameter must NOT be present.
-		assert.Equal(t, "", request.URL.Query().Get("purge"), "purge param must be absent when WithPurge is not passed")
+		assert.Empty(t, request.URL.Query().Get("purge"), "purge param must be absent when WithPurge is not passed")
 
 		writer.Header().Set("Location", "/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)
@@ -447,7 +447,7 @@ func TestServiceInstancesClient_DeleteWithPurgeFalse(t *testing.T) {
 		assert.Equal(t, "/v3/service_instances/instance-guid", request.URL.Path)
 		assert.Equal(t, "DELETE", request.Method)
 		// WithPurge(false) must NOT set the purge query parameter.
-		assert.Equal(t, "", request.URL.Query().Get("purge"), "purge param must be absent when WithPurge(false) is passed")
+		assert.Empty(t, request.URL.Query().Get("purge"), "purge param must be absent when WithPurge(false) is passed")
 
 		writer.Header().Set("Location", "/v3/jobs/job-guid")
 		writer.WriteHeader(http.StatusAccepted)

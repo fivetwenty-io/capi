@@ -116,7 +116,8 @@ func (t *authRetryTransport) RoundTrip(req *http.Request) (*http.Response, error
 		return t.replay(req, cachedToken, resp)
 	}
 
-	if refreshErr := t.tokenManager.RefreshToken(ctx); refreshErr != nil {
+	refreshErr := t.tokenManager.RefreshToken(ctx)
+	if refreshErr != nil {
 		// Refresh failed — return the original 401 unchanged.
 		t.refreshMu.Unlock()
 
