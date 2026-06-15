@@ -22,6 +22,20 @@ var (
 	ErrTokenRequestStatusFailed = errors.New("token request failed with status")
 )
 
+// maxErrorBodyLen bounds how much of an unparsed token-endpoint response body
+// is echoed into an error, limiting exposure of unexpected response content.
+const maxErrorBodyLen = 512
+
+// truncateBody returns body capped at maxErrorBodyLen, appending an ellipsis
+// marker when truncated, for safe inclusion in error messages.
+func truncateBody(body []byte) string {
+	if len(body) <= maxErrorBodyLen {
+		return string(body)
+	}
+
+	return string(body[:maxErrorBodyLen]) + "...(truncated)"
+}
+
 // OAuth2Config represents OAuth2 configuration.
 
 type OAuth2Config struct {
@@ -223,7 +237,7 @@ func (m *OAuth2TokenManager) doTokenRequest(ctx context.Context, data url.Values
 			return nil, fmt.Errorf("%w: %s - %s", ErrTokenRequestFailed, errResp.Error, errResp.ErrorDescription)
 		}
 
-		return nil, fmt.Errorf("%w %d: %s", ErrTokenRequestStatusFailed, resp.StatusCode, string(body))
+		return nil, fmt.Errorf("%w %d: %s", ErrTokenRequestStatusFailed, resp.StatusCode, truncateBody(body))
 	}
 
 	var token Token

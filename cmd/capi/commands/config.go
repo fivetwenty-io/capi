@@ -507,7 +507,10 @@ func saveConfigStruct(config *Config) error {
 			// #nosec G304
 			currentData, err := os.ReadFile(configFile)
 			if err == nil {
-				_ = os.WriteFile(backupFile, currentData, constants.ConfigFilePerm)
+				// backupFile is derived from configFile, itself built from the
+				// user home dir and not externally controllable — same trust
+				// basis as the #nosec G304 read above.
+				_ = os.WriteFile(backupFile, currentData, constants.ConfigFilePerm) // #nosec G703
 			}
 		}
 	}

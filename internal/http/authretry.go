@@ -121,14 +121,14 @@ func (t *authRetryTransport) RoundTrip(req *http.Request) (*http.Response, error
 		// Refresh failed — return the original 401 unchanged.
 		t.refreshMu.Unlock()
 
-		return resp, nil
+		return resp, nil //nolint:nilerr // intentional: surface the original 401, not the refresh error
 	}
 
 	token, tokenErr := t.tokenManager.GetToken(ctx)
 	t.refreshMu.Unlock()
 
 	if tokenErr != nil {
-		return resp, nil
+		return resp, nil //nolint:nilerr // intentional: surface the original 401, not the token-fetch error
 	}
 
 	return t.replay(req, token, resp)
@@ -159,7 +159,7 @@ func (t *authRetryTransport) replay(req *http.Request, token string, original *h
 	if req.Body != nil {
 		newBody, getBodyErr := req.GetBody()
 		if getBodyErr != nil {
-			return original, nil
+			return original, nil //nolint:nilerr // intentional: fall back to the original 401 on rewind failure
 		}
 
 		retryReq.Body = newBody
