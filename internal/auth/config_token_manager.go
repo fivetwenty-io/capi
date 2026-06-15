@@ -48,9 +48,14 @@ func NewConfigTokenManager(config *OAuth2Config, configPersister ConfigPersister
 }
 
 // GetToken returns a valid access token, refreshing if necessary.
+//
+// Holds the full write lock for its duration: when the underlying OAuth2
+// manager refreshes the token, GetToken updates the cached initialToken/
+// initialExpiry fields, which RefreshToken also writes under the write lock.
+// A read lock here would race those writes between concurrent GetToken calls.
 func (m *ConfigTokenManager) GetToken(ctx context.Context) (string, error) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	token, err := m.oauth2Manager.GetToken(ctx)
 	if err != nil {

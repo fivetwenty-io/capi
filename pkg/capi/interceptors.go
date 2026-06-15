@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/constants"
@@ -259,8 +260,11 @@ type Metrics struct {
 	LastRequestTime time.Time
 }
 
-// MetricsCollector collects API metrics.
+// MetricsCollector collects API metrics. Safe for concurrent use: the metrics
+// map and the per-endpoint counters are mutated from response interceptors that
+// run on every request, so all access is guarded by mu.
 type MetricsCollector struct {
+	mu       sync.Mutex
 	metrics  map[string]*Metrics
 	onChange func(endpoint string, metrics *Metrics)
 }
@@ -274,13 +278,23 @@ func NewMetricsCollector() *MetricsCollector {
 
 // SetOnChange sets a callback for when metrics change.
 func (m *MetricsCollector) SetOnChange(fn func(endpoint string, metrics *Metrics)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.onChange = fn
 }
 
-// GetMetrics returns metrics for an endpoint.
+// GetMetrics returns a copy of the metrics for an endpoint, or nil if none.
+// A copy is returned so callers cannot observe a torn read of counters that
+// concurrent requests are still updating.
 func (m *MetricsCollector) GetMetrics(endpoint string) *Metrics {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if metrics, ok := m.metrics[endpoint]; ok {
-		return metrics
+		snapshot := *metrics
+
+		return &snapshot
 	}
 
 	return nil
@@ -304,6 +318,8 @@ func MetricsRequestInterceptor(collector *MetricsCollector) RequestInterceptor {
 func MetricsResponseInterceptor(collector *MetricsCollector) ResponseInterceptor {
 	return func(ctx context.Context, req *Request, resp *Response) error {
 		endpoint := fmt.Sprintf("%s %s", req.Method, req.Path)
+
+		collector.mu.Lock()
 
 		// Get or create metrics for this endpoint
 		metrics, ok := collector.metrics[endpoint]
@@ -330,9 +346,15 @@ func MetricsResponseInterceptor(collector *MetricsCollector) ResponseInterceptor
 			metrics.TotalErrors++
 		}
 
-		// Notify listener if set
-		if collector.onChange != nil {
-			collector.onChange(endpoint, metrics)
+		// Snapshot for the callback, then release the lock before invoking it
+		// so an onChange handler that calls back into the collector cannot
+		// deadlock.
+		onChange := collector.onChange
+		snapshot := *metrics
+		collector.mu.Unlock()
+
+		if onChange != nil {
+			onChange(endpoint, &snapshot)
 		}
 
 		return nil
@@ -346,8 +368,11 @@ type CircuitBreakerConfig struct {
 	SuccessThreshold int           // Number of successes to close
 }
 
-// CircuitBreaker tracks circuit state.
+// CircuitBreaker tracks circuit state. Safe for concurrent use: the request
+// and response interceptors that read and mutate the state below run on every
+// request, so all access is guarded by mu.
 type CircuitBreaker struct {
+	mu          sync.Mutex
 	config      *CircuitBreakerConfig
 	failures    int
 	successes   int
@@ -374,6 +399,9 @@ func NewCircuitBreaker(config *CircuitBreakerConfig) *CircuitBreaker {
 // CircuitBreakerRequestInterceptor checks circuit state before requests.
 func CircuitBreakerRequestInterceptor(breaker *CircuitBreaker) RequestInterceptor {
 	return func(ctx context.Context, req *Request) error {
+		breaker.mu.Lock()
+		defer breaker.mu.Unlock()
+
 		if breaker.state == constants.StatusOpen {
 			// Check if timeout has passed
 			if time.Since(breaker.lastFailure) > breaker.config.Timeout {
@@ -391,6 +419,9 @@ func CircuitBreakerRequestInterceptor(breaker *CircuitBreaker) RequestIntercepto
 // CircuitBreakerResponseInterceptor updates circuit state based on responses.
 func CircuitBreakerResponseInterceptor(breaker *CircuitBreaker) ResponseInterceptor {
 	return func(ctx context.Context, req *Request, resp *Response) error {
+		breaker.mu.Lock()
+		defer breaker.mu.Unlock()
+
 		if resp.Error != nil || resp.StatusCode >= 500 {
 			// Record failure
 			breaker.failures++
