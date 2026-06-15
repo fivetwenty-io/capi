@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -20,7 +21,41 @@ var (
 	ErrInvalidDataTypeRoute           = errors.New("invalid data type for route operation")
 	ErrInvalidDataTypeServiceInstance = errors.New("invalid data type for service instance operation")
 	ErrTransactionFailed              = errors.New("transaction failed")
+	ErrRollbackIncomplete             = errors.New("rollback incomplete")
 )
+
+// guidFromResult extracts the GUID of a created resource from a BatchResult's
+// Data. Every CF resource type embeds Resource, whose promoted GUID field is
+// found by reflection regardless of the concrete type, so rollback does not
+// need a type switch over every resource. Returns false when Data is nil, not
+// a struct pointer, or carries no non-empty GUID.
+func guidFromResult(data interface{}) (string, bool) {
+	if data == nil {
+		return "", false
+	}
+
+	value := reflect.ValueOf(data)
+	for value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return "", false
+		}
+
+		value = value.Elem()
+	}
+
+	if value.Kind() != reflect.Struct {
+		return "", false
+	}
+
+	field := value.FieldByName("GUID")
+	if !field.IsValid() || field.Kind() != reflect.String {
+		return "", false
+	}
+
+	guid := field.String()
+
+	return guid, guid != ""
+}
 
 // UpdateDataWrapper wraps update data with GUID for consistent handling.
 type UpdateDataWrapper[T any] struct {
@@ -538,11 +573,17 @@ type BatchTransaction struct {
 }
 
 // NewBatchTransaction creates a new batch transaction.
+//
+// Rollback is disabled by default: it deletes resources created by the
+// transaction's successful operations, which is destructive and cannot
+// recreate resources removed or mutated by "delete"/"update" operations.
+// Opt in with SetRollback(true) when every operation is a "create" and
+// automatic cleanup of partial work is desired.
 func NewBatchTransaction(executor *BatchExecutor) *BatchTransaction {
 	return &BatchTransaction{
 		executor:   executor,
 		operations: make([]BatchOperation, 0),
-		rollback:   true,
+		rollback:   false,
 	}
 }
 
@@ -576,50 +617,77 @@ func (t *BatchTransaction) Execute(ctx context.Context) ([]BatchResult, error) {
 
 	// If there were failures and rollback is enabled
 	if len(failedOps) > 0 && t.rollback {
-		// Attempt to rollback successful operations
-		t.performRollback(ctx)
+		failed := fmt.Errorf("%w, %d operations failed: %v", ErrTransactionFailed, len(failedOps), failedOps)
 
-		return results, fmt.Errorf("%w, %d operations failed: %v", ErrTransactionFailed, len(failedOps), failedOps)
+		// Attempt to undo the successful operations.
+		if rollbackErr := t.performRollback(ctx); rollbackErr != nil {
+			return results, fmt.Errorf("%w; %w", failed, rollbackErr)
+		}
+
+		return results, failed
 	}
 
 	return results, err
 }
 
-// performRollback attempts to rollback successful operations.
-func (t *BatchTransaction) performRollback(ctx context.Context) {
-	// This is a simplified rollback - in practice, this would need to be more sophisticated
-	var rollbackOps []BatchOperation
+// performRollback undoes the successful operations of a failed transaction by
+// deleting the resources they created, in reverse order so dependent
+// resources are removed before their dependencies. Only "create" operations
+// have a well-defined inverse: "delete" and "update" operations cannot be
+// reversed automatically (the prior state is not retained) and are reported
+// for manual intervention. It returns ErrRollbackIncomplete describing any
+// operation that could not be reversed and any delete that failed, or nil when
+// every successful operation was undone.
+func (t *BatchTransaction) performRollback(ctx context.Context) error {
+	var (
+		rollbackOps  []BatchOperation
+		irreversible []string
+	)
 
-	for i, result := range t.results {
-		if result.Success {
-			original := t.operations[i]
-			// Create inverse operation
-			switch original.Type {
-			case "create":
-				// Delete what was created
-				if original.Resource == "app" || original.Resource == "space" ||
-					original.Resource == "organization" || original.Resource == "route" {
-					// Extract GUID from result data if possible
-					// This would need proper type assertions based on resource type
-					rollbackOps = append(rollbackOps, BatchOperation{
-						ID:       "rollback_" + original.ID,
-						Type:     "delete",
-						Resource: original.Resource,
-						Data:     result.Data, // This would need proper GUID extraction
-					})
-				}
-			case "delete":
-				// Can't easily recreate deleted resources
-				// Log this for manual intervention
-			case "update":
-				// Would need to store original state to rollback updates
-				// Log this for manual intervention
+	for i := len(t.results) - 1; i >= 0; i-- {
+		if !t.results[i].Success {
+			continue
+		}
+
+		original := t.operations[i]
+
+		switch original.Type {
+		case "create":
+			guid, ok := guidFromResult(t.results[i].Data)
+			if !ok {
+				irreversible = append(irreversible,
+					fmt.Sprintf("%s (created %s, no GUID in result)", original.ID, original.Resource))
+
+				continue
+			}
+
+			rollbackOps = append(rollbackOps, BatchOperation{
+				ID:       "rollback_" + original.ID,
+				Type:     "delete",
+				Resource: original.Resource,
+				Data:     guid,
+			})
+		case "delete", "update":
+			irreversible = append(irreversible,
+				fmt.Sprintf("%s (%s %s cannot be auto-reversed)", original.ID, original.Type, original.Resource))
+		}
+	}
+
+	var rollbackFailures []string
+
+	if len(rollbackOps) > 0 {
+		rollbackResults, _ := t.executor.Execute(ctx, rollbackOps)
+		for _, result := range rollbackResults {
+			if !result.Success {
+				rollbackFailures = append(rollbackFailures, fmt.Sprintf("%s: %v", result.ID, result.Error))
 			}
 		}
 	}
 
-	// Execute rollback operations if any
-	if len(rollbackOps) > 0 {
-		_, _ = t.executor.Execute(ctx, rollbackOps)
+	if len(irreversible) == 0 && len(rollbackFailures) == 0 {
+		return nil
 	}
+
+	return fmt.Errorf("%w: irreversible operations %v; failed deletes %v",
+		ErrRollbackIncomplete, irreversible, rollbackFailures)
 }
