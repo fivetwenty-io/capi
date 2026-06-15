@@ -104,7 +104,7 @@ func TestMapHTTPError_WellFormedBodyWrapsSentinel(t *testing.T) {
 			err := capi.MapHTTPError(tc.status, []byte(wellFormedNotFoundEnvelope))
 			require.Error(t, err)
 
-			assert.ErrorIs(
+			require.ErrorIs(
 				t,
 				err, tc.sentinel,
 				"errors.Is(err, %v) must be true for status %d",
@@ -150,7 +150,7 @@ func TestMapHTTPError_MalformedBodyStillWrapsSentinel(t *testing.T) {
 				err := capi.MapHTTPError(tc.status, input.body)
 				require.Error(t, err)
 
-				assert.ErrorIs(
+				require.ErrorIs(
 					t,
 					err, tc.sentinel,
 					"errors.Is(err, %v) must be true for status %d with malformed body",
@@ -277,11 +277,11 @@ func TestMapHTTPError_UnknownClient4xxMapsToBadRequest(t *testing.T) {
 			// Regression pin: unknown 4xx MUST be classified as ErrBadRequest
 			// so callers can use errors.Is(err, capi.ErrBadRequest) to
 			// detect "client error, do not retry" failures.
-			assert.ErrorIs(t, err, capi.ErrBadRequest,
+			require.ErrorIs(t, err, capi.ErrBadRequest,
 				"status %d must unwrap to ErrBadRequest via errors.Is", status)
 
 			for _, s := range nonMatchingSentinels {
-				assert.NotErrorIs(t, err, s,
+				require.NotErrorIs(t, err, s,
 					"unknown 4xx status %d must not match sentinel %v", status, s)
 			}
 

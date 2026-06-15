@@ -46,15 +46,18 @@ func RoleIncludedFrom(list *ListResponse[Role]) (*RoleIncludedResources, error) 
 
 	var err error
 
-	if out.Users, err = decodeIncluded[User](list.Included, "users"); err != nil {
+	out.Users, err = decodeIncluded[User](list.Included, "users")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Spaces, err = decodeIncluded[Space](list.Included, "spaces"); err != nil {
+	out.Spaces, err = decodeIncluded[Space](list.Included, "spaces")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations"); err != nil {
+	out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations")
+	if err != nil {
 		return nil, err
 	}
 
@@ -76,11 +79,13 @@ func AppIncludedFrom(list *ListResponse[App]) (*AppIncludedResources, error) {
 
 	var err error
 
-	if out.Spaces, err = decodeIncluded[Space](list.Included, "spaces"); err != nil {
+	out.Spaces, err = decodeIncluded[Space](list.Included, "spaces")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations"); err != nil {
+	out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations")
+	if err != nil {
 		return nil, err
 	}
 
@@ -103,15 +108,18 @@ func RouteIncludedFrom(list *ListResponse[Route]) (*RouteIncludedResources, erro
 
 	var err error
 
-	if out.Domains, err = decodeIncluded[Domain](list.Included, "domains"); err != nil {
+	out.Domains, err = decodeIncluded[Domain](list.Included, "domains")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Spaces, err = decodeIncluded[Space](list.Included, "spaces"); err != nil {
+	out.Spaces, err = decodeIncluded[Space](list.Included, "spaces")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations"); err != nil {
+	out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations")
+	if err != nil {
 		return nil, err
 	}
 
@@ -128,11 +136,13 @@ func SpaceIncludedFrom(list *ListResponse[Space]) (*SpaceIncludedResources, erro
 
 	var err error
 
-	if out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations"); err != nil {
+	out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Spaces, err = decodeIncluded[Space](list.Included, "spaces"); err != nil {
+	out.Spaces, err = decodeIncluded[Space](list.Included, "spaces")
+	if err != nil {
 		return nil, err
 	}
 
@@ -155,11 +165,13 @@ func ServiceCredentialBindingIncludedFrom(list *ListResponse[ServiceCredentialBi
 
 	var err error
 
-	if out.Apps, err = decodeIncluded[App](list.Included, "apps"); err != nil {
+	out.Apps, err = decodeIncluded[App](list.Included, "apps")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.ServiceInstances, err = decodeIncluded[ServiceInstance](list.Included, "service_instances"); err != nil {
+	out.ServiceInstances, err = decodeIncluded[ServiceInstance](list.Included, "service_instances")
+	if err != nil {
 		return nil, err
 	}
 
@@ -183,19 +195,23 @@ func ServicePlanIncludedFrom(list *ListResponse[ServicePlan]) (*ServicePlanInclu
 
 	var err error
 
-	if out.Spaces, err = decodeIncluded[Space](list.Included, "spaces"); err != nil {
+	out.Spaces, err = decodeIncluded[Space](list.Included, "spaces")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations"); err != nil {
+	out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.ServiceOfferings, err = decodeIncluded[ServiceOffering](list.Included, "service_offerings"); err != nil {
+	out.ServiceOfferings, err = decodeIncluded[ServiceOffering](list.Included, "service_offerings")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.ServiceBrokers, err = decodeIncluded[ServiceBroker](list.Included, "service_brokers"); err != nil {
+	out.ServiceBrokers, err = decodeIncluded[ServiceBroker](list.Included, "service_brokers")
+	if err != nil {
 		return nil, err
 	}
 
@@ -218,11 +234,13 @@ func ServiceRouteBindingIncludedFrom(list *ListResponse[ServiceRouteBinding]) (*
 
 	var err error
 
-	if out.Routes, err = decodeIncluded[Route](list.Included, "routes"); err != nil {
+	out.Routes, err = decodeIncluded[Route](list.Included, "routes")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.ServiceInstances, err = decodeIncluded[ServiceInstance](list.Included, "service_instances"); err != nil {
+	out.ServiceInstances, err = decodeIncluded[ServiceInstance](list.Included, "service_instances")
+	if err != nil {
 		return nil, err
 	}
 
@@ -248,23 +266,28 @@ func ServiceInstanceIncludedFrom(list *ListResponse[ServiceInstance]) (*ServiceI
 
 	var err error
 
-	if out.Spaces, err = decodeIncluded[Space](list.Included, "spaces"); err != nil {
+	out.Spaces, err = decodeIncluded[Space](list.Included, "spaces")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations"); err != nil {
+	out.Organizations, err = decodeIncluded[Organization](list.Included, "organizations")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.ServicePlans, err = decodeIncluded[ServicePlan](list.Included, "service_plans"); err != nil {
+	out.ServicePlans, err = decodeIncluded[ServicePlan](list.Included, "service_plans")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.ServiceOfferings, err = decodeIncluded[ServiceOffering](list.Included, "service_offerings"); err != nil {
+	out.ServiceOfferings, err = decodeIncluded[ServiceOffering](list.Included, "service_offerings")
+	if err != nil {
 		return nil, err
 	}
 
-	if out.ServiceBrokers, err = decodeIncluded[ServiceBroker](list.Included, "service_brokers"); err != nil {
+	out.ServiceBrokers, err = decodeIncluded[ServiceBroker](list.Included, "service_brokers")
+	if err != nil {
 		return nil, err
 	}
 
@@ -286,7 +309,8 @@ func ServiceOfferingIncludedFrom(list *ListResponse[ServiceOffering]) (*ServiceO
 
 	var err error
 
-	if out.ServiceBrokers, err = decodeIncluded[ServiceBroker](list.Included, "service_brokers"); err != nil {
+	out.ServiceBrokers, err = decodeIncluded[ServiceBroker](list.Included, "service_brokers")
+	if err != nil {
 		return nil, err
 	}
 

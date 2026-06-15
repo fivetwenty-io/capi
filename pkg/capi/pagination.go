@@ -157,13 +157,15 @@ func (it *PaginationIterator[T]) extractParamsFromURL(urlStr string) (*QueryPara
 	// than silently recorded as page 0, which would corrupt a follow-up
 	// request built from these params.
 	if page := queryValues.Get("page"); page != "" {
-		if pageNum, err := strconv.Atoi(page); err == nil {
+		pageNum, err := strconv.Atoi(page)
+		if err == nil {
 			params.Page = pageNum
 		}
 	}
 
 	if perPage := queryValues.Get("per_page"); perPage != "" {
-		if perPageNum, err := strconv.Atoi(perPage); err == nil {
+		perPageNum, err := strconv.Atoi(perPage)
+		if err == nil {
 			params.PerPage = perPageNum
 		}
 	}

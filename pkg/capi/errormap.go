@@ -93,7 +93,7 @@ var (
 //   - body: the raw response body bytes. May be nil or empty; MapHTTPError
 //     does not panic on either.
 func MapHTTPError(status int, body []byte) error {
-	if status < 400 {
+	if status < http.StatusBadRequest {
 		return nil
 	}
 

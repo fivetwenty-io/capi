@@ -74,7 +74,7 @@ func TestSpaceQuotaRelationships_SpacesOmittedWhenEmpty(t *testing.T) {
 		var err error
 
 		capturedBody, err = io.ReadAll(request.Body)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		quota := capi.SpaceQuotaV3{
 			Resource: capi.Resource{GUID: "quota-guid"},
@@ -122,7 +122,7 @@ func TestSpaceQuotaRelationships_SpacesPresentWhenProvided(t *testing.T) {
 		var err error
 
 		capturedBody, err = io.ReadAll(request.Body)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		quota := capi.SpaceQuotaV3{
 			Resource: capi.Resource{GUID: "quota-guid"},
