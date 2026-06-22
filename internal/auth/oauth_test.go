@@ -162,9 +162,8 @@ func testTokenRequestError(t *testing.T) {
 	})
 
 	token, err := manager.GetToken(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid_client")
-	assert.Contains(t, err.Error(), "Client authentication failed")
+	require.ErrorContains(t, err, "invalid_client")
+	require.ErrorContains(t, err, "Client authentication failed")
 	assert.Empty(t, token)
 }
 
@@ -176,8 +175,7 @@ func testNoCredentials(t *testing.T) {
 	})
 
 	token, err := manager.GetToken(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no valid credentials available")
+	require.ErrorIs(t, err, auth.ErrNoValidCredentials)
 	assert.Empty(t, token)
 }
 

@@ -124,8 +124,7 @@ func TestServiceOfferingsClient_Get(t *testing.T) {
 			offering, err := client.ServiceOfferings().Get(context.Background(), testCase.guid)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, offering)
 			} else {
 				require.NoError(t, err)
@@ -377,8 +376,7 @@ func TestServiceOfferingsClient_Update(t *testing.T) {
 			offering, err := client.ServiceOfferings().Update(context.Background(), testCase.guid, testCase.request)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, offering)
 			} else {
 				require.NoError(t, err)
@@ -472,8 +470,7 @@ func TestServiceOfferingsClient_Delete(t *testing.T) {
 			err = client.ServiceOfferings().Delete(context.Background(), testCase.guid)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 			} else {
 				require.NoError(t, err)
 			}

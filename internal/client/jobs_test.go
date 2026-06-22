@@ -288,7 +288,7 @@ func TestJobsClient_PollUntilComplete_Failed(t *testing.T) {
 
 	job, err := jobs.PollUntilComplete(context.Background(), "job-guid")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "job failed")
+	require.ErrorIs(t, err, ErrJobFailed)
 	assert.NotNil(t, job)
 	assert.Equal(t, "job-guid", job.GUID)
 	assert.Equal(t, "service_instance.delete", job.Operation)

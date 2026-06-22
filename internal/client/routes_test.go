@@ -159,8 +159,7 @@ func TestRoutesClient_Create(t *testing.T) {
 			route, err := client.Routes().Create(context.Background(), testCase.request)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, route)
 			} else {
 				require.NoError(t, err)
@@ -240,8 +239,7 @@ func TestRoutesClient_Get(t *testing.T) {
 			route, err := client.Routes().Get(context.Background(), testCase.guid)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, route)
 			} else {
 				require.NoError(t, err)

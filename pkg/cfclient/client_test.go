@@ -3,6 +3,7 @@ package cfclient_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -44,20 +45,51 @@ func TestNewWithToken(t *testing.T) {
 	assert.NotNil(t, client)
 }
 
+// newUAAStub returns an httptest server that satisfies CF root-info discovery and
+// a basic OAuth2 token exchange, so NewWithClientCredentials / NewWithPassword can
+// complete without real network access.
+func newUAAStub(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	var srv *httptest.Server
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/", "":
+			// CF root-info: advertise UAA at this same server.
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"links":{"uaa":{"href":%q},"login":{"href":%q}}}`,
+				srv.URL, srv.URL)
+		case "/oauth/token":
+			// Minimal token response accepted by OAuth2TokenManager.
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"access_token":"stub-token","token_type":"bearer","expires_in":3600}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
 func TestNewWithClientCredentials(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skipping test that requires network access")
 
-	client, err := cfclient.NewWithClientCredentials(context.Background(), "https://api.example.com", "client-id", "client-secret")
+	srv := newUAAStub(t)
+
+	client, err := cfclient.NewWithClientCredentials(context.Background(), srv.URL, "client-id", "client-secret")
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }
 
 func TestNewWithPassword(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skipping test that requires network access")
 
-	client, err := cfclient.NewWithPassword(context.Background(), "https://api.example.com", "username", "password")
+	srv := newUAAStub(t)
+
+	client, err := cfclient.NewWithPassword(context.Background(), srv.URL, "username", "password")
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }

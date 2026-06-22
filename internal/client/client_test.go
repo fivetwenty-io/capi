@@ -77,6 +77,32 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 	})
+
+	t.Run("FetchAPILinksOnInit respects cancelled ctx", func(t *testing.T) {
+		t.Parallel()
+
+		// Server that blocks until the test ends, ensuring a cancelled ctx
+		// causes FetchAPILinks to abort rather than succeed.
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Intentionally do not respond — the cancelled ctx must fire first.
+			<-r.Context().Done()
+			http.Error(w, "cancelled", http.StatusServiceUnavailable)
+		}))
+		defer server.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately before New is called
+
+		config := &capi.Config{
+			APIEndpoint:         server.URL,
+			FetchAPILinksOnInit: true,
+		}
+
+		// New must still return a usable client; FetchAPILinks error is non-fatal.
+		client, err := New(ctx, config)
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+	})
 }
 
 func TestClient_GetInfo(t *testing.T) {

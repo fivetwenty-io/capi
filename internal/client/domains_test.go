@@ -175,8 +175,7 @@ func TestDomainsClient_Create(t *testing.T) {
 			domain, err := c.Domains().Create(context.Background(), testCase.request)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, domain)
 			} else {
 				require.NoError(t, err)

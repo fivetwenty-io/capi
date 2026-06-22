@@ -127,7 +127,7 @@ func TestProcessesClient_Get(t *testing.T) {
 
 			if testCase.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, process)
 			} else {
 				require.NoError(t, err)
@@ -511,8 +511,7 @@ func TestProcessesClient_TerminateInstance(t *testing.T) {
 			err = client.Processes().TerminateInstance(context.Background(), testCase.guid, testCase.index)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "CF-ResourceNotFound")
+				require.ErrorContains(t, err, "CF-ResourceNotFound")
 			} else {
 				assert.NoError(t, err)
 			}

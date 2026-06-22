@@ -161,8 +161,7 @@ func TestTasksClient_Create(t *testing.T) {
 			task, err := client.Tasks().Create(context.Background(), testCase.appGUID, testCase.request)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, task)
 			} else {
 				require.NoError(t, err)
@@ -461,8 +460,7 @@ func TestTasksClient_Cancel(t *testing.T) {
 			task, err := client.Tasks().Cancel(context.Background(), testCase.guid)
 
 			if testCase.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testCase.errMessage)
+				require.ErrorContains(t, err, testCase.errMessage)
 				assert.Nil(t, task)
 			} else {
 				require.NoError(t, err)
