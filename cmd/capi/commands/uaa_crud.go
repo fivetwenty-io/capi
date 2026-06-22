@@ -203,7 +203,7 @@ func outputCreatedUser(createdUser *uaa.User) error {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 
-		err := encoder.Encode(createdUser)
+		err := encoder.Encode(createdUser) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; this is CLI user-creation output, not persisted config
 		if err != nil {
 			return fmt.Errorf("encoding created user to JSON: %w", err)
 		}
@@ -212,7 +212,7 @@ func outputCreatedUser(createdUser *uaa.User) error {
 	case OutputFormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
 
-		err := encoder.Encode(createdUser)
+		err := encoder.Encode(createdUser) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; this is CLI user-creation output, not persisted config
 		if err != nil {
 			return fmt.Errorf("encoding created user to YAML: %w", err)
 		}
@@ -283,7 +283,7 @@ user attributes including groups, metadata, and authentication information.`,
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
 
-				err := encoder.Encode(user)
+				err := encoder.Encode(user) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; CLI get-user output mirrors UAA API response
 				if err != nil {
 					return fmt.Errorf("encoding user to JSON: %w", err)
 				}
@@ -292,7 +292,7 @@ user attributes including groups, metadata, and authentication information.`,
 			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
 
-				err := encoder.Encode(user)
+				err := encoder.Encode(user) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; CLI get-user output mirrors UAA API response
 				if err != nil {
 					return fmt.Errorf("encoding user to YAML: %w", err)
 				}
@@ -428,7 +428,7 @@ func outputUsersList(users []uaa.User) error {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 
-		err := encoder.Encode(users)
+		err := encoder.Encode(users) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; CLI list-users output mirrors UAA API response
 		if err != nil {
 			return fmt.Errorf("encoding users to JSON: %w", err)
 		}
@@ -437,7 +437,7 @@ func outputUsersList(users []uaa.User) error {
 	case OutputFormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
 
-		err := encoder.Encode(users)
+		err := encoder.Encode(users) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; CLI list-users output mirrors UAA API response
 		if err != nil {
 			return fmt.Errorf("encoding users to YAML: %w", err)
 		}
@@ -593,7 +593,7 @@ func outputUser(user *uaa.User) error {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 
-		err := encoder.Encode(user)
+		err := encoder.Encode(user) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; CLI update-user output mirrors UAA API response
 		if err != nil {
 			return fmt.Errorf("encoding updated user to JSON: %w", err)
 		}
@@ -602,7 +602,7 @@ func outputUser(user *uaa.User) error {
 	case OutputFormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
 
-		err := encoder.Encode(user)
+		err := encoder.Encode(user) //#nosec G117 -- nolint:gosec -- password field intentionally marshaled; CLI update-user output mirrors UAA API response
 		if err != nil {
 			return fmt.Errorf("encoding updated user to YAML: %w", err)
 		}

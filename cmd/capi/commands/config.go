@@ -129,11 +129,11 @@ func newConfigShowCommand() *cobra.Command {
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
 
-				return encoder.Encode(config)
+				return encoder.Encode(config) //#nosec G117 -- nolint:gosec -- intentional CLI config persistence; refresh_token required for session restore
 			case constants.FormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
 
-				return encoder.Encode(config)
+				return encoder.Encode(config) //#nosec G117 -- nolint:gosec -- intentional CLI config persistence; refresh_token required for session restore
 			default:
 				return displayConfigTable(config)
 			}
@@ -534,7 +534,7 @@ func saveConfigStruct(config *Config) error {
 		// Keep legacy targets for now but they're deprecated
 	}
 
-	data, err := yaml.Marshal(config)
+	data, err := yaml.Marshal(config) //#nosec G117 -- nolint:gosec -- intentional CLI config persistence; refresh_token required for session restore
 	if err != nil {
 		return fmt.Errorf("failed to marshal config to YAML: %w", err)
 	}
@@ -1039,7 +1039,7 @@ func showAPISpecificConfig(config *Config, apiDomain string) error {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
 
-		err := encoder.Encode(apiConfig)
+		err := encoder.Encode(apiConfig) //#nosec G117 -- nolint:gosec -- intentional CLI config persistence; refresh_token required for session restore
 		if err != nil {
 			return fmt.Errorf("failed to encode API config as JSON: %w", err)
 		}
@@ -1048,7 +1048,7 @@ func showAPISpecificConfig(config *Config, apiDomain string) error {
 	case constants.FormatYAML:
 		encoder := yaml.NewEncoder(os.Stdout)
 
-		err := encoder.Encode(apiConfig)
+		err := encoder.Encode(apiConfig) //#nosec G117 -- nolint:gosec -- intentional CLI config persistence; refresh_token required for session restore
 		if err != nil {
 			return fmt.Errorf("failed to encode API config as YAML: %w", err)
 		}

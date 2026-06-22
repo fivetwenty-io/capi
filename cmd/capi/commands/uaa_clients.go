@@ -151,7 +151,7 @@ func displayCreatedClientJSON(createdClient *uaa.Client) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 
-	err := encoder.Encode(displayClient)
+	err := encoder.Encode(displayClient) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; value is masked (Masked constant) before encoding
 	if err != nil {
 		return fmt.Errorf("failed to encode client: %w", err)
 	}
@@ -164,7 +164,7 @@ func displayCreatedClientYAML(createdClient *uaa.Client) error {
 	displayClient.ClientSecret = Masked
 	encoder := yaml.NewEncoder(os.Stdout)
 
-	err := encoder.Encode(displayClient)
+	err := encoder.Encode(displayClient) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; value is masked (Masked constant) before encoding
 	if err != nil {
 		return fmt.Errorf("failed to encode client: %w", err)
 	}
@@ -222,7 +222,7 @@ to display the actual secret value.`,
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
 
-				return encoder.Encode(client)
+				return encoder.Encode(client) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; masked unless --show-secret flag set
 			case OutputFormatYAML:
 				if !showSecret {
 					// Mask secret for display
@@ -233,7 +233,7 @@ to display the actual secret value.`,
 
 				encoder := yaml.NewEncoder(os.Stdout)
 
-				return encoder.Encode(client)
+				return encoder.Encode(client) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; masked unless --show-secret flag set
 			default:
 				return displayClientTable(client, showSecret)
 			}
@@ -312,11 +312,11 @@ Client secrets are never displayed in list operations for security.`,
 				encoder := json.NewEncoder(os.Stdout)
 				encoder.SetIndent("", "  ")
 
-				return encoder.Encode(clients)
+				return encoder.Encode(clients) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; CLI list-clients output mirrors UAA API response
 			case OutputFormatYAML:
 				encoder := yaml.NewEncoder(os.Stdout)
 
-				return encoder.Encode(clients)
+				return encoder.Encode(clients) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; CLI list-clients output mirrors UAA API response
 			default:
 				return displayClientsTable(clients)
 			}
@@ -498,7 +498,7 @@ func displayUpdatedClientJSON(updatedClient *uaa.Client) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 
-	err := encoder.Encode(displayClient)
+	err := encoder.Encode(displayClient) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; value is masked (Masked constant) before encoding
 	if err != nil {
 		return fmt.Errorf("failed to encode client: %w", err)
 	}
@@ -511,7 +511,7 @@ func displayUpdatedClientYAML(updatedClient *uaa.Client) error {
 	displayClient.ClientSecret = Masked
 	encoder := yaml.NewEncoder(os.Stdout)
 
-	err := encoder.Encode(displayClient)
+	err := encoder.Encode(displayClient) //#nosec G117 -- nolint:gosec -- client_secret intentionally marshaled; value is masked (Masked constant) before encoding
 	if err != nil {
 		return fmt.Errorf("failed to encode client: %w", err)
 	}
