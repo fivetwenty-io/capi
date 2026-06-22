@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Typed `include` constructors for service instances
+  (`space`, `service_plan`, `service_plan.service_offering`,
+  `service_plan.service_offering.service_broker`) and service offerings
+  (`service_broker`), satisfying both `Get` and `List` option interfaces.
+- `WithTimestampFilter(field, op, t)` helper for relational timestamp
+  filters (`created_ats[gt]`, `updated_ats[lt]`, ...), validating the
+  operator and emitting RFC3339 values, so callers no longer hand-build
+  the bracketed query keys.
 - Typed query options across resource clients, making every documented CF v3
   query parameter on these endpoints expressible:
   - Include constants for apps (`space`, `space.organization`), roles
@@ -44,6 +52,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking/corrective**: several `ErrorCode*` constants carried numeric
+  values that did not match the Cloud Foundry error registry. Corrected to
+  the canonical CF v3 codes: `ErrorCodeNotFound` `10010`→`10000`,
+  `ErrorCodeServiceUnavailable` `10001`→`10015`, `ErrorCodeInvalidRelation`
+  `10020`→`1002`, `ErrorCodeMaintenanceInfo` `10012`→`390006`,
+  `ErrorCodeServiceInstanceQuota` `10003`→`60005`, and
+  `ErrorCodeAsyncServiceInProgress` `10001`→`60016`. The old values
+  collided (for example `ServiceInstanceQuota` shared `10003` with
+  `NotAuthorized`), so any code matching on them was matching the wrong
+  error. `IsNotFound` now recognizes both `ErrorCodeNotFound` (10000) and
+  `ErrorCodeResourceNotFound` (10010).
+- **Breaking**: `CacheManager.InvalidatePattern(ctx, pattern)` is renamed to
+  `InvalidateAll(ctx)`. The pattern argument was always ignored — the method
+  cleared the entire cache — so the name now matches the behavior.
+- **Breaking**: `CacheStats` counter fields (`Hits`, `Misses`, `Sets`,
+  `Deletes`) are now accessor methods backed by `atomic.Int64`, fixing a
+  data race when stats were read concurrently with cache activity.
 - **Breaking (interface implementers only)**: `Get`/`List` on the clients
   listed above gained variadic option parameters, and
   `ServiceOfferings().Delete` / isolation segment list methods changed
@@ -53,6 +78,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Breaking**: dead exported surface removed — `SpaceWithIncludes` (the
+  embedded `Space` already exposes `Included`), `PaginationHelper` /
+  `NewPaginationHelper` (no callers, no methods), and the
+  `ErrorCodeUniquenessError` constant (its value `10016` is CF's
+  `ServiceBrokerRateLimitExceeded`, not a uniqueness error; it had no
+  callers).
 - **Breaking**: `ClientWithCache`, `NewClientWithCache`, and `CachedRequest`
   are removed. `ClientWithCache.Execute` always returned `ErrNotImplemented`
   via a placeholder, so the type could never serve a request and no working
@@ -69,13 +100,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (short idiomatic names such as `i`/`v`/`w`) and `wrapcheck` at
   RoundTripper/interface boundaries — both subjective and left as-is — plus
   `goconst` hits that are overwhelmingly test fixtures. `gosec` G117 is
-  already excluded in `.golangci.yml` (credential structs are legitimate
-  config), so no annotations are needed.
+  excluded in `.golangci.yml` (credential structs are legitimate config);
+  the CLI credential-serialization sites also carry explicit `#nosec G117`
+  justifications so the standalone `make gosec` target is clean.
 - Cobra command-verb and display-label string literals are intentionally left
   inline; forcing constants there harms readability for no behavioral gain.
 
 ### Fixed
 
+- `ServiceRouteBindingsClient.Delete` now handles the synchronous delete of a
+  user-provided route binding. CF v3 returns `204 No Content` (no `Location`
+  header) in that case; the previous code always expected `202 + Location`
+  and returned a spurious "no Location header" error. It now returns
+  `(nil, nil)` on 204 and the job reference on 202, matching
+  `ServiceCredentialBindingsClient.Delete`.
+- `omitempty` added to optional response-struct fields that CF omits when
+  null (`Buildpack.Filename`/`Stack`, `Build` staging/error/package/droplet/
+  created-by refs, `Process.Command` and log-rate-limit, `Droplet.Error`,
+  `Task.User`, `PackageChecksum.Value`, `FeatureFlag.CustomErrorMessage`,
+  `RouteReservation.MatchingRoute`, and the space-quota sub-structs), so
+  re-marshaling a response no longer emits `"field":null`.
+- `WithInclude` on `QueryParams` now deduplicates repeated include values,
+  matching the typed-option behavior; `WithPerPage` clamps to the CF maximum
+  of 5000; and `ToValues` emits `fields[...]` and filter keys in sorted order
+  so the query string is deterministic.
+- `MemoryCache` operations now honor a cancelled `context.Context`, and the
+  client's `New` threads the caller's context into the optional API-links
+  fetch instead of using `context.Background()`.
+- Library code no longer writes response-body close failures to `os.Stderr`;
+  the HTTP client routes them through its configured logger and other call
+  sites discard them.
+- Test reliability: the wall-clock circuit-breaker test is skipped under
+  `-short` (a deterministic companion covers the logic), the metrics-latency
+  assertion no longer depends on scheduler timing, two always-skipped network
+  tests are now real `httptest` tests, and brittle `err.Error()` substring
+  assertions use `errors.Is` / `ErrorContains`.
 - **Concurrency**: `MetricsCollector` and `CircuitBreaker` mutated shared map
   and counter state from per-request interceptors without synchronization
   (a concurrent map write could panic); both are now guarded by a mutex.
