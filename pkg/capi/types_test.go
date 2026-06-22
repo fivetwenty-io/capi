@@ -377,3 +377,287 @@ func TestLink_MetaCarriesAPIVersion(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &link))
 	assert.Equal(t, "3.180.0", link.Meta["version"])
 }
+
+// TestBuildpack_OmitemptyFilenameStack verifies that nil Filename and Stack
+// are omitted from the marshalled JSON (O-1, O-2).
+func TestBuildpack_OmitemptyFilenameStack(t *testing.T) {
+	t.Parallel()
+
+	bp := capi.Buildpack{
+		Resource:  capi.Resource{GUID: "bp-guid"},
+		Name:      "java_buildpack",
+		State:     "READY",
+		Position:  1,
+		Lifecycle: "buildpack",
+		Enabled:   true,
+		Locked:    false,
+		// Filename and Stack are nil — must not appear in JSON.
+	}
+
+	data, err := json.Marshal(bp)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), `"filename"`)
+	assert.NotContains(t, string(data), `"stack"`)
+
+	// When set, the fields must appear.
+	name := "java_buildpack.zip"
+	stack := "cflinuxfs4"
+	bp.Filename = &name
+	bp.Stack = &stack
+
+	data, err = json.Marshal(bp)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"filename":"java_buildpack.zip"`)
+	assert.Contains(t, string(data), `"stack":"cflinuxfs4"`)
+}
+
+// TestPackageChecksum_OmitemptyValue verifies that nil Value is omitted (O-3).
+func TestPackageChecksum_OmitemptyValue(t *testing.T) {
+	t.Parallel()
+
+	cs := capi.PackageChecksum{Type: "sha256"}
+	data, err := json.Marshal(cs)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), `"value"`)
+
+	v := "abc123"
+	cs.Value = &v
+
+	data, err = json.Marshal(cs)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"value":"abc123"`)
+}
+
+// TestDroplet_OmitemptyError verifies that nil Error is omitted from Droplet (O-4).
+func TestDroplet_OmitemptyError(t *testing.T) {
+	t.Parallel()
+
+	d := capi.Droplet{
+		State:     "STAGED",
+		Lifecycle: capi.Lifecycle{Type: "buildpack", Data: map[string]interface{}{}},
+	}
+
+	data, err := json.Marshal(d)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), `"error"`)
+
+	msg := "staging failed"
+	d.Error = &msg
+
+	data, err = json.Marshal(d)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"error":"staging failed"`)
+}
+
+// TestBuild_OmitemptyOptionalFields verifies nil optional Build fields are omitted (O-5).
+func TestBuild_OmitemptyOptionalFields(t *testing.T) {
+	t.Parallel()
+
+	b := capi.Build{
+		State:             "STAGING",
+		StagingMemoryInMB: 1024,
+		StagingDiskInMB:   512,
+		// StagingLogRateLimitBytesPerSecond, Error, Package, Droplet, CreatedBy all nil.
+	}
+
+	data, err := json.Marshal(b)
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.NotContains(t, s, `"staging_log_rate_limit_bytes_per_second"`)
+	assert.NotContains(t, s, `"error"`)
+	assert.NotContains(t, s, `"package"`)
+	assert.NotContains(t, s, `"droplet"`)
+	assert.NotContains(t, s, `"created_by"`)
+}
+
+// TestProcess_OmitemptyCommandAndLogRate verifies nil Command and LogRateLimit are omitted (O-6).
+func TestProcess_OmitemptyCommandAndLogRate(t *testing.T) {
+	t.Parallel()
+
+	p := capi.Process{
+		Type:       "web",
+		Instances:  1,
+		MemoryInMB: 256,
+		DiskInMB:   1024,
+		// Command and LogRateLimitInBytesPerSecond are nil.
+	}
+
+	data, err := json.Marshal(p)
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.NotContains(t, s, `"command"`)
+	assert.NotContains(t, s, `"log_rate_limit_in_bytes_per_second"`)
+
+	cmd := "bundle exec rails server"
+	rate := 1048576
+	p.Command = &cmd
+	p.LogRateLimitInBytesPerSecond = &rate
+
+	data, err = json.Marshal(p)
+	require.NoError(t, err)
+
+	s = string(data)
+	assert.Contains(t, s, `"command":"bundle exec rails server"`)
+	assert.Contains(t, s, `"log_rate_limit_in_bytes_per_second":1048576`)
+}
+
+// TestTask_OmitemptyUser verifies nil User is omitted from Task (O-7).
+func TestTask_OmitemptyUser(t *testing.T) {
+	t.Parallel()
+
+	task := capi.Task{
+		SequenceID: 1,
+		Name:       "migrate",
+		State:      "RUNNING",
+		MemoryInMB: 256,
+		DiskInMB:   1024,
+		// User is nil.
+	}
+
+	data, err := json.Marshal(task)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), `"user"`)
+
+	u := "vcap"
+	task.User = &u
+
+	data, err = json.Marshal(task)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"user":"vcap"`)
+}
+
+// TestFeatureFlag_OmitemptyCustomErrorMessage verifies nil CustomErrorMessage is omitted (O-8).
+func TestFeatureFlag_OmitemptyCustomErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	ff := capi.FeatureFlag{
+		Name:    "app_bits_upload",
+		Enabled: true,
+		// CustomErrorMessage is nil.
+	}
+
+	data, err := json.Marshal(ff)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), `"custom_error_message"`)
+
+	msg := "Feature disabled by policy"
+	ff.CustomErrorMessage = &msg
+
+	data, err = json.Marshal(ff)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"custom_error_message":"Feature disabled by policy"`)
+}
+
+// TestRouteReservation_OmitemptyMatchingRoute verifies nil MatchingRoute is omitted.
+func TestRouteReservation_OmitemptyMatchingRoute(t *testing.T) {
+	t.Parallel()
+
+	rr := capi.RouteReservation{
+		// MatchingRoute is nil — route not reserved.
+	}
+
+	data, err := json.Marshal(rr)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), `"matching_route"`)
+}
+
+// TestSpaceQuota_OmitemptyAppsServicesRoutes verifies nil Apps/Services/Routes are omitted (O-9).
+func TestSpaceQuota_OmitemptyAppsServicesRoutes(t *testing.T) {
+	t.Parallel()
+
+	sq := capi.SpaceQuota{
+		Resource: capi.Resource{GUID: "sq-guid"},
+		Name:     "small",
+		// Apps, Services, Routes are nil.
+	}
+
+	data, err := json.Marshal(sq)
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.NotContains(t, s, `"apps"`)
+	assert.NotContains(t, s, `"services"`)
+	assert.NotContains(t, s, `"routes"`)
+}
+
+// TestAppsQuota_OmitemptyIntFields verifies nil *int fields in AppsQuota are omitted (O-10).
+func TestAppsQuota_OmitemptyIntFields(t *testing.T) {
+	t.Parallel()
+
+	aq := capi.AppsQuota{
+		// All nil — nothing should appear.
+	}
+
+	data, err := json.Marshal(aq)
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.NotContains(t, s, `"total_memory_in_mb"`)
+	assert.NotContains(t, s, `"per_process_memory_in_mb"`)
+	assert.NotContains(t, s, `"total_instances"`)
+	assert.NotContains(t, s, `"per_app_tasks"`)
+
+	total := 2048
+	aq.TotalMemoryInMB = &total
+
+	data, err = json.Marshal(aq)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"total_memory_in_mb":2048`)
+}
+
+// TestServicesQuota_OmitemptyFields verifies nil *int/*bool fields in ServicesQuota are omitted (O-10).
+func TestServicesQuota_OmitemptyFields(t *testing.T) {
+	t.Parallel()
+
+	sq := capi.ServicesQuota{}
+	data, err := json.Marshal(sq)
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.NotContains(t, s, `"paid_services_allowed"`)
+	assert.NotContains(t, s, `"total_service_instances"`)
+	assert.NotContains(t, s, `"total_service_keys"`)
+
+	allowed := true
+	sq.PaidServicesAllowed = &allowed
+
+	data, err = json.Marshal(sq)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"paid_services_allowed":true`)
+}
+
+// TestRoutesQuota_OmitemptyFields verifies nil *int fields in RoutesQuota are omitted (O-10).
+func TestRoutesQuota_OmitemptyFields(t *testing.T) {
+	t.Parallel()
+
+	rq := capi.RoutesQuota{}
+	data, err := json.Marshal(rq)
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.NotContains(t, s, `"total_routes"`)
+	assert.NotContains(t, s, `"total_reserved_ports"`)
+
+	routes := 100
+	rq.TotalRoutes = &routes
+
+	data, err = json.Marshal(rq)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"total_routes":100`)
+}

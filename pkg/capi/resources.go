@@ -320,7 +320,7 @@ type RouteDestinations struct {
 
 // RouteReservation represents a route reservation check.
 type RouteReservation struct {
-	MatchingRoute *Route `json:"matching_route" yaml:"matching_route"`
+	MatchingRoute *Route `json:"matching_route,omitempty" yaml:"matching_route,omitempty"`
 }
 
 // RouteReservationRequest represents a request to check route reservation.
@@ -479,7 +479,7 @@ type PackageData struct {
 // PackageChecksum represents package checksum information.
 type PackageChecksum struct {
 	Type  string  `json:"type"  yaml:"type"` // e.g., "sha256"
-	Value *string `json:"value" yaml:"value"`
+	Value *string `json:"value,omitempty" yaml:"value,omitempty"`
 }
 
 // PackageRelationships represents the relationships for a package.
@@ -539,7 +539,7 @@ type Droplet struct {
 	Resource
 
 	State             string                `json:"state"                   yaml:"state"`
-	Error             *string               `json:"error"                   yaml:"error"`
+	Error             *string               `json:"error,omitempty"                   yaml:"error,omitempty"`
 	Lifecycle         Lifecycle             `json:"lifecycle"               yaml:"lifecycle"`
 	ExecutionMetadata string                `json:"execution_metadata"      yaml:"execution_metadata"`
 	ProcessTypes      map[string]string     `json:"process_types"           yaml:"process_types"`
@@ -601,12 +601,12 @@ type Build struct {
 	State                             string              `json:"state"                                   yaml:"state"`
 	StagingMemoryInMB                 int                 `json:"staging_memory_in_mb"                    yaml:"staging_memory_in_mb"`
 	StagingDiskInMB                   int                 `json:"staging_disk_in_mb"                      yaml:"staging_disk_in_mb"`
-	StagingLogRateLimitBytesPerSecond *int                `json:"staging_log_rate_limit_bytes_per_second" yaml:"staging_log_rate_limit_bytes_per_second"`
-	Error                             *string             `json:"error"                                   yaml:"error"`
+	StagingLogRateLimitBytesPerSecond *int                `json:"staging_log_rate_limit_bytes_per_second,omitempty" yaml:"staging_log_rate_limit_bytes_per_second,omitempty"`
+	Error                             *string             `json:"error,omitempty"                                   yaml:"error,omitempty"`
 	Lifecycle                         *Lifecycle          `json:"lifecycle,omitempty"                     yaml:"lifecycle,omitempty"`
-	Package                           *BuildPackageRef    `json:"package"                                 yaml:"package"`
-	Droplet                           *BuildDropletRef    `json:"droplet"                                 yaml:"droplet"`
-	CreatedBy                         *UserRef            `json:"created_by"                              yaml:"created_by"`
+	Package                           *BuildPackageRef    `json:"package,omitempty"                                 yaml:"package,omitempty"`
+	Droplet                           *BuildDropletRef    `json:"droplet,omitempty"                                 yaml:"droplet,omitempty"`
+	CreatedBy                         *UserRef            `json:"created_by,omitempty"                              yaml:"created_by,omitempty"`
 	Relationships                     *BuildRelationships `json:"relationships,omitempty"                 yaml:"relationships,omitempty"`
 	Metadata                          *Metadata           `json:"metadata,omitempty"                      yaml:"metadata,omitempty"`
 }
@@ -663,8 +663,8 @@ type Buildpack struct {
 
 	Name      string    `json:"name"               yaml:"name"`
 	State     string    `json:"state"              yaml:"state"`
-	Filename  *string   `json:"filename"           yaml:"filename"`
-	Stack     *string   `json:"stack"              yaml:"stack"`
+	Filename  *string   `json:"filename,omitempty" yaml:"filename,omitempty"`
+	Stack     *string   `json:"stack,omitempty"    yaml:"stack,omitempty"`
 	Position  int       `json:"position"           yaml:"position"`
 	Lifecycle string    `json:"lifecycle"          yaml:"lifecycle"`
 	Enabled   bool      `json:"enabled"            yaml:"enabled"`
@@ -819,12 +819,12 @@ type Process struct {
 	Resource
 
 	Type                         string                `json:"type"                               yaml:"type"`
-	Command                      *string               `json:"command"                            yaml:"command"`
+	Command                      *string               `json:"command,omitempty"                            yaml:"command,omitempty"`
 	User                         string                `json:"user,omitempty"                     yaml:"user,omitempty"`
 	Instances                    int                   `json:"instances"                          yaml:"instances"`
 	MemoryInMB                   int                   `json:"memory_in_mb"                       yaml:"memory_in_mb"`
 	DiskInMB                     int                   `json:"disk_in_mb"                         yaml:"disk_in_mb"`
-	LogRateLimitInBytesPerSecond *int                  `json:"log_rate_limit_in_bytes_per_second" yaml:"log_rate_limit_in_bytes_per_second"`
+	LogRateLimitInBytesPerSecond *int                  `json:"log_rate_limit_in_bytes_per_second,omitempty" yaml:"log_rate_limit_in_bytes_per_second,omitempty"`
 	HealthCheck                  *HealthCheck          `json:"health_check"                       yaml:"health_check"`
 	ReadinessHealthCheck         *ReadinessHealthCheck `json:"readiness_health_check"             yaml:"readiness_health_check"`
 	Version                      string                `json:"version,omitempty"                  yaml:"version,omitempty"`
@@ -943,7 +943,7 @@ type Task struct {
 	SequenceID                   int                `json:"sequence_id"                        yaml:"sequence_id"`
 	Name                         string             `json:"name"                               yaml:"name"`
 	Command                      string             `json:"command,omitempty"                  yaml:"command,omitempty"`
-	User                         *string            `json:"user"                               yaml:"user"`
+	User                         *string            `json:"user,omitempty"                               yaml:"user,omitempty"`
 	State                        string             `json:"state"                              yaml:"state"`
 	MemoryInMB                   int                `json:"memory_in_mb"                       yaml:"memory_in_mb"`
 	DiskInMB                     int                `json:"disk_in_mb"                         yaml:"disk_in_mb"`
@@ -1073,7 +1073,7 @@ type FeatureFlag struct {
 	Name               string     `json:"name"                 yaml:"name"`
 	Enabled            bool       `json:"enabled"              yaml:"enabled"`
 	UpdatedAt          *time.Time `json:"updated_at"           yaml:"updated_at"`
-	CustomErrorMessage *string    `json:"custom_error_message" yaml:"custom_error_message"`
+	CustomErrorMessage *string    `json:"custom_error_message,omitempty" yaml:"custom_error_message,omitempty"`
 	Links              Links      `json:"links,omitempty"      yaml:"links,omitempty"`
 }
 
