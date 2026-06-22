@@ -104,11 +104,8 @@ func fetchRootInfo(ctx context.Context, httpClient *http.Client, apiEndpoint str
 	}
 
 	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			// Log error but don't return it to avoid masking original error
-			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
-		}
+		// Silently discard close error: package-level function has no logger; request already completed.
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != http.StatusOK {

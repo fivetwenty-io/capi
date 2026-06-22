@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/auth"
@@ -288,10 +287,8 @@ func (c *Client) PostRaw(ctx context.Context, path string, body []byte, contentT
 	}
 
 	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			// Log error but don't return it to avoid masking original error
-			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		if err := resp.Body.Close(); err != nil && c.logger != nil {
+			c.logger.Warn("failed to close response body", map[string]interface{}{"error": err.Error()})
 		}
 	}()
 
@@ -391,10 +388,8 @@ func (c *Client) executeHTTPRequest(httpReq *retryablehttp.Request) (*Response, 
 	}
 
 	defer func() {
-		err := httpResp.Body.Close()
-		if err != nil {
-			// Log error but don't return it to avoid masking original error
-			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
+		if err := httpResp.Body.Close(); err != nil && c.logger != nil {
+			c.logger.Warn("failed to close response body", map[string]interface{}{"error": err.Error()})
 		}
 	}()
 

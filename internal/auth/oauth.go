@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -217,11 +216,8 @@ func (m *OAuth2TokenManager) doTokenRequest(ctx context.Context, data url.Values
 	}
 
 	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			// Log error but don't return it to avoid masking original error
-			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
-		}
+		// Silently discard close error: no logger in scope; request already completed.
+		_ = resp.Body.Close()
 	}()
 
 	body, err := io.ReadAll(resp.Body)

@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -752,10 +751,8 @@ func (c *AppsClient) createLogCacheRequest(ctx context.Context, endpoint string,
 // handleLogCacheResponse processes the HTTP response from log cache.
 func (c *AppsClient) handleLogCacheResponse(resp *http.Response) (*internalhttp.Response, error) {
 	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", err)
-		}
+		// Silently discard close error: no logger on AppsClient; request already completed.
+		_ = resp.Body.Close()
 	}()
 
 	// Read response body
