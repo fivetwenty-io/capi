@@ -45,21 +45,35 @@ func (e *ResponseError) FirstError() *APIError {
 	return nil
 }
 
-// Common error codes.
+// Common error codes from the CF v3 API (cloud_controller_ng errors/v2.yml).
 const (
-	ErrorCodeNotFound               = 10010
-	ErrorCodeNotAuthenticated       = 10002
-	ErrorCodeNotAuthorized          = 10003
-	ErrorCodeUnprocessableEntity    = 10008
-	ErrorCodeServiceUnavailable     = 10001
-	ErrorCodeBadRequest             = 10005
-	ErrorCodeUniquenessError        = 10016
-	ErrorCodeResourceNotFound       = 10010
-	ErrorCodeInvalidRelation        = 10020
-	ErrorCodeTooManyRequests        = 10013
-	ErrorCodeMaintenanceInfo        = 10012
-	ErrorCodeServiceInstanceQuota   = 10003
-	ErrorCodeAsyncServiceInProgress = 10001
+	// ErrorCodeNotFound is CF code 10000 (NotFound / "Unknown request").
+	ErrorCodeNotFound = 10000
+	// ErrorCodeNotAuthenticated is CF code 10002 (NotAuthenticated).
+	ErrorCodeNotAuthenticated = 10002
+	// ErrorCodeNotAuthorized is CF code 10003 (NotAuthorized).
+	ErrorCodeNotAuthorized = 10003
+	// ErrorCodeBadRequest is CF code 10005 (BadQueryParameter). The name is
+	// intentionally broad; the CF name at this code is BadQueryParameter.
+	ErrorCodeBadRequest = 10005
+	// ErrorCodeUnprocessableEntity is CF code 10008 (UnprocessableEntity).
+	ErrorCodeUnprocessableEntity = 10008
+	// ErrorCodeResourceNotFound is CF code 10010 (ResourceNotFound). Distinct
+	// from ErrorCodeNotFound (10000) which maps to the generic NotFound code.
+	ErrorCodeResourceNotFound = 10010
+	// ErrorCodeServiceUnavailable is CF code 10015 (ServiceUnavailable).
+	ErrorCodeServiceUnavailable = 10015
+	// ErrorCodeTooManyRequests is CF code 10013 (TooManyRequests).
+	ErrorCodeTooManyRequests = 10013
+	// ErrorCodeInvalidRelation is CF code 1002 (InvalidRelation).
+	ErrorCodeInvalidRelation = 1002
+	// ErrorCodeMaintenanceInfo is CF code 390006 (MaintenanceInfoNotSupported).
+	ErrorCodeMaintenanceInfo = 390006
+	// ErrorCodeServiceInstanceQuota is CF code 60005 (ServiceInstanceQuotaExceeded).
+	ErrorCodeServiceInstanceQuota = 60005
+	// ErrorCodeAsyncServiceInProgress is CF code 60016
+	// (AsyncServiceInstanceOperationInProgress).
+	ErrorCodeAsyncServiceInProgress = 60016
 )
 
 // Common CF-API error templates keyed by CF error code. These are APIError
@@ -119,8 +133,9 @@ var (
 // failure. It returns true when the error chain contains the ErrNotFound
 // sentinel (the canonical check for errors produced by MapHTTPError) or
 // when the chain contains an *APIError / *ResponseError whose CF error code
-// equals ErrorCodeNotFound (the legacy check for errors constructed
-// directly from an APIError).
+// equals one of the CF "not found" codes — ErrorCodeNotFound (10000,
+// generic) or ErrorCodeResourceNotFound (10010) — the legacy check for
+// errors constructed directly from an APIError.
 func IsNotFound(err error) bool {
 	if err == nil {
 		return false
@@ -131,19 +146,25 @@ func IsNotFound(err error) bool {
 	}
 
 	apiErr := &APIError{}
-	if errors.As(err, &apiErr) && apiErr.Code == ErrorCodeNotFound {
+	if errors.As(err, &apiErr) && isNotFoundCode(apiErr.Code) {
 		return true
 	}
 
 	errResp := &ResponseError{}
 	if errors.As(err, &errResp) {
 		first := errResp.FirstError()
-		if first != nil && first.Code == ErrorCodeNotFound {
+		if first != nil && isNotFoundCode(first.Code) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// isNotFoundCode reports whether a CF error code denotes a "not found"
+// failure: the generic NotFound (10000) or ResourceNotFound (10010).
+func isNotFoundCode(code int) bool {
+	return code == ErrorCodeNotFound || code == ErrorCodeResourceNotFound
 }
 
 // IsUnauthorized reports whether err represents a CF "unauthorized"

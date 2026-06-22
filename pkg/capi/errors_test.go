@@ -115,6 +115,11 @@ func TestIsNotFound(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "APIError resource not found",
+			err:      &capi.APIError{Code: capi.ErrorCodeResourceNotFound},
+			expected: true,
+		},
+		{
 			name:     "APIError other error",
 			err:      &capi.APIError{Code: capi.ErrorCodeNotAuthenticated},
 			expected: false,
@@ -280,7 +285,7 @@ func TestErrorConstants(t *testing.T) {
 
 	// CF-API error templates (keyed by CF error code) used as prototypes
 	// when constructing synthetic APIError values.
-	assert.Equal(t, 10001, capi.ErrCFServiceUnavailable.Code)
+	assert.Equal(t, 10015, capi.ErrCFServiceUnavailable.Code)
 	assert.Equal(t, "CF-ServiceUnavailable", capi.ErrCFServiceUnavailable.Title)
 
 	assert.Equal(t, 10005, capi.ErrCFBadRequest.Code)
@@ -315,4 +320,36 @@ func TestResponseError_JSONMarshaling(t *testing.T) {
 	assert.Equal(t, errResp.Errors[0].Code, decoded.Errors[0].Code)
 	assert.Equal(t, errResp.Errors[0].Title, decoded.Errors[0].Title)
 	assert.Equal(t, errResp.Errors[0].Detail, decoded.Errors[0].Detail)
+}
+
+// TestErrorCodeValues asserts each CF v3 error-code constant carries the
+// correct numeric value as defined in cloud_controller_ng errors/v2.yml.
+func TestErrorCodeValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		got      int
+		expected int
+	}{
+		{"ErrorCodeNotFound", capi.ErrorCodeNotFound, 10000},
+		{"ErrorCodeNotAuthenticated", capi.ErrorCodeNotAuthenticated, 10002},
+		{"ErrorCodeNotAuthorized", capi.ErrorCodeNotAuthorized, 10003},
+		{"ErrorCodeBadRequest", capi.ErrorCodeBadRequest, 10005},
+		{"ErrorCodeUnprocessableEntity", capi.ErrorCodeUnprocessableEntity, 10008},
+		{"ErrorCodeResourceNotFound", capi.ErrorCodeResourceNotFound, 10010},
+		{"ErrorCodeTooManyRequests", capi.ErrorCodeTooManyRequests, 10013},
+		{"ErrorCodeServiceUnavailable", capi.ErrorCodeServiceUnavailable, 10015},
+		{"ErrorCodeInvalidRelation", capi.ErrorCodeInvalidRelation, 1002},
+		{"ErrorCodeMaintenanceInfo", capi.ErrorCodeMaintenanceInfo, 390006},
+		{"ErrorCodeServiceInstanceQuota", capi.ErrorCodeServiceInstanceQuota, 60005},
+		{"ErrorCodeAsyncServiceInProgress", capi.ErrorCodeAsyncServiceInProgress, 60016},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, tt.got)
+		})
+	}
 }
