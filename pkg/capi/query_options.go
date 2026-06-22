@@ -1,8 +1,10 @@
 package capi
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // QueryOption is the common behavior shared by all typed query options.
@@ -346,6 +348,20 @@ const (
 	ServiceInstanceFieldsServicePlanServiceOfferingBroker ServiceInstanceFieldsKey = "service_plan.service_offering.service_broker"
 )
 
+type serviceInstanceInclude string
+
+func (serviceInstanceInclude) serviceInstanceGet()       {}
+func (serviceInstanceInclude) serviceInstanceList()      {}
+func (s serviceInstanceInclude) applyQuery(v url.Values) { appendInclude(v, string(s)) }
+
+// Valid include values for service instances (CF v3 3.222.0).
+const (
+	ServiceInstanceIncludeSpace                            serviceInstanceInclude = "space"
+	ServiceInstanceIncludeServicePlan                      serviceInstanceInclude = "service_plan"
+	ServiceInstanceIncludeServicePlanServiceOffering       serviceInstanceInclude = "service_plan.service_offering"
+	ServiceInstanceIncludeServicePlanServiceOfferingBroker serviceInstanceInclude = "service_plan.service_offering.service_broker"
+)
+
 // ServiceInstanceGetListOption is satisfied by options valid on both the
 // service instance Get and List endpoints (e.g. fields[] selectors).
 type ServiceInstanceGetListOption interface {
@@ -391,6 +407,15 @@ type ServiceOfferingFieldsKey string
 // related resource.
 const ServiceOfferingFieldsServiceBroker ServiceOfferingFieldsKey = "service_broker"
 
+type serviceOfferingInclude string
+
+func (serviceOfferingInclude) serviceOfferingGet()       {}
+func (serviceOfferingInclude) serviceOfferingList()      {}
+func (s serviceOfferingInclude) applyQuery(v url.Values) { appendInclude(v, string(s)) }
+
+// Valid include values for service offerings (CF v3 3.222.0).
+const ServiceOfferingIncludeServiceBroker serviceOfferingInclude = "service_broker"
+
 // ServiceOfferingGetListOption is satisfied by options valid on both the
 // service offering Get and List endpoints (e.g. fields[] selectors).
 type ServiceOfferingGetListOption interface {
@@ -415,3 +440,40 @@ func (serviceOfferingPurge) serviceOfferingDelete() {}
 // PurgeServiceOffering deletes the offering and all associated records
 // from the database without broker interaction (?purge=true).
 var PurgeServiceOffering ServiceOfferingDeleteOption = serviceOfferingPurge{scalarOption{"purge", "true"}} //nolint:gochecknoglobals // sealed-option sentinel; part of the public option API
+
+// ---- timestamp filters ----
+
+// validTimestampOps lists the operators accepted by CF v3 timestamp filters.
+var validTimestampOps = map[string]struct{}{ //nolint:gochecknoglobals // package-level lookup table; not a mutable singleton
+	"gt": {}, "gte": {}, "lt": {}, "lte": {},
+}
+
+// noopOption is returned when a constructor receives invalid input.
+// It applies nothing to url.Values.
+type noopOption struct{}
+
+func (noopOption) applyQuery(_ url.Values) {}
+
+// timestampFilterOption wraps key+value for a timestamp filter.
+type timestampFilterOption struct {
+	key, value string
+}
+
+func (f timestampFilterOption) applyQuery(v url.Values) { v.Set(f.key, f.value) }
+
+// WithTimestampFilter returns a QueryOption that sets field[op]=<RFC3339>.
+// Valid operators: gt, gte, lt, lte (CF v3 timestamp filter syntax).
+// Returns a no-op option when op is not one of the four valid values,
+// matching the pattern of other constructors in this file that do not panic
+// on bad input.
+func WithTimestampFilter(field string, op string, t time.Time) QueryOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	if _, ok := validTimestampOps[op]; !ok {
+		// Invalid op: return no-op option. Callers must use gt, gte, lt, or lte.
+		return noopOption{}
+	}
+
+	return timestampFilterOption{
+		key:   fmt.Sprintf("%s[%s]", field, op),
+		value: t.UTC().Format(time.RFC3339),
+	}
+}
