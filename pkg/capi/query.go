@@ -3,6 +3,7 @@ package capi
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -60,16 +61,30 @@ func (q *QueryParams) ToValues() url.Values {
 		values.Set("include", strings.Join(q.Include, ","))
 	}
 
-	// Add fields
-	for resource, fields := range q.Fields {
-		key := fmt.Sprintf("fields[%s]", resource)
-		values.Set(key, strings.Join(fields, ","))
+	// Add fields — sort keys for deterministic URL output.
+	fieldKeys := make([]string, 0, len(q.Fields))
+	for resource := range q.Fields {
+		fieldKeys = append(fieldKeys, resource)
 	}
 
-	// Add filters
-	for key, vals := range q.Filters {
-		if len(vals) > 0 {
-			values.Set(key, strings.Join(vals, ","))
+	sort.Strings(fieldKeys)
+
+	for _, resource := range fieldKeys {
+		key := fmt.Sprintf("fields[%s]", resource)
+		values.Set(key, strings.Join(q.Fields[resource], ","))
+	}
+
+	// Add filters — sort keys for deterministic URL output.
+	filterKeys := make([]string, 0, len(q.Filters))
+	for key := range q.Filters {
+		filterKeys = append(filterKeys, key)
+	}
+
+	sort.Strings(filterKeys)
+
+	for _, key := range filterKeys {
+		if len(q.Filters[key]) > 0 {
+			values.Set(key, strings.Join(q.Filters[key], ","))
 		}
 	}
 
@@ -83,8 +98,16 @@ func (q *QueryParams) WithPage(page int) *QueryParams {
 	return q
 }
 
-// WithPerPage sets the number of results per page.
+// maxPerPage is the CF v3 API hard limit for per_page.
+const maxPerPage = 5000
+
+// WithPerPage sets the number of results per page. Values above 5000 are
+// clamped to 5000 to match the CF v3 API maximum — no error is returned.
 func (q *QueryParams) WithPerPage(perPage int) *QueryParams {
+	if perPage > maxPerPage {
+		perPage = maxPerPage
+	}
+
 	q.PerPage = perPage
 
 	return q
@@ -104,9 +127,24 @@ func (q *QueryParams) WithLabelSelector(selector string) *QueryParams {
 	return q
 }
 
-// WithInclude adds include parameters.
+// WithInclude adds include parameters, skipping values already present.
+// Dedup semantics match appendInclude in query_options.go.
 func (q *QueryParams) WithInclude(includes ...string) *QueryParams {
-	q.Include = append(q.Include, includes...)
+	for _, inc := range includes {
+		duplicate := false
+
+		for _, existing := range q.Include {
+			if existing == inc {
+				duplicate = true
+
+				break
+			}
+		}
+
+		if !duplicate {
+			q.Include = append(q.Include, inc)
+		}
+	}
 
 	return q
 }

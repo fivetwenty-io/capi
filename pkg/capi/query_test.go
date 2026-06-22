@@ -150,7 +150,7 @@ func TestQueryParams_Builders(t *testing.T) {
 		assert.Equal(t, "app1,app2", values.Get("names"))
 	})
 
-	t.Run("WithInclude appends", func(t *testing.T) {
+	t.Run("WithInclude appends unique", func(t *testing.T) {
 		t.Parallel()
 
 		params := capi.NewQueryParams().
@@ -158,6 +158,46 @@ func TestQueryParams_Builders(t *testing.T) {
 			WithInclude("organization", "domain")
 
 		assert.Equal(t, []string{"space", "organization", "domain"}, params.Include)
+	})
+
+	t.Run("WithInclude deduplicates repeated values", func(t *testing.T) {
+		t.Parallel()
+
+		params := capi.NewQueryParams().
+			WithInclude("space").
+			WithInclude("space")
+
+		assert.Equal(t, []string{"space"}, params.Include)
+
+		values := params.ToValues()
+		assert.Equal(t, "space", values.Get("include"))
+	})
+
+	t.Run("WithPerPage clamps at 5000", func(t *testing.T) {
+		t.Parallel()
+
+		params := capi.NewQueryParams().WithPerPage(6000)
+		assert.Equal(t, 5000, params.PerPage)
+
+		values := params.ToValues()
+		assert.Equal(t, "5000", values.Get("per_page"))
+	})
+
+	t.Run("ToValues stable across repeated calls with multiple Fields and Filters", func(t *testing.T) {
+		t.Parallel()
+
+		params := capi.NewQueryParams().
+			WithFields("spaces", "name").
+			WithFields("apps", "guid", "name").
+			WithFilter("states", "STARTED", "STOPPED").
+			WithFilter("names", "app1", "app2")
+
+		first := params.ToValues().Encode()
+		second := params.ToValues().Encode()
+		third := params.ToValues().Encode()
+
+		assert.Equal(t, first, second)
+		assert.Equal(t, second, third)
 	})
 
 	t.Run("WithFilter appends", func(t *testing.T) {
