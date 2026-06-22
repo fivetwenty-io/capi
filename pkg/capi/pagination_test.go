@@ -73,7 +73,7 @@ func TestPaginationIterator_HasNext(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	iterator := capi.NewPaginationIterator[TestResource](client, "/test", nil)
+	iterator := capi.NewPaginationIterator(client, "/test", nil)
 
 	// Should have next before any fetch
 	assert.True(t, iterator.HasNext())
@@ -134,7 +134,7 @@ func TestPaginationIterator_All(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	iterator := capi.NewPaginationIterator[TestResource](client, "/test", nil)
+	iterator := capi.NewPaginationIterator(client, "/test", nil)
 
 	allResources, err := iterator.All(ctx)
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestPaginationIterator_ForEach(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	iterator := capi.NewPaginationIterator[TestResource](client, "/test", nil)
+	iterator := capi.NewPaginationIterator(client, "/test", nil)
 
 	var collected []string
 

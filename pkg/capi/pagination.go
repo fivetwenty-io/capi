@@ -209,22 +209,6 @@ func DefaultPaginationOptions() *PaginationOptions {
 	}
 }
 
-// PaginationHelper provides utility functions for pagination.
-type PaginationHelper struct {
-	options *PaginationOptions
-}
-
-// NewPaginationHelper creates a new pagination helper.
-func NewPaginationHelper(options *PaginationOptions) *PaginationHelper {
-	if options == nil {
-		options = DefaultPaginationOptions()
-	}
-
-	return &PaginationHelper{
-		options: options,
-	}
-}
-
 // FetchAllPages fetches all pages for a given resource type.
 func FetchAllPages[T any](
 	ctx context.Context,
