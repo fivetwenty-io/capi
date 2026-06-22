@@ -59,11 +59,13 @@ func (c *UsersClient) Get(ctx context.Context, guid string) (*capi.User, error) 
 }
 
 // List implements capi.UsersClient.List.
-func (c *UsersClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.User], error) {
+func (c *UsersClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.UserListOption) (*capi.ListResponse[capi.User], error) {
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, "/v3/users", queryParams)
 	if err != nil {

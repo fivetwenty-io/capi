@@ -64,13 +64,15 @@ func (c *BuildpacksClient) Get(ctx context.Context, guid string) (*capi.Buildpac
 }
 
 // List implements capi.BuildpacksClient.List.
-func (c *BuildpacksClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Buildpack], error) {
+func (c *BuildpacksClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.BuildpackListOption) (*capi.ListResponse[capi.Buildpack], error) {
 	path := "/v3/buildpacks"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

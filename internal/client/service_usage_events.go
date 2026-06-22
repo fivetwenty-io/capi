@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/fivetwenty-io/capi/v3/internal/http"
 	"github.com/fivetwenty-io/capi/v3/pkg/capi"
 )
@@ -8,6 +10,11 @@ import (
 // ServiceUsageEventsClient implements capi.ServiceUsageEventsClient.
 type ServiceUsageEventsClient struct {
 	*UsageEventsClient[capi.ServiceUsageEvent]
+}
+
+// List implements capi.ServiceUsageEventsClient.List with typed filter options.
+func (c *ServiceUsageEventsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.ServiceUsageEventListOption) (*capi.ListResponse[capi.ServiceUsageEvent], error) {
+	return c.listWithOptions(ctx, params, widenUsageEventOptions(opts))
 }
 
 // NewServiceUsageEventsClient creates a new service usage events client.

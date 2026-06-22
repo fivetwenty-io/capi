@@ -61,13 +61,15 @@ func (c *DeploymentsClient) Get(ctx context.Context, guid string) (*capi.Deploym
 }
 
 // List lists all deployments.
-func (c *DeploymentsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Deployment], error) {
+func (c *DeploymentsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.DeploymentListOption) (*capi.ListResponse[capi.Deployment], error) {
 	path := "/v3/deployments"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

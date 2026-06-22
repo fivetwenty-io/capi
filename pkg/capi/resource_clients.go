@@ -88,7 +88,7 @@ type AppsClient interface {
 type OrganizationCRUDClient interface {
 	Create(ctx context.Context, request *OrganizationCreateRequest) (*Organization, error)
 	Get(ctx context.Context, guid string) (*Organization, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Organization], error)
+	List(ctx context.Context, params *QueryParams, opts ...OrganizationListOption) (*ListResponse[Organization], error)
 	Update(ctx context.Context, guid string, request *OrganizationUpdateRequest) (*Organization, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 }
@@ -177,7 +177,7 @@ type SpacesClient interface {
 type DomainsClient interface {
 	Create(ctx context.Context, request *DomainCreateRequest) (*Domain, error)
 	Get(ctx context.Context, guid string) (*Domain, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Domain], error)
+	List(ctx context.Context, params *QueryParams, opts ...DomainListOption) (*ListResponse[Domain], error)
 	Update(ctx context.Context, guid string, request *DomainUpdateRequest) (*Domain, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 
@@ -225,7 +225,7 @@ type RoutesClient interface {
 type ServiceBrokersClient interface {
 	Create(ctx context.Context, request *ServiceBrokerCreateRequest) (*Job, error)
 	Get(ctx context.Context, guid string) (*ServiceBroker, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceBroker], error)
+	List(ctx context.Context, params *QueryParams, opts ...ServiceBrokerListOption) (*ListResponse[ServiceBroker], error)
 	Update(ctx context.Context, guid string, request *ServiceBrokerUpdateRequest) (*Job, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 }
@@ -297,7 +297,7 @@ type ServiceRouteBindingsClient interface {
 type BuildpacksClient interface {
 	Create(ctx context.Context, request *BuildpackCreateRequest) (*Buildpack, error)
 	Get(ctx context.Context, guid string) (*Buildpack, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Buildpack], error)
+	List(ctx context.Context, params *QueryParams, opts ...BuildpackListOption) (*ListResponse[Buildpack], error)
 	Update(ctx context.Context, guid string, request *BuildpackUpdateRequest) (*Buildpack, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 	Upload(ctx context.Context, guid string, bits io.Reader) (*Buildpack, error)
@@ -307,7 +307,7 @@ type BuildpacksClient interface {
 type BuildsClient interface {
 	Create(ctx context.Context, request *BuildCreateRequest) (*Build, error)
 	Get(ctx context.Context, guid string) (*Build, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Build], error)
+	List(ctx context.Context, params *QueryParams, opts ...BuildListOption) (*ListResponse[Build], error)
 	ListForApp(ctx context.Context, appGUID string, params *QueryParams) (*ListResponse[Build], error)
 	Update(ctx context.Context, guid string, request *BuildUpdateRequest) (*Build, error)
 }
@@ -315,7 +315,7 @@ type BuildsClient interface {
 type DeploymentsClient interface {
 	Create(ctx context.Context, request *DeploymentCreateRequest) (*Deployment, error)
 	Get(ctx context.Context, guid string) (*Deployment, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Deployment], error)
+	List(ctx context.Context, params *QueryParams, opts ...DeploymentListOption) (*ListResponse[Deployment], error)
 	Update(ctx context.Context, guid string, request *DeploymentUpdateRequest) (*Deployment, error)
 	Cancel(ctx context.Context, guid string) error
 	Continue(ctx context.Context, guid string) error
@@ -324,7 +324,7 @@ type DeploymentsClient interface {
 type DropletsClient interface {
 	Create(ctx context.Context, request *DropletCreateRequest) (*Droplet, error)
 	Get(ctx context.Context, guid string) (*Droplet, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Droplet], error)
+	List(ctx context.Context, params *QueryParams, opts ...DropletListOption) (*ListResponse[Droplet], error)
 	ListForApp(ctx context.Context, appGUID string, params *QueryParams) (*ListResponse[Droplet], error)
 	ListForPackage(ctx context.Context, packageGUID string, params *QueryParams) (*ListResponse[Droplet], error)
 	Update(ctx context.Context, guid string, request *DropletUpdateRequest) (*Droplet, error)
@@ -341,7 +341,7 @@ type DropletsClient interface {
 type PackagesClient interface {
 	Create(ctx context.Context, request *PackageCreateRequest) (*Package, error)
 	Get(ctx context.Context, guid string) (*Package, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Package], error)
+	List(ctx context.Context, params *QueryParams, opts ...PackageListOption) (*ListResponse[Package], error)
 	Update(ctx context.Context, guid string, request *PackageUpdateRequest) (*Package, error)
 	// Delete issues DELETE /v3/packages/{guid}. CF v3 returns 202 Accepted with a
 	// Location header pointing at /v3/jobs/{jobGuid}. The returned Job has its GUID
@@ -369,7 +369,7 @@ type ProcessesClient interface {
 type TasksClient interface {
 	Create(ctx context.Context, appGUID string, request *TaskCreateRequest) (*Task, error)
 	Get(ctx context.Context, guid string) (*Task, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Task], error)
+	List(ctx context.Context, params *QueryParams, opts ...TaskListOption) (*ListResponse[Task], error)
 	Update(ctx context.Context, guid string, request *TaskUpdateRequest) (*Task, error)
 	Cancel(ctx context.Context, guid string) (*Task, error)
 }
@@ -377,7 +377,7 @@ type TasksClient interface {
 type StacksClient interface {
 	Create(ctx context.Context, request *StackCreateRequest) (*Stack, error)
 	Get(ctx context.Context, guid string) (*Stack, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[Stack], error)
+	List(ctx context.Context, params *QueryParams, opts ...StackListOption) (*ListResponse[Stack], error)
 	Update(ctx context.Context, guid string, request *StackUpdateRequest) (*Stack, error)
 	Delete(ctx context.Context, guid string) error
 	ListApps(ctx context.Context, guid string, params *QueryParams) (*ListResponse[App], error)
@@ -386,7 +386,7 @@ type StacksClient interface {
 type UsersClient interface {
 	Create(ctx context.Context, request *UserCreateRequest) (*User, error)
 	Get(ctx context.Context, guid string) (*User, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[User], error)
+	List(ctx context.Context, params *QueryParams, opts ...UserListOption) (*ListResponse[User], error)
 	Update(ctx context.Context, guid string, request *UserUpdateRequest) (*User, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 }
@@ -401,7 +401,7 @@ type RolesClient interface {
 type SecurityGroupsClient interface {
 	Create(ctx context.Context, request *SecurityGroupCreateRequest) (*SecurityGroup, error)
 	Get(ctx context.Context, guid string) (*SecurityGroup, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[SecurityGroup], error)
+	List(ctx context.Context, params *QueryParams, opts ...SecurityGroupListOption) (*ListResponse[SecurityGroup], error)
 	Update(ctx context.Context, guid string, request *SecurityGroupUpdateRequest) (*SecurityGroup, error)
 	Delete(ctx context.Context, guid string) (*Job, error)
 
@@ -415,7 +415,7 @@ type SecurityGroupsClient interface {
 type IsolationSegmentsClient interface {
 	Create(ctx context.Context, request *IsolationSegmentCreateRequest) (*IsolationSegment, error)
 	Get(ctx context.Context, guid string) (*IsolationSegment, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[IsolationSegment], error)
+	List(ctx context.Context, params *QueryParams, opts ...IsolationSegmentListOption) (*ListResponse[IsolationSegment], error)
 	Update(ctx context.Context, guid string, request *IsolationSegmentUpdateRequest) (*IsolationSegment, error)
 	Delete(ctx context.Context, guid string) error
 
@@ -442,7 +442,7 @@ type JobsClient interface {
 type OrganizationQuotasClient interface {
 	Create(ctx context.Context, request *OrganizationQuotaCreateRequest) (*OrganizationQuota, error)
 	Get(ctx context.Context, guid string) (*OrganizationQuota, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[OrganizationQuota], error)
+	List(ctx context.Context, params *QueryParams, opts ...OrganizationQuotaListOption) (*ListResponse[OrganizationQuota], error)
 	Update(ctx context.Context, guid string, request *OrganizationQuotaUpdateRequest) (*OrganizationQuota, error)
 	// Delete issues DELETE /v3/organization_quotas/{guid}. CF v3 returns 202 Accepted
 	// with a Location header pointing at /v3/jobs/{jobGuid}. The returned Job has its
@@ -456,7 +456,7 @@ type OrganizationQuotasClient interface {
 type SpaceQuotasClient interface {
 	Create(ctx context.Context, request *SpaceQuotaV3CreateRequest) (*SpaceQuotaV3, error)
 	Get(ctx context.Context, guid string) (*SpaceQuotaV3, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[SpaceQuotaV3], error)
+	List(ctx context.Context, params *QueryParams, opts ...SpaceQuotaListOption) (*ListResponse[SpaceQuotaV3], error)
 	Update(ctx context.Context, guid string, request *SpaceQuotaV3UpdateRequest) (*SpaceQuotaV3, error)
 	// Delete issues DELETE /v3/space_quotas/{guid}. CF v3 returns 202 Accepted with a
 	// Location header pointing at /v3/jobs/{jobGuid}. The returned Job has its GUID
@@ -493,21 +493,21 @@ type EnvironmentVariableGroupsClient interface {
 // AppUsageEventsClient defines operations for app usage events.
 type AppUsageEventsClient interface {
 	Get(ctx context.Context, guid string) (*AppUsageEvent, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[AppUsageEvent], error)
+	List(ctx context.Context, params *QueryParams, opts ...AppUsageEventListOption) (*ListResponse[AppUsageEvent], error)
 	PurgeAndReseed(ctx context.Context) error
 }
 
 // ServiceUsageEventsClient defines operations for service usage events.
 type ServiceUsageEventsClient interface {
 	Get(ctx context.Context, guid string) (*ServiceUsageEvent, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[ServiceUsageEvent], error)
+	List(ctx context.Context, params *QueryParams, opts ...ServiceUsageEventListOption) (*ListResponse[ServiceUsageEvent], error)
 	PurgeAndReseed(ctx context.Context) error
 }
 
 // AuditEventsClient defines operations for audit events.
 type AuditEventsClient interface {
 	Get(ctx context.Context, guid string) (*AuditEvent, error)
-	List(ctx context.Context, params *QueryParams) (*ListResponse[AuditEvent], error)
+	List(ctx context.Context, params *QueryParams, opts ...AuditEventListOption) (*ListResponse[AuditEvent], error)
 }
 
 // ResourceMatchesClient defines operations for resource matches.

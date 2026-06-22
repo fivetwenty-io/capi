@@ -61,13 +61,15 @@ func (c *SecurityGroupsClient) Get(ctx context.Context, guid string) (*capi.Secu
 }
 
 // List implements capi.SecurityGroupsClient.List.
-func (c *SecurityGroupsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.SecurityGroup], error) {
+func (c *SecurityGroupsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.SecurityGroupListOption) (*capi.ListResponse[capi.SecurityGroup], error) {
 	path := "/v3/security_groups"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

@@ -65,13 +65,15 @@ func (c *DropletsClient) Get(ctx context.Context, guid string) (*capi.Droplet, e
 }
 
 // List lists all droplets.
-func (c *DropletsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Droplet], error) {
+func (c *DropletsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.DropletListOption) (*capi.ListResponse[capi.Droplet], error) {
 	path := constants.APIPathDroplets
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

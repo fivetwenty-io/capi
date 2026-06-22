@@ -65,13 +65,15 @@ func (c *PackagesClient) Get(ctx context.Context, guid string) (*capi.Package, e
 }
 
 // List lists all packages.
-func (c *PackagesClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Package], error) {
+func (c *PackagesClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.PackageListOption) (*capi.ListResponse[capi.Package], error) {
 	path := constants.APIPathPackages
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

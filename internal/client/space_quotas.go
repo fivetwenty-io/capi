@@ -59,11 +59,13 @@ func (c *SpaceQuotasClient) Get(ctx context.Context, guid string) (*capi.SpaceQu
 }
 
 // List implements capi.SpaceQuotasClient.List.
-func (c *SpaceQuotasClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.SpaceQuotaV3], error) {
+func (c *SpaceQuotasClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.SpaceQuotaListOption) (*capi.ListResponse[capi.SpaceQuotaV3], error) {
 	var query url.Values
 	if params != nil {
 		query = params.ToValues()
 	}
+
+	query = capi.ApplyQueryOptions(query, opts)
 
 	resp, err := c.httpClient.Get(ctx, "/v3/space_quotas", query)
 	if err != nil {

@@ -26,7 +26,7 @@ func (s *stubIsolationSegmentsClient) Get(_ context.Context, _ string) (*capi.Is
 	panic("not implemented")
 }
 
-func (s *stubIsolationSegmentsClient) List(_ context.Context, _ *capi.QueryParams) (*capi.ListResponse[capi.IsolationSegment], error) {
+func (s *stubIsolationSegmentsClient) List(_ context.Context, _ *capi.QueryParams, _ ...capi.IsolationSegmentListOption) (*capi.ListResponse[capi.IsolationSegment], error) {
 	panic("not implemented")
 }
 

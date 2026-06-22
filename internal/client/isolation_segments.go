@@ -61,13 +61,15 @@ func (c *IsolationSegmentsClient) Get(ctx context.Context, guid string) (*capi.I
 }
 
 // List implements capi.IsolationSegmentsClient.List.
-func (c *IsolationSegmentsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.IsolationSegment], error) {
+func (c *IsolationSegmentsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.IsolationSegmentListOption) (*capi.ListResponse[capi.IsolationSegment], error) {
 	path := "/v3/isolation_segments"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

@@ -42,11 +42,13 @@ func (c *AuditEventsClient) Get(ctx context.Context, guid string) (*capi.AuditEv
 }
 
 // List implements capi.AuditEventsClient.List.
-func (c *AuditEventsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.AuditEvent], error) {
+func (c *AuditEventsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.AuditEventListOption) (*capi.ListResponse[capi.AuditEvent], error) {
 	var query url.Values
 	if params != nil {
 		query = params.ToValues()
 	}
+
+	query = capi.ApplyQueryOptions(query, opts)
 
 	resp, err := c.httpClient.Get(ctx, "/v3/audit_events", query)
 	if err != nil {

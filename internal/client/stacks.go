@@ -61,13 +61,15 @@ func (c *StacksClient) Get(ctx context.Context, guid string) (*capi.Stack, error
 }
 
 // List implements capi.StacksClient.List.
-func (c *StacksClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Stack], error) {
+func (c *StacksClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.StackListOption) (*capi.ListResponse[capi.Stack], error) {
 	path := "/v3/stacks"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

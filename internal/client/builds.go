@@ -61,13 +61,15 @@ func (c *BuildsClient) Get(ctx context.Context, guid string) (*capi.Build, error
 }
 
 // List lists all builds.
-func (c *BuildsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Build], error) {
+func (c *BuildsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.BuildListOption) (*capi.ListResponse[capi.Build], error) {
 	path := "/v3/builds"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

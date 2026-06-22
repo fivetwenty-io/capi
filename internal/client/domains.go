@@ -62,13 +62,15 @@ func (c *DomainsClient) Get(ctx context.Context, guid string) (*capi.Domain, err
 }
 
 // List lists all domains.
-func (c *DomainsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Domain], error) {
+func (c *DomainsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.DomainListOption) (*capi.ListResponse[capi.Domain], error) {
 	path := "/v3/domains"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

@@ -61,13 +61,15 @@ func (c *TasksClient) Get(ctx context.Context, guid string) (*capi.Task, error) 
 }
 
 // List lists all tasks.
-func (c *TasksClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Task], error) {
+func (c *TasksClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.TaskListOption) (*capi.ListResponse[capi.Task], error) {
 	path := "/v3/tasks"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

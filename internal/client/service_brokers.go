@@ -56,13 +56,15 @@ func (c *ServiceBrokersClient) Get(ctx context.Context, guid string) (*capi.Serv
 }
 
 // List lists all service brokers.
-func (c *ServiceBrokersClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.ServiceBroker], error) {
+func (c *ServiceBrokersClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.ServiceBrokerListOption) (*capi.ListResponse[capi.ServiceBroker], error) {
 	path := "/v3/service_brokers"
 
 	var queryParams url.Values
 	if params != nil {
 		queryParams = params.ToValues()
 	}
+
+	queryParams = capi.ApplyQueryOptions(queryParams, opts)
 
 	resp, err := c.httpClient.Get(ctx, path, queryParams)
 	if err != nil {

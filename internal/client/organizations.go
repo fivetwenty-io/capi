@@ -59,11 +59,13 @@ func (c *OrganizationsClient) Get(ctx context.Context, guid string) (*capi.Organ
 }
 
 // List implements capi.OrganizationsClient.List.
-func (c *OrganizationsClient) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[capi.Organization], error) {
+func (c *OrganizationsClient) List(ctx context.Context, params *capi.QueryParams, opts ...capi.OrganizationListOption) (*capi.ListResponse[capi.Organization], error) {
 	var query url.Values
 	if params != nil {
 		query = params.ToValues()
 	}
+
+	query = capi.ApplyQueryOptions(query, opts)
 
 	resp, err := c.httpClient.Get(ctx, "/v3/organizations", query)
 	if err != nil {

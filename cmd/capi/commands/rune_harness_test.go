@@ -195,7 +195,7 @@ func (s *recordingIsoSegmentsClient) Get(_ context.Context, guid string) (*capi.
 	return s.getResult, s.getErr
 }
 
-func (s *recordingIsoSegmentsClient) List(_ context.Context, _ *capi.QueryParams) (*capi.ListResponse[capi.IsolationSegment], error) {
+func (s *recordingIsoSegmentsClient) List(_ context.Context, _ *capi.QueryParams, _ ...capi.IsolationSegmentListOption) (*capi.ListResponse[capi.IsolationSegment], error) {
 	s.listCalled = true
 
 	return s.listResult, s.listErr

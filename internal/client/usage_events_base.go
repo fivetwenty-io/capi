@@ -50,12 +50,15 @@ func (c *UsageEventsClient[T]) Get(ctx context.Context, guid string) (*T, error)
 	return &event, nil
 }
 
-// List retrieves a list of usage events.
-func (c *UsageEventsClient[T]) List(ctx context.Context, params *capi.QueryParams) (*capi.ListResponse[T], error) {
+// listWithOptions retrieves usage events, applying typed filter options that
+// the concrete app/service usage-event clients widen to plain QueryOptions.
+func (c *UsageEventsClient[T]) listWithOptions(ctx context.Context, params *capi.QueryParams, opts []capi.QueryOption) (*capi.ListResponse[T], error) {
 	var query url.Values
 	if params != nil {
 		query = params.ToValues()
 	}
+
+	query = capi.ApplyQueryOptions(query, opts)
 
 	resp, err := c.httpClient.Get(ctx, c.resourcePath, query)
 	if err != nil {
@@ -70,6 +73,17 @@ func (c *UsageEventsClient[T]) List(ctx context.Context, params *capi.QueryParam
 	}
 
 	return &result, nil
+}
+
+// widenUsageEventOptions adapts a slice of typed usage-event list options to
+// the plain QueryOption slice accepted by listWithOptions.
+func widenUsageEventOptions[O capi.QueryOption](opts []O) []capi.QueryOption {
+	out := make([]capi.QueryOption, len(opts))
+	for i, o := range opts {
+		out[i] = o
+	}
+
+	return out
 }
 
 // PurgeAndReseed purges and reseeds usage events.
