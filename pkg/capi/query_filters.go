@@ -6,9 +6,16 @@ import (
 )
 
 // This file defines typed List filter options for the CF v3 collection
-// endpoints that accept resource-specific filters but no include parameter.
-// Each resource exposes a sealed XListOption interface so only options
-// defined in this package may be passed to that resource's List method.
+// endpoints. Each resource exposes a sealed XListOption interface (declared
+// here for filter-only endpoints, or in query_options.go for endpoints that
+// also support include/fields) so only options defined in this package may be
+// passed to that resource's List method.
+//
+// The first half covers endpoints whose only typed options are entity and
+// enumerated-value filters. The second half ("parity filters") adds the same
+// entity/enum filter constructors to the endpoints that already expose
+// include/fields options in query_options.go, so every List endpoint offers
+// the full typed filter surface.
 //
 // Cross-cutting parameters (order_by, label_selector, created_ats,
 // updated_ats, pagination) are intentionally NOT duplicated here: they are
@@ -24,6 +31,17 @@ func joinKind[T ~string](vals []T) string {
 	parts := make([]string, len(vals))
 	for i, v := range vals {
 		parts[i] = string(v)
+	}
+
+	return strings.Join(parts, ",")
+}
+
+// joinInts comma-joins a slice of ints into a single CF filter value, used by
+// filters such as route ports.
+func joinInts(vals []int) string {
+	parts := make([]string, len(vals))
+	for i, v := range vals {
+		parts[i] = strconv.Itoa(v)
 	}
 
 	return strings.Join(parts, ",")
@@ -728,4 +746,491 @@ func WithServiceUsageEventServiceInstanceTypes(types ...ServiceInstanceType) Ser
 // service offering GUID.
 func WithServiceUsageEventServiceOfferingGUIDs(guids ...string) ServiceUsageEventListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
 	return serviceUsageEventListScalar{scalarOption{"service_offering_guids", strings.Join(guids, ",")}}
+}
+
+// ========================================================================
+// Parity filters
+//
+// The constructors below add entity and enumerated-value filters to the
+// endpoints whose XListOption interfaces are declared in query_options.go
+// alongside their include/fields options. Each filter wrapper seals to the
+// same per-resource list method (appList, routeList, ...) so the new options
+// compose freely with the existing include options on a single List call.
+// ========================================================================
+
+// ---- apps (filters) ----
+
+type appListScalar struct{ scalarOption }
+
+func (appListScalar) appList() {}
+
+// AppLifecycleType is a CF v3 app lifecycle used to filter GET /v3/apps. Note
+// this set includes docker, unlike the buildpack lifecycle filter.
+type AppLifecycleType string
+
+// Valid app lifecycle types (CF v3).
+const (
+	AppLifecycleTypeBuildpack AppLifecycleType = "buildpack"
+	AppLifecycleTypeCNB       AppLifecycleType = "cnb"
+	AppLifecycleTypeDocker    AppLifecycleType = "docker"
+)
+
+// WithAppNames filters apps by name.
+func WithAppNames(names ...string) AppListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return appListScalar{scalarOption{"names", strings.Join(names, ",")}}
+}
+
+// WithAppGUIDs filters apps by GUID.
+func WithAppGUIDs(guids ...string) AppListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return appListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithAppSpaceGUIDs filters apps by space GUID.
+func WithAppSpaceGUIDs(guids ...string) AppListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return appListScalar{scalarOption{"space_guids", strings.Join(guids, ",")}}
+}
+
+// WithAppOrganizationGUIDs filters apps by organization GUID.
+func WithAppOrganizationGUIDs(guids ...string) AppListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return appListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
+}
+
+// WithAppStacks filters apps by stack name.
+func WithAppStacks(stacks ...string) AppListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return appListScalar{scalarOption{"stacks", strings.Join(stacks, ",")}}
+}
+
+// WithAppLifecycleType filters apps by lifecycle type (buildpack, cnb, or
+// docker). CF accepts a single value here.
+func WithAppLifecycleType(lifecycle AppLifecycleType) AppListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return appListScalar{scalarOption{"lifecycle_type", string(lifecycle)}}
+}
+
+// ---- routes (filters) ----
+
+type routeListScalar struct{ scalarOption }
+
+func (routeListScalar) routeList() {}
+
+// WithRouteGUIDs filters routes by GUID.
+func WithRouteGUIDs(guids ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithRouteHosts filters routes by host.
+func WithRouteHosts(hosts ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"hosts", strings.Join(hosts, ",")}}
+}
+
+// WithRoutePaths filters routes by path.
+func WithRoutePaths(paths ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"paths", strings.Join(paths, ",")}}
+}
+
+// WithRoutePorts filters routes by port.
+func WithRoutePorts(ports ...int) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"ports", joinInts(ports)}}
+}
+
+// WithRouteDomainGUIDs filters routes by domain GUID.
+func WithRouteDomainGUIDs(guids ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"domain_guids", strings.Join(guids, ",")}}
+}
+
+// WithRouteSpaceGUIDs filters routes by space GUID.
+func WithRouteSpaceGUIDs(guids ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"space_guids", strings.Join(guids, ",")}}
+}
+
+// WithRouteOrganizationGUIDs filters routes by organization GUID.
+func WithRouteOrganizationGUIDs(guids ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
+}
+
+// WithRouteServiceInstanceGUIDs filters routes by bound service instance GUID.
+func WithRouteServiceInstanceGUIDs(guids ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"service_instance_guids", strings.Join(guids, ",")}}
+}
+
+// WithRouteAppGUIDs filters routes by destination app GUID. Accepted by the
+// CF v3 source though not listed in the API docs for GET /v3/routes.
+func WithRouteAppGUIDs(guids ...string) RouteListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return routeListScalar{scalarOption{"app_guids", strings.Join(guids, ",")}}
+}
+
+// ---- spaces (filters) ----
+
+type spaceListScalar struct{ scalarOption }
+
+func (spaceListScalar) spaceList() {}
+
+// WithSpaceNames filters spaces by name.
+func WithSpaceNames(names ...string) SpaceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return spaceListScalar{scalarOption{"names", strings.Join(names, ",")}}
+}
+
+// WithSpaceGUIDs filters spaces by GUID.
+func WithSpaceGUIDs(guids ...string) SpaceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return spaceListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithSpaceOrganizationGUIDs filters spaces by owning organization GUID.
+func WithSpaceOrganizationGUIDs(guids ...string) SpaceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return spaceListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
+}
+
+// ---- roles (filters) ----
+
+type roleListScalar struct{ scalarOption }
+
+func (roleListScalar) roleList() {}
+
+// RoleType is a CF v3 role type used to filter GET /v3/roles.
+type RoleType string
+
+// Valid role types (CF v3).
+const (
+	RoleTypeOrganizationUser           RoleType = "organization_user"
+	RoleTypeOrganizationAuditor        RoleType = "organization_auditor"
+	RoleTypeOrganizationManager        RoleType = "organization_manager"
+	RoleTypeOrganizationBillingManager RoleType = "organization_billing_manager"
+	RoleTypeSpaceAuditor               RoleType = "space_auditor"
+	RoleTypeSpaceDeveloper             RoleType = "space_developer"
+	RoleTypeSpaceManager               RoleType = "space_manager"
+	RoleTypeSpaceSupporter             RoleType = "space_supporter"
+)
+
+// WithRoleGUIDs filters roles by GUID.
+func WithRoleGUIDs(guids ...string) RoleListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return roleListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithRoleTypes filters roles by role type.
+func WithRoleTypes(types ...RoleType) RoleListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return roleListScalar{scalarOption{"types", joinKind(types)}}
+}
+
+// WithRoleSpaceGUIDs filters roles by space GUID.
+func WithRoleSpaceGUIDs(guids ...string) RoleListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return roleListScalar{scalarOption{"space_guids", strings.Join(guids, ",")}}
+}
+
+// WithRoleOrganizationGUIDs filters roles by organization GUID.
+func WithRoleOrganizationGUIDs(guids ...string) RoleListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return roleListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
+}
+
+// WithRoleUserGUIDs filters roles by user GUID.
+func WithRoleUserGUIDs(guids ...string) RoleListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return roleListScalar{scalarOption{"user_guids", strings.Join(guids, ",")}}
+}
+
+// ---- service instances (filters) ----
+
+type serviceInstanceListScalar struct{ scalarOption }
+
+func (serviceInstanceListScalar) serviceInstanceList() {}
+
+// ServiceInstanceFilterType is a CF v3 service instance type used to filter
+// GET /v3/service_instances. Note user-provided uses a hyphen, distinct from
+// the underscore-and-suffix form used by ServiceInstanceType for usage events.
+type ServiceInstanceFilterType string
+
+// Valid service instance filter types (CF v3).
+const (
+	ServiceInstanceFilterTypeManaged      ServiceInstanceFilterType = "managed"
+	ServiceInstanceFilterTypeUserProvided ServiceInstanceFilterType = "user-provided"
+)
+
+// WithServiceInstanceNames filters service instances by name.
+func WithServiceInstanceNames(names ...string) ServiceInstanceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceInstanceListScalar{scalarOption{"names", strings.Join(names, ",")}}
+}
+
+// WithServiceInstanceGUIDs filters service instances by GUID.
+func WithServiceInstanceGUIDs(guids ...string) ServiceInstanceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceInstanceListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceInstanceSpaceGUIDs filters service instances by space GUID.
+func WithServiceInstanceSpaceGUIDs(guids ...string) ServiceInstanceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceInstanceListScalar{scalarOption{"space_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceInstanceOrganizationGUIDs filters service instances by
+// organization GUID.
+func WithServiceInstanceOrganizationGUIDs(guids ...string) ServiceInstanceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceInstanceListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceInstanceServicePlanGUIDs filters service instances by service
+// plan GUID.
+func WithServiceInstanceServicePlanGUIDs(guids ...string) ServiceInstanceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceInstanceListScalar{scalarOption{"service_plan_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceInstanceServicePlanNames filters service instances by service
+// plan name.
+func WithServiceInstanceServicePlanNames(names ...string) ServiceInstanceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceInstanceListScalar{scalarOption{"service_plan_names", strings.Join(names, ",")}}
+}
+
+// WithServiceInstanceType filters service instances by type (managed or
+// user-provided). CF accepts a single value here.
+func WithServiceInstanceType(instanceType ServiceInstanceFilterType) ServiceInstanceListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceInstanceListScalar{scalarOption{"type", string(instanceType)}}
+}
+
+// ---- service plans (filters) ----
+
+type servicePlanListScalar struct{ scalarOption }
+
+func (servicePlanListScalar) servicePlanList() {}
+
+// WithServicePlanGUIDs filters service plans by GUID.
+func WithServicePlanGUIDs(guids ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithServicePlanNames filters service plans by name.
+func WithServicePlanNames(names ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"names", strings.Join(names, ",")}}
+}
+
+// WithServicePlanAvailable filters service plans by availability.
+func WithServicePlanAvailable(available bool) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"available", strconv.FormatBool(available)}}
+}
+
+// WithServicePlanBrokerCatalogIDs filters service plans by broker catalog ID.
+func WithServicePlanBrokerCatalogIDs(ids ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"broker_catalog_ids", strings.Join(ids, ",")}}
+}
+
+// WithServicePlanServiceBrokerGUIDs filters service plans by service broker
+// GUID.
+func WithServicePlanServiceBrokerGUIDs(guids ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"service_broker_guids", strings.Join(guids, ",")}}
+}
+
+// WithServicePlanServiceBrokerNames filters service plans by service broker
+// name.
+func WithServicePlanServiceBrokerNames(names ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"service_broker_names", strings.Join(names, ",")}}
+}
+
+// WithServicePlanServiceOfferingGUIDs filters service plans by service
+// offering GUID.
+func WithServicePlanServiceOfferingGUIDs(guids ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"service_offering_guids", strings.Join(guids, ",")}}
+}
+
+// WithServicePlanServiceOfferingNames filters service plans by service
+// offering name.
+func WithServicePlanServiceOfferingNames(names ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"service_offering_names", strings.Join(names, ",")}}
+}
+
+// WithServicePlanServiceInstanceGUIDs filters service plans by service
+// instance GUID.
+func WithServicePlanServiceInstanceGUIDs(guids ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"service_instance_guids", strings.Join(guids, ",")}}
+}
+
+// WithServicePlanSpaceGUIDs filters service plans by space GUID.
+func WithServicePlanSpaceGUIDs(guids ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"space_guids", strings.Join(guids, ",")}}
+}
+
+// WithServicePlanOrganizationGUIDs filters service plans by organization GUID.
+func WithServicePlanOrganizationGUIDs(guids ...string) ServicePlanListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return servicePlanListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
+}
+
+// ---- service offerings (filters) ----
+
+type serviceOfferingListScalar struct{ scalarOption }
+
+func (serviceOfferingListScalar) serviceOfferingList() {}
+
+// WithServiceOfferingGUIDs filters service offerings by GUID.
+func WithServiceOfferingGUIDs(guids ...string) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceOfferingNames filters service offerings by name.
+func WithServiceOfferingNames(names ...string) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"names", strings.Join(names, ",")}}
+}
+
+// WithServiceOfferingAvailable filters service offerings by availability.
+func WithServiceOfferingAvailable(available bool) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"available", strconv.FormatBool(available)}}
+}
+
+// WithServiceOfferingBrokerCatalogIDs filters service offerings by broker
+// catalog ID.
+func WithServiceOfferingBrokerCatalogIDs(ids ...string) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"broker_catalog_ids", strings.Join(ids, ",")}}
+}
+
+// WithServiceOfferingServiceBrokerGUIDs filters service offerings by service
+// broker GUID.
+func WithServiceOfferingServiceBrokerGUIDs(guids ...string) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"service_broker_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceOfferingServiceBrokerNames filters service offerings by service
+// broker name.
+func WithServiceOfferingServiceBrokerNames(names ...string) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"service_broker_names", strings.Join(names, ",")}}
+}
+
+// WithServiceOfferingSpaceGUIDs filters service offerings by space GUID.
+func WithServiceOfferingSpaceGUIDs(guids ...string) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"space_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceOfferingOrganizationGUIDs filters service offerings by
+// organization GUID.
+func WithServiceOfferingOrganizationGUIDs(guids ...string) ServiceOfferingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return serviceOfferingListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
+}
+
+// ---- service credential bindings (filters) ----
+
+type scbListScalar struct{ scalarOption }
+
+func (scbListScalar) scbList() {}
+
+// ServiceCredentialBindingType is a CF v3 service credential binding type used
+// to filter GET /v3/service_credential_bindings.
+type ServiceCredentialBindingType string
+
+// Valid service credential binding types (CF v3).
+const (
+	ServiceCredentialBindingTypeApp ServiceCredentialBindingType = "app"
+	ServiceCredentialBindingTypeKey ServiceCredentialBindingType = "key"
+)
+
+// WithServiceCredentialBindingGUIDs filters bindings by GUID.
+func WithServiceCredentialBindingGUIDs(guids ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceCredentialBindingNames filters bindings by name.
+func WithServiceCredentialBindingNames(names ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"names", strings.Join(names, ",")}}
+}
+
+// WithServiceCredentialBindingServiceInstanceGUIDs filters bindings by service
+// instance GUID.
+func WithServiceCredentialBindingServiceInstanceGUIDs(guids ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"service_instance_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceCredentialBindingServiceInstanceNames filters bindings by service
+// instance name.
+func WithServiceCredentialBindingServiceInstanceNames(names ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"service_instance_names", strings.Join(names, ",")}}
+}
+
+// WithServiceCredentialBindingServicePlanGUIDs filters bindings by service
+// plan GUID.
+func WithServiceCredentialBindingServicePlanGUIDs(guids ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"service_plan_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceCredentialBindingServicePlanNames filters bindings by service
+// plan name.
+func WithServiceCredentialBindingServicePlanNames(names ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"service_plan_names", strings.Join(names, ",")}}
+}
+
+// WithServiceCredentialBindingServiceOfferingGUIDs filters bindings by service
+// offering GUID.
+func WithServiceCredentialBindingServiceOfferingGUIDs(guids ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"service_offering_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceCredentialBindingServiceOfferingNames filters bindings by service
+// offering name.
+func WithServiceCredentialBindingServiceOfferingNames(names ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"service_offering_names", strings.Join(names, ",")}}
+}
+
+// WithServiceCredentialBindingAppGUIDs filters bindings by app GUID.
+func WithServiceCredentialBindingAppGUIDs(guids ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"app_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceCredentialBindingAppNames filters bindings by app name.
+func WithServiceCredentialBindingAppNames(names ...string) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"app_names", strings.Join(names, ",")}}
+}
+
+// WithServiceCredentialBindingType filters bindings by type (app or key). CF
+// accepts a single value here.
+func WithServiceCredentialBindingType(bindingType ServiceCredentialBindingType) ServiceCredentialBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return scbListScalar{scalarOption{"type", string(bindingType)}}
+}
+
+// ---- service route bindings (filters) ----
+
+type srbListScalar struct{ scalarOption }
+
+func (srbListScalar) srbList() {}
+
+// WithServiceRouteBindingGUIDs filters route bindings by GUID.
+func WithServiceRouteBindingGUIDs(guids ...string) ServiceRouteBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return srbListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceRouteBindingServiceInstanceGUIDs filters route bindings by
+// service instance GUID.
+func WithServiceRouteBindingServiceInstanceGUIDs(guids ...string) ServiceRouteBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return srbListScalar{scalarOption{"service_instance_guids", strings.Join(guids, ",")}}
+}
+
+// WithServiceRouteBindingServiceInstanceNames filters route bindings by
+// service instance name.
+func WithServiceRouteBindingServiceInstanceNames(names ...string) ServiceRouteBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return srbListScalar{scalarOption{"service_instance_names", strings.Join(names, ",")}}
+}
+
+// WithServiceRouteBindingRouteGUIDs filters route bindings by route GUID.
+func WithServiceRouteBindingRouteGUIDs(guids ...string) ServiceRouteBindingListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return srbListScalar{scalarOption{"route_guids", strings.Join(guids, ",")}}
+}
+
+// ---- processes (filters) ----
+
+type processListScalar struct{ scalarOption }
+
+func (processListScalar) processList() {}
+
+// WithProcessGUIDs filters processes by GUID.
+func WithProcessGUIDs(guids ...string) ProcessListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return processListScalar{scalarOption{"guids", strings.Join(guids, ",")}}
+}
+
+// WithProcessTypes filters processes by process type (e.g. web, worker). CF
+// does not restrict this to a fixed set.
+func WithProcessTypes(types ...string) ProcessListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return processListScalar{scalarOption{"types", strings.Join(types, ",")}}
+}
+
+// WithProcessAppGUIDs filters processes by app GUID.
+func WithProcessAppGUIDs(guids ...string) ProcessListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return processListScalar{scalarOption{"app_guids", strings.Join(guids, ",")}}
+}
+
+// WithProcessSpaceGUIDs filters processes by space GUID.
+func WithProcessSpaceGUIDs(guids ...string) ProcessListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return processListScalar{scalarOption{"space_guids", strings.Join(guids, ",")}}
+}
+
+// WithProcessOrganizationGUIDs filters processes by organization GUID.
+func WithProcessOrganizationGUIDs(guids ...string) ProcessListOption { //nolint:ireturn // sealed-option pattern: typed option composed by callers
+	return processListScalar{scalarOption{"organization_guids", strings.Join(guids, ",")}}
 }

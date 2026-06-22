@@ -93,6 +93,31 @@ func TestTypedListOptions_ReachQuery(t *testing.T) {
 		assert.Equal(t, "event-0", got.Get("after_guid"))
 	})
 
+	t.Run("service instances filter and include compose over wire", func(t *testing.T) {
+		t.Parallel()
+
+		var got url.Values
+
+		server := captureQueryServer[capi.ServiceInstance](t, &got)
+		defer server.Close()
+
+		client, err := New(context.Background(), &capi.Config{APIEndpoint: server.URL})
+		require.NoError(t, err)
+
+		params := capi.NewQueryParams().WithPerPage(25)
+
+		_, err = client.ServiceInstances().List(context.Background(), params,
+			capi.WithServiceInstanceType(capi.ServiceInstanceFilterTypeManaged),
+			capi.WithServiceInstanceSpaceGUIDs("space-1"),
+			capi.ServiceInstanceIncludeSpace,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, "25", got.Get("per_page"))
+		assert.Equal(t, "managed", got.Get("type"))
+		assert.Equal(t, "space-1", got.Get("space_guids"))
+		assert.Equal(t, "space", got.Get("include"))
+	})
+
 	t.Run("service usage events typed instance types", func(t *testing.T) {
 		t.Parallel()
 
