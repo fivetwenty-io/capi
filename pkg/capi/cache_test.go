@@ -2,6 +2,8 @@ package capi_test
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,8 +135,8 @@ func TestMemoryCache_MaxSize(t *testing.T) {
 		_ = cache.Set(ctx, string(rune('a'+i)), entry)
 	}
 
-	// The cache should have evicted the oldest entry
-	// Since we can't easily check internal state, we verify behavior
+	// The cache should have evicted the soonest-to-expire entry.
+	// Since we can't easily check internal state, we verify behavior.
 	has := 0
 
 	for i := range 3 {
@@ -174,6 +176,39 @@ func TestMemoryCache_Cleanup(t *testing.T) {
 	assert.False(t, cache.Has(ctx, "expired"))
 }
 
+// TestMemoryCache_CtxCancel verifies all MemoryCache methods respect context cancellation.
+func TestMemoryCache_CtxCancel(t *testing.T) {
+	t.Parallel()
+
+	cache := capi.NewMemoryCache(10)
+
+	entry := &capi.CacheEntry{
+		Data:      []byte("data"),
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	// Pre-populate with live ctx so Get/Delete have something to work with.
+	bg := context.Background()
+	require.NoError(t, cache.Set(bg, "k", entry))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	_, err := cache.Get(ctx, "k")
+	require.ErrorIs(t, err, context.Canceled, "Get must return ctx.Err() on cancelled ctx")
+
+	err = cache.Set(ctx, "k2", entry)
+	require.ErrorIs(t, err, context.Canceled, "Set must return ctx.Err() on cancelled ctx")
+
+	err = cache.Delete(ctx, "k")
+	require.ErrorIs(t, err, context.Canceled, "Delete must return ctx.Err() on cancelled ctx")
+
+	err = cache.Clear(ctx)
+	require.ErrorIs(t, err, context.Canceled, "Clear must return ctx.Err() on cancelled ctx")
+
+	assert.False(t, cache.Has(ctx, "k"), "Has must return false on cancelled ctx")
+}
+
 func TestCacheManager_GetCacheKey(t *testing.T) {
 	t.Parallel()
 
@@ -210,11 +245,11 @@ func TestCacheManager_SetAndGet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, data, retrieved)
 
-	// Check stats
+	// Check stats via accessor methods
 	stats := manager.GetStats()
-	assert.Equal(t, int64(1), stats.Hits)
-	assert.Equal(t, int64(0), stats.Misses)
-	assert.Equal(t, int64(1), stats.Sets)
+	assert.Equal(t, int64(1), stats.Hits())
+	assert.Equal(t, int64(0), stats.Misses())
+	assert.Equal(t, int64(1), stats.Sets())
 }
 
 func TestCacheManager_SetWithETag(t *testing.T) {
@@ -249,26 +284,107 @@ func TestCacheManager_Miss(t *testing.T) {
 	_, err := manager.Get(ctx, "nonexistent")
 	require.Error(t, err)
 
-	// Check stats
+	// Check stats via accessor methods
 	stats := manager.GetStats()
-	assert.Equal(t, int64(0), stats.Hits)
-	assert.Equal(t, int64(1), stats.Misses)
+	assert.Equal(t, int64(0), stats.Hits())
+	assert.Equal(t, int64(1), stats.Misses())
 }
 
+// TestCacheStats_GetHitRate verifies hit rate calculation via accessor methods.
 func TestCacheStats_GetHitRate(t *testing.T) {
 	t.Parallel()
 
-	stats := &capi.CacheStats{
-		Hits:   75,
-		Misses: 25,
+	cache := capi.NewMemoryCache(100)
+	manager := capi.NewCacheManager(cache, nil)
+	ctx := context.Background()
+
+	// Seed 75 hits via Set + Get, then 25 misses.
+	data := []byte("v")
+
+	for i := range 75 {
+		key := fmt.Sprintf("k%d", i)
+		_ = manager.Set(ctx, key, data, time.Hour)
+		_, _ = manager.Get(ctx, key) // hit
 	}
 
-	hitRate := stats.GetHitRate()
-	assert.InDelta(t, 0.75, hitRate, 0.0001)
+	for i := 75; i < 100; i++ {
+		_, _ = manager.Get(ctx, fmt.Sprintf("missing%d", i)) // miss
+	}
 
-	// Test with no requests
-	emptyStats := &capi.CacheStats{}
-	assert.InDelta(t, 0.0, emptyStats.GetHitRate(), 0.0001)
+	stats := manager.GetStats()
+	assert.InDelta(t, 0.75, stats.GetHitRate(), 0.0001)
+
+	// Zero-requests edge case
+	emptyManager := capi.NewCacheManager(capi.NewMemoryCache(10), nil)
+	assert.InDelta(t, 0.0, emptyManager.GetStats().GetHitRate(), 0.0001)
+}
+
+// TestCacheStats_ConcurrentIncrements verifies no data race on stat counters
+// when multiple goroutines increment simultaneously.
+func TestCacheStats_ConcurrentIncrements(t *testing.T) {
+	t.Parallel()
+
+	cache := capi.NewMemoryCache(1000)
+	manager := capi.NewCacheManager(cache, nil)
+	ctx := context.Background()
+
+	const goroutines = 50
+	const opsEach = 20
+
+	var wg sync.WaitGroup
+
+	for g := range goroutines {
+		wg.Add(1)
+
+		go func(id int) {
+			defer wg.Done()
+
+			for i := range opsEach {
+				key := fmt.Sprintf("g%d-k%d", id, i)
+				_ = manager.Set(ctx, key, []byte("v"), time.Hour)
+				_, _ = manager.Get(ctx, key)
+				_, _ = manager.Get(ctx, key+"miss")
+			}
+		}(g)
+	}
+
+	wg.Wait()
+
+	stats := manager.GetStats()
+	// Each goroutine does opsEach Sets, opsEach hits, opsEach misses.
+	assert.Equal(t, int64(goroutines*opsEach), stats.Sets())
+	assert.Equal(t, int64(goroutines*opsEach), stats.Hits())
+	assert.Equal(t, int64(goroutines*opsEach), stats.Misses())
+}
+
+// TestCacheManager_InvalidateAll verifies InvalidateAll clears all cache entries.
+func TestCacheManager_InvalidateAll(t *testing.T) {
+	t.Parallel()
+
+	memCache := capi.NewMemoryCache(10)
+	manager := capi.NewCacheManager(memCache, nil)
+	ctx := context.Background()
+
+	data := []byte("value")
+	keys := []string{"a", "b", "c"}
+
+	for _, k := range keys {
+		require.NoError(t, manager.Set(ctx, k, data, time.Hour))
+	}
+
+	// Verify entries exist
+	for _, k := range keys {
+		_, err := manager.Get(ctx, k)
+		require.NoError(t, err, "key %q should exist before InvalidateAll", k)
+	}
+
+	require.NoError(t, manager.InvalidateAll(ctx))
+
+	// All entries must be absent after invalidation
+	for _, k := range keys {
+		_, err := manager.Get(ctx, k)
+		require.Error(t, err, "key %q should be absent after InvalidateAll", k)
+	}
 }
 
 func TestCachingPolicy_ShouldCache(t *testing.T) {

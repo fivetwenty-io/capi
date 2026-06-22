@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fivetwenty-io/capi/v3/internal/constants"
@@ -64,6 +65,10 @@ func NewMemoryCache(maxSize int) *MemoryCache {
 
 // Get retrieves an item from the cache.
 func (c *MemoryCache) Get(ctx context.Context, key string) (*CacheEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -82,26 +87,30 @@ func (c *MemoryCache) Get(ctx context.Context, key string) (*CacheEntry, error) 
 
 // Set stores an item in the cache.
 func (c *MemoryCache) Set(ctx context.Context, key string, entry *CacheEntry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Simple size management - remove oldest entry if at capacity
+	// Simple size management — remove soonest-to-expire entry if at capacity.
 	if c.maxSize > 0 && len(c.items) >= c.maxSize {
-		// Find and remove the oldest entry
+		// Find and remove the soonest-to-expire entry.
 		var (
-			oldestKey  string
-			oldestTime time.Time
+			soonestKey  string
+			soonestTime time.Time
 		)
 
 		for k, v := range c.items {
-			if oldestTime.IsZero() || v.ExpiresAt.Before(oldestTime) {
-				oldestKey = k
-				oldestTime = v.ExpiresAt
+			if soonestTime.IsZero() || v.ExpiresAt.Before(soonestTime) {
+				soonestKey = k
+				soonestTime = v.ExpiresAt
 			}
 		}
 
-		if oldestKey != "" {
-			delete(c.items, oldestKey)
+		if soonestKey != "" {
+			delete(c.items, soonestKey)
 		}
 	}
 
@@ -112,6 +121,10 @@ func (c *MemoryCache) Set(ctx context.Context, key string, entry *CacheEntry) er
 
 // Delete removes an item from the cache.
 func (c *MemoryCache) Delete(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -122,6 +135,10 @@ func (c *MemoryCache) Delete(ctx context.Context, key string) error {
 
 // Clear removes all items from the cache.
 func (c *MemoryCache) Clear(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -132,6 +149,10 @@ func (c *MemoryCache) Clear(ctx context.Context) error {
 
 // Has checks if a key exists in the cache.
 func (c *MemoryCache) Has(ctx context.Context, key string) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -207,26 +228,46 @@ type CacheManager struct {
 	cancel context.CancelFunc
 }
 
-// CacheStats tracks cache statistics.
+// CacheStats tracks cache statistics using atomic counters so callers can read
+// individual fields without holding a lock.
 type CacheStats struct {
-	Hits    int64
-	Misses  int64
-	Sets    int64
-	Deletes int64
-	mu      sync.RWMutex
+	hits    atomic.Int64
+	misses  atomic.Int64
+	sets    atomic.Int64
+	deletes atomic.Int64
+}
+
+// Hits returns the total number of cache hits.
+func (s *CacheStats) Hits() int64 {
+	return s.hits.Load()
+}
+
+// Misses returns the total number of cache misses.
+func (s *CacheStats) Misses() int64 {
+	return s.misses.Load()
+}
+
+// Sets returns the total number of cache set operations.
+func (s *CacheStats) Sets() int64 {
+	return s.sets.Load()
+}
+
+// Deletes returns the total number of cache delete operations.
+func (s *CacheStats) Deletes() int64 {
+	return s.deletes.Load()
 }
 
 // GetHitRate returns the cache hit rate.
 func (s *CacheStats) GetHitRate() float64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	hits := s.hits.Load()
+	misses := s.misses.Load()
+	total := hits + misses
 
-	total := s.Hits + s.Misses
 	if total == 0 {
 		return 0
 	}
 
-	return float64(s.Hits) / float64(total)
+	return float64(hits) / float64(total)
 }
 
 // NewCacheManager creates a new cache manager.
@@ -284,16 +325,12 @@ func (m *CacheManager) GetCacheKey(method, path string, params interface{}) stri
 func (m *CacheManager) Get(ctx context.Context, key string) ([]byte, error) {
 	entry, err := m.cache.Get(ctx, key)
 	if err != nil {
-		m.stats.mu.Lock()
-		m.stats.Misses++
-		m.stats.mu.Unlock()
+		m.stats.misses.Add(1)
 
 		return nil, fmt.Errorf("failed to get cached entry: %w", err)
 	}
 
-	m.stats.mu.Lock()
-	m.stats.Hits++
-	m.stats.mu.Unlock()
+	m.stats.hits.Add(1)
 
 	return entry.Data, nil
 }
@@ -309,9 +346,7 @@ func (m *CacheManager) Set(ctx context.Context, key string, data []byte, ttl tim
 		ExpiresAt: time.Now().Add(ttl),
 	}
 
-	m.stats.mu.Lock()
-	m.stats.Sets++
-	m.stats.mu.Unlock()
+	m.stats.sets.Add(1)
 
 	err := m.cache.Set(ctx, key, entry)
 	if err != nil {
@@ -333,9 +368,7 @@ func (m *CacheManager) SetWithETag(ctx context.Context, key string, data []byte,
 		ETag:      etag,
 	}
 
-	m.stats.mu.Lock()
-	m.stats.Sets++
-	m.stats.mu.Unlock()
+	m.stats.sets.Add(1)
 
 	err := m.cache.Set(ctx, key, entry)
 	if err != nil {
@@ -347,9 +380,7 @@ func (m *CacheManager) SetWithETag(ctx context.Context, key string, data []byte,
 
 // Delete removes an item from the cache.
 func (m *CacheManager) Delete(ctx context.Context, key string) error {
-	m.stats.mu.Lock()
-	m.stats.Deletes++
-	m.stats.mu.Unlock()
+	m.stats.deletes.Add(1)
 
 	err := m.cache.Delete(ctx, key)
 	if err != nil {
@@ -374,13 +405,11 @@ func (m *CacheManager) GetStats() *CacheStats {
 	return m.stats
 }
 
-// InvalidatePattern removes all cache entries matching a pattern.
-func (m *CacheManager) InvalidatePattern(ctx context.Context, pattern string) error {
-	// This is a simplified implementation
-	// In a production system, you might want to use a more sophisticated pattern matching
+// InvalidateAll removes all entries from the cache.
+func (m *CacheManager) InvalidateAll(ctx context.Context) error {
 	err := m.cache.Clear(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to clear cache for pattern invalidation: %w", err)
+		return fmt.Errorf("failed to clear cache: %w", err)
 	}
 
 	return nil

@@ -3,7 +3,6 @@ package capi
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -107,10 +106,8 @@ func CacheInvalidationInterceptor(manager *CacheManager) ResponseInterceptor {
 		// Invalidate cache on successful mutations
 		if req.Method == http.MethodPost || req.Method == http.MethodPut || req.Method == http.MethodPatch || req.Method == http.MethodDelete {
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				// Invalidate related cache entries
-				// This is simplified - you'd want more sophisticated invalidation
-				pattern := fmt.Sprintf("GET:%s*", req.Path)
-				_ = manager.InvalidatePattern(ctx, pattern)
+				// Invalidate all cached entries on successful mutations.
+				_ = manager.InvalidateAll(ctx)
 			}
 		}
 
