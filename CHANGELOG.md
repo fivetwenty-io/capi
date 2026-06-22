@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Typed `List` entity and enum filter constructors for the endpoints that
+  previously exposed only `include`/`fields`/`embed` options: apps, routes,
+  spaces, roles, service instances, service plans, service offerings, service
+  credential bindings, service route bindings, and processes. Every CF v3 List
+  endpoint now offers the full typed filter surface (`WithAppNames`,
+  `WithRouteHosts`, `WithServiceInstanceServicePlanGUIDs`, ...). New enum types
+  cover their enumerated filters — `AppLifecycleType` (buildpack/cnb/docker),
+  `RoleType`, `ServiceInstanceFilterType` (managed/user-provided), and
+  `ServiceCredentialBindingType` (app/key) — with `available` boolean filters
+  for plans and offerings. Filter and `include` options compose on a single
+  `List` call; cross-resource misuse remains a compile error. No interface
+  signatures changed: these endpoints already accepted variadic typed options.
 - Typed `List` filter options for the remaining CF v3 collection endpoints
   that take resource-specific filters but no `include`: builds, droplets,
   packages, tasks, deployments, organizations, domains, organization quotas,
