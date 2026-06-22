@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Typed `List` filter options for the remaining CF v3 collection endpoints
+  that take resource-specific filters but no `include`: builds, droplets,
+  packages, tasks, deployments, organizations, domains, organization quotas,
+  space quotas, security groups, isolation segments, service brokers,
+  buildpacks, stacks, users, audit events, and app/service usage events.
+  Each endpoint exposes a sealed `XListOption` interface with `WithX...`
+  constructors for its entity filters (`guids`, `app_guids`, `names`, ...)
+  and typed enum constants for its enumerated filters — `BuildState`,
+  `DropletState`, `PackageState`, `PackageType`, `TaskState`,
+  `DeploymentState`, `DeploymentStatusValue`, `DeploymentStatusReason`,
+  `BuildpackLifecycle`, and `ServiceInstanceType`. Cross-resource misuse is a
+  compile error. Cross-cutting parameters (`order_by`, `label_selector`,
+  `created_ats`, `updated_ats`, pagination) remain on `QueryParams`.
 - Typed `include` constructors for service instances
   (`space`, `service_plan`, `service_plan.service_offering`,
   `service_plan.service_offering.service_broker`) and service offerings
@@ -52,6 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (interface)**: the `List` methods of 18 resource client
+  interfaces (organizations, domains, builds, droplets, packages, tasks,
+  deployments, buildpacks, stacks, users, service brokers, security groups,
+  isolation segments, organization quotas, space quotas, audit events, and
+  app/service usage events) gained a trailing variadic typed-option
+  parameter. Existing `List(ctx, params)` call sites are unaffected; only
+  external implementers of these interfaces must update their signatures.
 - **Breaking/corrective**: several `ErrorCode*` constants carried numeric
   values that did not match the Cloud Foundry error registry. Corrected to
   the canonical CF v3 codes: `ErrorCodeNotFound` `10010`→`10000`,
