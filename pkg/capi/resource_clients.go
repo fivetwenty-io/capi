@@ -263,6 +263,9 @@ type ServiceInstancesClient interface {
 	// Parameters for managed instances
 	GetParameters(ctx context.Context, guid string) (*ServiceInstanceParameters, error)
 
+	// Credentials for user-provided instances
+	GetCredentials(ctx context.Context, guid string) (*ServiceInstanceCredentials, error)
+
 	// Sharing operations
 	ListSharedSpaces(ctx context.Context, guid string) (*ServiceInstanceSharedSpacesRelationships, error)
 	ShareWithSpaces(ctx context.Context, guid string, request *ServiceInstanceShareRequest) (*ServiceInstanceSharedSpacesRelationships, error)

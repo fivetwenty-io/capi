@@ -165,14 +165,39 @@ func (c *ServiceInstancesClient) GetParameters(ctx context.Context, guid string)
 		return nil, fmt.Errorf("getting service instance parameters: %w", err)
 	}
 
-	var params capi.ServiceInstanceParameters
+	// CF returns the parameters as a bare top-level JSON object
+	// ({"key":"value", ...}), not wrapped in {"parameters": ...}, so
+	// unmarshal into the map directly rather than the envelope struct.
+	var params map[string]interface{}
 
 	err = json.Unmarshal(resp.Body, &params)
 	if err != nil {
 		return nil, fmt.Errorf("parsing service instance parameters response: %w", err)
 	}
 
-	return &params, nil
+	return &capi.ServiceInstanceParameters{Parameters: params}, nil
+}
+
+// GetCredentials retrieves the credentials of a user-provided service instance.
+func (c *ServiceInstancesClient) GetCredentials(ctx context.Context, guid string) (*capi.ServiceInstanceCredentials, error) {
+	path := fmt.Sprintf("/v3/service_instances/%s/credentials", guid)
+
+	resp, err := c.httpClient.Get(ctx, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting service instance credentials: %w", err)
+	}
+
+	// As with parameters, CF returns the credentials as a bare top-level
+	// JSON object ({"username":"...", ...}), not wrapped in
+	// {"credentials": ...}; unmarshal into the map directly.
+	var creds map[string]interface{}
+
+	err = json.Unmarshal(resp.Body, &creds)
+	if err != nil {
+		return nil, fmt.Errorf("parsing service instance credentials response: %w", err)
+	}
+
+	return &capi.ServiceInstanceCredentials{Credentials: creds}, nil
 }
 
 // ListSharedSpaces lists the spaces a service instance is shared with.
