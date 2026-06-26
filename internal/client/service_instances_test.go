@@ -470,16 +470,10 @@ func TestServiceInstancesClient_GetParameters(t *testing.T) {
 		assert.Equal(t, "/v3/service_instances/instance-guid/parameters", request.URL.Path)
 		assert.Equal(t, "GET", request.Method)
 
-		params := capi.ServiceInstanceParameters{
-			Parameters: map[string]interface{}{
-				"max_connections": 100,
-				"enable_ssl":      true,
-				"database_name":   "mydb",
-			},
-		}
-
+		// CF returns parameters as a bare top-level object, not wrapped in
+		// {"parameters": ...} — assert against that real wire shape.
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(params)
+		_, _ = writer.Write([]byte(`{"max_connections":100,"enable_ssl":true,"database_name":"mydb"}`))
 	}))
 	defer server.Close()
 
@@ -492,6 +486,31 @@ func TestServiceInstancesClient_GetParameters(t *testing.T) {
 	assert.InDelta(t, float64(100), params.Parameters["max_connections"], 0)
 	assert.Equal(t, true, params.Parameters["enable_ssl"])
 	assert.Equal(t, "mydb", params.Parameters["database_name"])
+}
+
+func TestServiceInstancesClient_GetCredentials(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, "/v3/service_instances/instance-guid/credentials", request.URL.Path)
+		assert.Equal(t, "GET", request.Method)
+
+		// CF returns credentials as a bare top-level object (the values the
+		// UPS was created with), not wrapped in {"credentials": ...}.
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"username":"my-username","password":"super-secret","other":"credential"}`))
+	}))
+	defer server.Close()
+
+	httpClient := internalhttp.NewClient(server.URL, nil)
+	serviceInstances := NewServiceInstancesClient(httpClient)
+
+	creds, err := serviceInstances.GetCredentials(context.Background(), "instance-guid")
+	require.NoError(t, err)
+	assert.NotNil(t, creds)
+	assert.Equal(t, "my-username", creds.Credentials["username"])
+	assert.Equal(t, "super-secret", creds.Credentials["password"])
+	assert.Equal(t, "credential", creds.Credentials["other"])
 }
 
 func TestServiceInstancesClient_ListSharedSpaces(t *testing.T) {
