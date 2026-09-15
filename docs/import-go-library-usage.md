@@ -5,13 +5,13 @@
 ### Install as a Library
 
 ```bash
-go get github.com/fivetwenty-io/capi/v3@v3.229.1
+go get github.com/fivetwenty-io/capi/v3@v3.229.2
 ```
 
 ### Install the CLI Tool
 
 ```bash
-go install github.com/fivetwenty-io/capi/v3/cmd/capi@v3.229.1
+go install github.com/fivetwenty-io/capi/v3/cmd/capi@v3.229.2
 ```
 
 After installation, the `capi` command will be available in your `$GOPATH/bin` or `$HOME/go/bin`.
@@ -107,11 +107,11 @@ spacesResp, err := client.Spaces().List(ctx, params)
 
 This module uses semantic versioning aligned with the Cloud Foundry API v3 specification version it implements.
 
-Current version: **v3.229.1** (implements CF API v3.229.0)
+Current version: **v3.229.2** (implements CF API v3.229.0)
 
 To import a specific version:
 ```bash
-go get github.com/fivetwenty-io/capi/v3@v3.229.1
+go get github.com/fivetwenty-io/capi/v3@v3.229.2
 ```
 
 For the latest version:
