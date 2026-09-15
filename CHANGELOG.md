@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.229.2] - 2026-09-15
+
+One additive change to the role API, plus routine dependency updates. The
+client can now name a user by username and origin where it previously had to
+supply a GUID; exported Go types gain fields but no existing caller changes.
+The CF API version this release targets is unchanged at 3.229.0.
+
 ### Added
 
 - `RelationshipData` gains `Username` and `Origin` so a role's user
@@ -15,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   managers may assign org roles this way to users they cannot list via
   `GET /v3/users`. `GUID` is now `omitempty` on the wire so the two forms do
   not collide; every existing caller that sets a GUID marshals unchanged.
+
+### Changed
+
+- Dependencies updated to their latest releases, including `golang.org/x/oauth2`
+  v0.37.0, `golang.org/x/term` v0.46.0, `golang.org/x/text` v0.42.0, and
+  `golang.org/x/sys` v0.48.0. No behavioural change.
 
 ## [3.229.1] - 2026-09-03
 
