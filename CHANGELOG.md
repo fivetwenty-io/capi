@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `ServiceInstances().Delete` returns `(nil, nil)` when CF answers 204 No
+  Content. CF deletes a user-provided service instance synchronously, with
+  204 and no `Location` header, even without purge; the client returned
+  "no Location header on async delete response" after CF had already
+  deleted the instance. A 202 without `Location` is still an error. This
+  matches `ServiceCredentialBindings().Delete` and
+  `ServiceRouteBindings().Delete`.
+
 ## [3.229.2] - 2026-09-15
 
 One additive change to the role API, plus routine dependency updates. The
