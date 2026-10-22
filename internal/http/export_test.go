@@ -18,3 +18,9 @@ func NewAuthRetryTransportForTest(base http.RoundTripper, tm auth.TokenManager) 
 func SameOriginForTest(a, b *url.URL) bool {
 	return sameOrigin(a, b)
 }
+
+// LastResponseErrorHandlerForTest exposes lastResponseErrorHandler so tests
+// can check how it treats the final response body.
+func LastResponseErrorHandlerForTest(resp *http.Response, err error, numTries int) (*http.Response, error) {
+	return lastResponseErrorHandler(resp, err, numTries)
+}
