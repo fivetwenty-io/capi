@@ -60,9 +60,11 @@ type ManifestApplication struct {
 	Processes                             []ManifestProcess `json:"processes,omitempty"                                 yaml:"processes,omitempty"`
 	Sidecars                              []ManifestSidecar `json:"sidecars,omitempty"                                  yaml:"sidecars,omitempty"`
 	Metadata                              *ManifestMetadata `json:"metadata,omitempty"                                  yaml:"metadata,omitempty"`
-	DockerImage                           string            `json:"docker,omitempty"                                    yaml:"docker,omitempty"`
-	DockerUsername                        string            `json:"docker_username,omitempty"                           yaml:"docker-username,omitempty"`
-	LogRateLimit                          string            `json:"log_rate_limit_per_second,omitempty"                 yaml:"log-rate-limit-per-second,omitempty"`
+	// Docker gives the app the docker lifecycle. Cloud Controller ignores
+	// the value on apply, and the generate manifest endpoint returns the
+	// image and username.
+	Docker       *ManifestDocker `json:"docker,omitempty"                    yaml:"docker,omitempty"`
+	LogRateLimit string          `json:"log_rate_limit_per_second,omitempty" yaml:"log-rate-limit-per-second,omitempty"`
 	// Credentials used to fetch private buildpacks (buildpack lifecycle)
 	// or buildpack images (cnb lifecycle), keyed by host (CF v3 3.236.0).
 	// The zero value omits the key, which keeps stored credentials. See
@@ -72,6 +74,12 @@ type ManifestApplication struct {
 	// CNBCredentials is the backward-compatible alias for Credentials.
 	// Specifying both keys is rejected by the API.
 	CNBCredentials ManifestCredentials `json:"cnb_credentials,omitzero" yaml:"cnb-credentials,omitempty"`
+}
+
+// ManifestDocker is the docker key of a manifest application.
+type ManifestDocker struct {
+	Image    string `json:"image,omitempty"    yaml:"image,omitempty"`
+	Username string `json:"username,omitempty" yaml:"username,omitempty"`
 }
 
 // ManifestCredential holds one host's credentials. Buildpack-lifecycle

@@ -121,3 +121,37 @@ func TestManifestVersion(t *testing.T) {
 		assert.YAMLEq(t, "version: 1\napplications:\n- name: a\n", out)
 	})
 }
+
+func TestManifestDocker(t *testing.T) {
+	t.Parallel()
+
+	t.Run("yaml object round-trips", func(t *testing.T) {
+		t.Parallel()
+
+		doc := "version: 1\napplications:\n- name: d\n  docker:\n    image: nginx\n    username: bob\n"
+
+		manifest, out := yamlRoundTrip(t, doc)
+		assert.Equal(t, &capi.ManifestDocker{Image: "nginx", Username: "bob"}, manifest.Applications[0].Docker)
+		assert.YAMLEq(t, doc, out)
+	})
+
+	t.Run("json object round-trips", func(t *testing.T) {
+		t.Parallel()
+
+		doc := `{"version":1,"applications":[{"name":"d","docker":{"image":"nginx","username":"bob"}}]}`
+
+		manifest, out := jsonRoundTrip(t, doc)
+		assert.Equal(t, "nginx", manifest.Applications[0].Docker.Image)
+		assert.JSONEq(t, doc, out)
+	})
+
+	t.Run("an empty object keeps the docker lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		doc := "version: 1\napplications:\n- name: d\n  docker: {}\n"
+
+		manifest, out := yamlRoundTrip(t, doc)
+		assert.NotNil(t, manifest.Applications[0].Docker)
+		assert.YAMLEq(t, doc, out)
+	})
+}
