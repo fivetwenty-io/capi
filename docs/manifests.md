@@ -50,10 +50,15 @@ capi manifests diff space-123 --file manifest.yml
 
 ## Output Formats
 
-All manifest commands support multiple output formats:
+The `apply` and `diff` commands support three output formats:
+
 - `--output table` (default) - Human-readable tables
+
 - `--output json` - JSON for scripting
+
 - `--output yaml` - YAML for configuration management
+
+The `generate` command writes the manifest exactly as the API returns it, either to standard output or to the file named by `--output-file`.
 
 ## CI/CD Pipeline Integration
 
@@ -132,12 +137,78 @@ YAML decoding has one limitation. The YAML decoder never calls a field's unmarsh
 
 In JSON the alias is spelled `cnb_credentials`, which matches the other snake_case JSON keys on these types. The YAML key stays `cnb-credentials`.
 
+## Applying a Manifest from Go
+
+`ApplyManifest` takes the manifest as raw YAML bytes, so we build a `capi.Manifest`, marshal it with `go.yaml.in/yaml/v3`, and then wait on the job the API returns.
+
+```go
+import (
+    "context"
+    "fmt"
+
+    "go.yaml.in/yaml/v3"
+
+    "github.com/fivetwenty-io/capi/v3/pkg/capi"
+)
+
+func deploy(ctx context.Context, client capi.Client, spaceGUID, token string) error {
+    instances := 2
+
+    manifest := capi.Manifest{
+        Version: 1,
+        Applications: []capi.ManifestApplication{{
+            Name:       "my-app",
+            Memory:     "1G",
+            Instances:  &instances,
+            Buildpacks: []string{"go_buildpack"},
+            Services:   []capi.ManifestService{{Name: "postgres-service"}},
+            Routes:     []capi.ManifestRoute{{Route: "myapp.example.com"}},
+            Credentials: capi.NewManifestCredentials(map[string]capi.ManifestCredential{
+                "github.com": {Username: "acme-bot", Password: token},
+            }),
+        }},
+    }
+
+    data, err := yaml.Marshal(manifest)
+    if err != nil {
+        return fmt.Errorf("marshaling manifest: %w", err)
+    }
+
+    job, err := client.Manifests().ApplyManifest(ctx, spaceGUID, data)
+    if err != nil {
+        return fmt.Errorf("applying manifest: %w", err)
+    }
+
+    if _, err := client.Jobs().PollUntilComplete(ctx, job.GUID); err != nil {
+        return fmt.Errorf("waiting for manifest job: %w", err)
+    }
+
+    return nil
+}
+```
+
+A service with no binding name or parameters marshals as a plain name, which is the form the API returns in generated manifests. To edit a generated manifest, we decode the bytes from `GenerateManifest` into a `capi.Manifest`, change it, and marshal it again. Turning on `KnownFields(true)` on a `yaml.Decoder` reports any key the types don't model instead of dropping it silently.
+
 ## API Compatibility
 
-All implemented features are compatible with Cloud Foundry API v3.236.0 and follow the official CF API specification for:
+The `capi manifests` commands send and receive manifest bytes without decoding them, so they work with any manifest that Cloud Foundry API v3.236.0 accepts. They call these endpoints:
 
 - `/v3/spaces/{guid}/actions/apply_manifest` - Manifest application
-- `/v3/apps/{guid}/manifest` - Manifest generation  
+
+- `/v3/apps/{guid}/manifest` - Manifest generation
+
 - `/v3/spaces/{guid}/manifest_diff` - Manifest diffing
+
+The Go types in `pkg/capi` model every key in the v3.236.0 app manifest reference, and both the reference example manifest and the example generated manifest decode under strict decoding and marshal back to the same YAML, apart from the label noted below. A few gaps remain, and they're worth knowing before we round-trip a manifest through the types:
+
+- Label and annotation values are strings, so a label written as `sensitive: true` comes back as `sensitive: "true"`.
+
+- A YAML `null` for `credentials` or `cnb-credentials` decodes as an omitted key, as the credentials section above explains.
+
+- A generated manifest with stored credentials decodes as Redacted, and the API rejects it on apply until the field is reset or replaced.
+
+- Route `options` is a plain map, so the types don't check option names or values. The API validates them on apply.
+
+- `buildpack` is deprecated in favor of `buildpacks`, and `health-check-timeout` is deprecated in favor of `timeout`. The API rejects `health-check-timeout` on a process and ignores it at the app level.
 
 For complete API documentation, see the [Cloud Foundry API v3 specification](https://v3-apidocs.cloudfoundry.org/).
