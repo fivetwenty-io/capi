@@ -1,6 +1,6 @@
 module github.com/fivetwenty-io/capi/v3
 
-go 1.26.0
+go 1.27.3
 
 require (
 	github.com/cloudfoundry-community/go-uaa v0.5.0
