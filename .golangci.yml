@@ -137,6 +137,13 @@ linters:
         - (.+)Manager$       # Allow Manager interfaces
         - (.+)Cache$         # Allow Cache interfaces
 
+    gomodguard_v2:
+      blocked:
+        - module: gopkg.in/yaml.v3
+          recommendations:
+            - go.yaml.in/yaml/v3
+          reason: "go.yaml.in/yaml/v3 is the maintained fork of gopkg.in/yaml.v3; use one YAML module so manifest types decode the same way everywhere."
+
     gosec:
       excludes:
         - G117  # Exported struct fields with secret-like names (Password, Token, etc.) are legitimate OAuth/API config fields
