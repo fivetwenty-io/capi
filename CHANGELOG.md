@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The module's `go` directive moves from 1.26.0 to 1.27.3, the current Go
+  release. Consumers now need Go 1.27.3 or later to build.
+- Dependencies updated to their latest releases, including `go-uaa` v0.5.1,
+  `tablewriter` v1.1.5, `golang.org/x/term` v0.47.0, and `golang.org/x/text`
+  v0.43.0. No behavioural change.
 - YAML handling moves from the archived `gopkg.in/yaml.v3` to its maintained
   fork `go.yaml.in/yaml/v3` v3.0.5, a drop-in import path change. Marshal,
   unmarshal, and error output compared identical on representative inputs.
