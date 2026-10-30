@@ -23,8 +23,11 @@ type ManifestsClient interface {
 
 // Manifest represents a Cloud Foundry application manifest.
 type Manifest struct {
-	Version      int                   `json:"version"      yaml:"version"`
-	Applications []ManifestApplication `json:"applications" yaml:"applications"`
+	// Version is the manifest schema version. Cloud Controller accepts only
+	// 1 and defaults to it when the key is absent, so the zero value is
+	// omitted rather than sent as 0, which the API rejects.
+	Version      int                   `json:"version,omitempty" yaml:"version,omitempty"`
+	Applications []ManifestApplication `json:"applications"      yaml:"applications"`
 }
 
 // ManifestApplication represents an application in a manifest.

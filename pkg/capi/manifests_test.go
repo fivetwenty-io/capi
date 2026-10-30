@@ -96,3 +96,28 @@ func TestManifestServiceForms(t *testing.T) {
 		require.Error(t, dec.Decode(&manifest))
 	})
 }
+
+func TestManifestVersion(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unset version is omitted", func(t *testing.T) {
+		t.Parallel()
+
+		manifest := capi.Manifest{Applications: []capi.ManifestApplication{{Name: "a"}}}
+
+		out, err := yaml.Marshal(manifest)
+		require.NoError(t, err)
+		assert.YAMLEq(t, "applications:\n- name: a\n", string(out))
+
+		data, err := json.Marshal(manifest)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"applications":[{"name":"a"}]}`, string(data))
+	})
+
+	t.Run("version 1 is kept", func(t *testing.T) {
+		t.Parallel()
+
+		_, out := yamlRoundTrip(t, "version: 1\napplications:\n- name: a\n")
+		assert.YAMLEq(t, "version: 1\napplications:\n- name: a\n", out)
+	})
+}
