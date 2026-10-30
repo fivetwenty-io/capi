@@ -182,3 +182,58 @@ func TestManifestMetadataNull(t *testing.T) {
 		assert.JSONEq(t, doc, out)
 	})
 }
+
+func TestManifestSidecarMemory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("yaml keeps integers and unit strings", func(t *testing.T) {
+		t.Parallel()
+
+		doc := "version: 1\napplications:\n- name: a\n  sidecars:\n" +
+			"  - {name: auth, process_types: [web], command: run-auth, memory: 800}\n" +
+			"  - {name: up, process_types: [worker], command: ./up, memory: 2G}\n"
+
+		manifest, out := yamlRoundTrip(t, doc)
+		assert.Equal(t, capi.ManifestSidecarMemory("800"), manifest.Applications[0].Sidecars[0].Memory)
+		assert.YAMLEq(t, doc, out)
+	})
+
+	t.Run("json keeps integers and unit strings", func(t *testing.T) {
+		t.Parallel()
+
+		doc := `{"version":1,"applications":[{"name":"a","sidecars":[` +
+			`{"name":"auth","process_types":["web"],"command":"run-auth","memory":800},` +
+			`{"name":"up","process_types":["worker"],"command":"./up","memory":"2G"}]}]}`
+
+		_, out := jsonRoundTrip(t, doc)
+		assert.JSONEq(t, doc, out)
+	})
+
+	t.Run("unset keys are omitted", func(t *testing.T) {
+		t.Parallel()
+
+		out, err := yaml.Marshal(capi.ManifestSidecar{Name: "s"})
+		require.NoError(t, err)
+		assert.YAMLEq(t, "name: s\n", string(out))
+
+		data, err := json.Marshal(capi.ManifestSidecar{Name: "s"})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"name":"s"}`, string(data))
+	})
+
+	t.Run("leading zeros still marshal as a valid number", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := json.Marshal(capi.ManifestSidecar{Name: "s", Memory: "0800"})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"name":"s","memory":800}`, string(data))
+	})
+
+	t.Run("json rejects other types", func(t *testing.T) {
+		t.Parallel()
+
+		var sidecar capi.ManifestSidecar
+
+		require.Error(t, json.Unmarshal([]byte(`{"name":"s","memory":true}`), &sidecar))
+	})
+}

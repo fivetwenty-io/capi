@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -376,10 +377,96 @@ type ManifestProcess struct {
 
 // ManifestSidecar represents a sidecar in a manifest.
 type ManifestSidecar struct {
-	Name         string   `json:"name"             yaml:"name"`
-	Command      string   `json:"command"          yaml:"command"`
-	ProcessTypes []string `json:"process_types"    yaml:"process_types"`
-	Memory       string   `json:"memory,omitempty" yaml:"memory,omitempty"`
+	Name         string                `json:"name"                    yaml:"name"`
+	Command      string                `json:"command,omitempty"       yaml:"command,omitempty"`
+	ProcessTypes []string              `json:"process_types,omitempty" yaml:"process_types,omitempty"`
+	Memory       ManifestSidecarMemory `json:"memory,omitempty"        yaml:"memory,omitempty"`
+}
+
+// ManifestSidecarMemory is a sidecar memory limit. The app manifest
+// reference types it as an integer number of megabytes, and Cloud
+// Controller also accepts a string with a unit such as "800M", which is
+// the form the generate manifest endpoint returns. A value made only of
+// digits marshals as an integer and any other value as a string, so both
+// forms round-trip.
+type ManifestSidecarMemory string
+
+// MarshalJSON encodes a digits-only value as a number and any other value
+// as a string.
+func (m ManifestSidecarMemory) MarshalJSON() ([]byte, error) {
+	megabytes, ok := m.megabytes()
+	if ok {
+		return []byte(strconv.Itoa(megabytes)), nil
+	}
+
+	data, err := json.Marshal(string(m))
+	if err != nil {
+		return nil, fmt.Errorf("marshaling sidecar memory: %w", err)
+	}
+
+	return data, nil
+}
+
+// UnmarshalJSON accepts a number of megabytes or a string with a unit. A
+// null leaves the value unchanged.
+func (m *ManifestSidecarMemory) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+
+	if len(trimmed) > 0 && trimmed[0] == '"' {
+		var value string
+
+		err := json.Unmarshal(trimmed, &value)
+		if err != nil {
+			return fmt.Errorf("unmarshaling sidecar memory: %w", err)
+		}
+
+		*m = ManifestSidecarMemory(value)
+
+		return nil
+	}
+
+	var number json.Number
+
+	err := json.Unmarshal(trimmed, &number)
+	if err != nil {
+		return fmt.Errorf("unmarshaling sidecar memory: %w", err)
+	}
+
+	*m = ManifestSidecarMemory(number)
+
+	return nil
+}
+
+// MarshalYAML encodes a digits-only value as an integer and any other
+// value as a string.
+func (m ManifestSidecarMemory) MarshalYAML() (any, error) {
+	megabytes, ok := m.megabytes()
+	if ok {
+		return megabytes, nil
+	}
+
+	return string(m), nil
+}
+
+// megabytes parses a digits-only value. Signs, units, and values that
+// overflow an int report false.
+func (m ManifestSidecarMemory) megabytes() (int, bool) {
+	if m == "" {
+		return 0, false
+	}
+
+	for _, r := range m {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+
+	megabytes, err := strconv.Atoi(string(m))
+
+	return megabytes, err == nil
 }
 
 // ManifestMetadata represents metadata in a manifest. A nil value marshals
