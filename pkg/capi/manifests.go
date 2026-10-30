@@ -2,6 +2,9 @@ package capi
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 )
 
@@ -56,6 +59,188 @@ type ManifestApplication struct {
 	DockerImage                           string            `json:"docker,omitempty"                                    yaml:"docker,omitempty"`
 	DockerUsername                        string            `json:"docker_username,omitempty"                           yaml:"docker-username,omitempty"`
 	LogRateLimit                          string            `json:"log_rate_limit_per_second,omitempty"                 yaml:"log-rate-limit-per-second,omitempty"`
+	// Credentials used to fetch private buildpacks (buildpack lifecycle)
+	// or buildpack images (cnb lifecycle), keyed by host (CF v3 3.236.0).
+	// The zero value omits the key, which keeps stored credentials. See
+	// ManifestCredentials for the other states and for how a YAML null
+	// decodes.
+	Credentials ManifestCredentials `json:"credentials,omitzero" yaml:"credentials,omitempty"`
+	// CNBCredentials is the backward-compatible alias for Credentials.
+	// Specifying both keys is rejected by the API.
+	CNBCredentials ManifestCredentials `json:"cnb_credentials,omitzero" yaml:"cnb-credentials,omitempty"`
+}
+
+// ManifestCredential holds one host's credentials. Buildpack-lifecycle
+// entries use Username and Password; cnb-lifecycle entries use either
+// Username and Password or Token.
+type ManifestCredential struct {
+	Username string `json:"username,omitempty" yaml:"username,omitempty"`
+	Password string `json:"password,omitempty" yaml:"password,omitempty"`
+	Token    string `json:"token,omitempty"    yaml:"token,omitempty"`
+}
+
+// RedactedManifestCredentials is the placeholder Cloud Controller returns
+// in place of stored credentials, for example in the manifest that
+// GET /v3/apps/:guid/manifest generates.
+const RedactedManifestCredentials = "***"
+
+// ErrManifestCredentialsUnset is returned when the zero ManifestCredentials
+// is marshaled. The zero value means "omit the key", which only a field
+// tagged omitzero (JSON) or omitempty (YAML) can express; emitting null
+// instead would clear the stored credentials.
+var ErrManifestCredentialsUnset = errors.New(
+	"manifest credentials are unset: omit the key with omitzero or omitempty")
+
+// ManifestCredentials is the value of the manifest credentials and
+// cnb-credentials keys. It has four states:
+//
+//   - The zero value omits the key, which keeps stored credentials. It only
+//     marshals inside a field tagged omitzero (JSON) or omitempty (YAML),
+//     as ManifestApplication does; marshaling it anywhere else returns
+//     ErrManifestCredentialsUnset rather than an accidental null.
+//   - A non-nil Hosts map sets the credentials per host. An empty map is
+//     sent as {}, which Cloud Controller stores as an empty set of
+//     credentials, unlike an omitted key.
+//   - Clear sends an explicit null, which clears stored credentials.
+//   - Redacted records that the server returned the placeholder "***" for
+//     stored credentials. It marshals back to "***" so a generated
+//     manifest round-trips, but Cloud Controller rejects the string on
+//     apply, because credentials must be an object. Before applying a
+//     generated manifest, reset the field to the zero value to keep the
+//     stored credentials, or set Hosts to replace them.
+//
+// Clear wins over Redacted, which wins over Hosts.
+//
+// Decoding limitation: a YAML decoder never calls a field's unmarshaler for
+// a null value, so "credentials: null" (and ~, an empty value, or a null
+// reached through an alias or merge key) decodes as the zero value, not as
+// Clear, and re-marshals with the key omitted. A manifest decoded from YAML
+// therefore cannot carry a clear request through to ApplyManifest; set
+// Clear explicitly, or apply the original bytes. JSON decoding does report
+// null as Clear.
+//
+// The methods use the UnmarshalYAML(func(any) error) form, which
+// go.yaml.in/yaml/v3, gopkg.in/yaml.v3, and gopkg.in/yaml.v2 all call, so
+// decoding behaves the same whichever of them the caller uses.
+type ManifestCredentials struct {
+	// Hosts maps a host to its credentials.
+	Hosts map[string]ManifestCredential `json:"-" yaml:",inline"`
+	// Clear marshals the key as an explicit null.
+	Clear bool `json:"-" yaml:"-"`
+	// Redacted marshals the key as the "***" placeholder.
+	Redacted bool `json:"-" yaml:"-"`
+}
+
+// ClearManifestCredentials returns the value that clears stored credentials.
+func ClearManifestCredentials() ManifestCredentials {
+	return ManifestCredentials{Clear: true}
+}
+
+// NewManifestCredentials returns a value that sets credentials per host. A
+// nil map is treated as an empty one, so the result is never the zero
+// value.
+func NewManifestCredentials(hosts map[string]ManifestCredential) ManifestCredentials {
+	if hosts == nil {
+		hosts = map[string]ManifestCredential{}
+	}
+
+	return ManifestCredentials{Hosts: hosts}
+}
+
+// IsZero reports whether the key should be omitted from a manifest.
+func (c ManifestCredentials) IsZero() bool {
+	return !c.Clear && !c.Redacted && c.Hosts == nil
+}
+
+// MarshalJSON encodes Clear as null, Redacted as "***", and otherwise the
+// host map. The zero value returns ErrManifestCredentialsUnset.
+func (c ManifestCredentials) MarshalJSON() ([]byte, error) {
+	value, err := c.wireValue()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling manifest credentials: %w", err)
+	}
+
+	return data, nil
+}
+
+// UnmarshalJSON decodes null as Clear, "***" as Redacted, and an object as
+// the host map. Any other value is an error.
+func (c *ManifestCredentials) UnmarshalJSON(data []byte) error {
+	var value any
+
+	err := json.Unmarshal(data, &value)
+	if err != nil {
+		return fmt.Errorf("unmarshaling manifest credentials: %w", err)
+	}
+
+	switch value {
+	case nil:
+		*c = ManifestCredentials{Clear: true}
+
+		return nil
+	case RedactedManifestCredentials:
+		*c = ManifestCredentials{Redacted: true}
+
+		return nil
+	}
+
+	var hosts map[string]ManifestCredential
+
+	err = json.Unmarshal(data, &hosts)
+	if err != nil {
+		return fmt.Errorf("unmarshaling manifest credentials: %w", err)
+	}
+
+	*c = NewManifestCredentials(hosts)
+
+	return nil
+}
+
+// MarshalYAML encodes Clear as null, Redacted as "***", and otherwise the
+// host map. The zero value returns ErrManifestCredentialsUnset.
+func (c ManifestCredentials) MarshalYAML() (any, error) {
+	return c.wireValue()
+}
+
+// UnmarshalYAML decodes "***" as Redacted and a mapping as the host map.
+// Errors from the decoder come back unwrapped so that it can keep
+// aggregating type errors across the rest of the document.
+func (c *ManifestCredentials) UnmarshalYAML(unmarshal func(any) error) error {
+	var scalar string
+	if unmarshal(&scalar) == nil && scalar == RedactedManifestCredentials {
+		*c = ManifestCredentials{Redacted: true}
+
+		return nil
+	}
+
+	var hosts map[string]ManifestCredential
+
+	err := unmarshal(&hosts)
+	if err != nil {
+		return err //nolint:wrapcheck // yaml aggregates *yaml.TypeError only when it is returned as is
+	}
+
+	*c = NewManifestCredentials(hosts)
+
+	return nil
+}
+
+func (c ManifestCredentials) wireValue() (any, error) {
+	switch {
+	case c.Clear:
+		return nil, nil //nolint:nilnil // a nil value is the null that clears credentials
+	case c.Redacted:
+		return RedactedManifestCredentials, nil
+	case c.Hosts != nil:
+		return c.Hosts, nil
+	default:
+		return nil, ErrManifestCredentialsUnset
+	}
 }
 
 // ManifestService represents a service binding in a manifest.
