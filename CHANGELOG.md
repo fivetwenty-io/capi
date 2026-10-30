@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- YAML handling moves from the archived `gopkg.in/yaml.v3` to its maintained
+  fork `go.yaml.in/yaml/v3` v3.0.5, a drop-in import path change. Marshal,
+  unmarshal, and error output compared identical on representative inputs.
+
 ## [3.229.2] - 2026-09-15
 
 One additive change to the role API, plus routine dependency updates. The
