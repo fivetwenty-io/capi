@@ -1,6 +1,7 @@
 package capi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -243,11 +244,96 @@ func (c ManifestCredentials) wireValue() (any, error) {
 	}
 }
 
-// ManifestService represents a service binding in a manifest.
+// ManifestService represents a service binding in a manifest. The services
+// key takes either a service instance name or an object, and both decode
+// into this type. A value with only Name set marshals as the plain name,
+// which is the form the generate manifest endpoint returns.
 type ManifestService struct {
 	Name        string         `json:"name,omitempty"         yaml:"name,omitempty"`
 	BindingName string         `json:"binding_name,omitempty" yaml:"binding_name,omitempty"`
 	Parameters  map[string]any `json:"parameters,omitempty"   yaml:"parameters,omitempty"`
+}
+
+// manifestServiceFields has the fields of ManifestService without its
+// methods, so the methods can encode and decode the object form.
+type manifestServiceFields ManifestService
+
+// MarshalJSON encodes a name-only service as a string and any other
+// service as an object.
+func (s ManifestService) MarshalJSON() ([]byte, error) {
+	var value any = manifestServiceFields(s)
+	if s.nameOnly() {
+		value = s.Name
+	}
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling manifest service: %w", err)
+	}
+
+	return data, nil
+}
+
+// UnmarshalJSON decodes a string as the service name and an object field
+// by field.
+func (s *ManifestService) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) > 0 && trimmed[0] == '"' {
+		err := json.Unmarshal(trimmed, &s.Name)
+		if err != nil {
+			return fmt.Errorf("unmarshaling manifest service name: %w", err)
+		}
+
+		return nil
+	}
+
+	fields := manifestServiceFields(*s)
+
+	err := json.Unmarshal(data, &fields)
+	if err != nil {
+		return fmt.Errorf("unmarshaling manifest service: %w", err)
+	}
+
+	*s = ManifestService(fields)
+
+	return nil
+}
+
+// MarshalYAML encodes a name-only service as a string and any other
+// service as a mapping.
+func (s ManifestService) MarshalYAML() (any, error) {
+	if s.nameOnly() {
+		return s.Name, nil
+	}
+
+	return manifestServiceFields(s), nil
+}
+
+// UnmarshalYAML decodes a scalar as the service name and a mapping field by
+// field. Decoder errors come back unwrapped so that type errors keep
+// aggregating.
+func (s *ManifestService) UnmarshalYAML(unmarshal func(any) error) error {
+	var name string
+	if unmarshal(&name) == nil {
+		s.Name = name
+
+		return nil
+	}
+
+	fields := manifestServiceFields(*s)
+
+	err := unmarshal(&fields)
+	if err != nil {
+		return err //nolint:wrapcheck // yaml aggregates *yaml.TypeError only when it is returned as is
+	}
+
+	*s = ManifestService(fields)
+
+	return nil
+}
+
+func (s ManifestService) nameOnly() bool {
+	return s.BindingName == "" && len(s.Parameters) == 0
 }
 
 // ManifestRoute represents a route in a manifest.
