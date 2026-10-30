@@ -102,9 +102,39 @@ capi manifests --help
 capi manifests apply --help
 ```
 
+## Private Buildpack Credentials
+
+CF API 3.236.0 adds a top-level `credentials` manifest key, keyed by host, for fetching private buildpacks (buildpack lifecycle) and buildpack images (cnb lifecycle). The existing `cnb-credentials` key remains as an alias, and giving both keys is a validation error. Buildpack entries take a username and password, while cnb entries take either a username and password or a token.
+
+In the Go library, `ManifestApplication.Credentials` and `ManifestApplication.CNBCredentials` carry these values as a `capi.ManifestCredentials`, which has four states.
+
+| State | How we get it | What it marshals as | What the API does with it |
+|-------|---------------|---------------------|---------------------------|
+| Unset | The zero value | The key is omitted | Keeps the stored credentials |
+| Hosts | `capi.NewManifestCredentials(hosts)` | An object keyed by host, or `{}` for an empty map | Stores the credentials given |
+| Clear | `capi.ClearManifestCredentials()` | `null` | Clears the stored credentials |
+| Redacted | Decoding a manifest that holds `***` | `***` | Rejects the manifest, because credentials must be an object |
+
+The parent struct's `omitempty` (YAML) and `omitzero` (JSON) tags are what drop an unset field. Marshaling an unset `ManifestCredentials` on its own returns `capi.ErrManifestCredentialsUnset` rather than writing a `null` that would clear the stored credentials by accident.
+
+```go
+app := capi.ManifestApplication{
+    Name: "my-app",
+    Credentials: capi.NewManifestCredentials(map[string]capi.ManifestCredential{
+        "github.com": {Username: "acme-bot", Password: token},
+    }),
+}
+```
+
+The API never returns stored credentials. A generated manifest and an app's lifecycle data show `***` in their place, and the manifest diff shows `[PRIVATE DATA HIDDEN]`. A generated manifest therefore decodes with `Credentials.Redacted` set, and marshaling it again writes `***` back, which the API rejects on apply. Before we apply a generated manifest, we either set real credentials or reset the field to its zero value so that the stored ones are kept.
+
+YAML decoding has one limitation. The YAML decoder never calls a field's unmarshaler for a null value, so it can't tell an explicit `null` from a missing key. That means `credentials: null`, `credentials: ~`, and a null that arrives through an alias or a merge key all decode as the unset state, and marshaling the result omits the key instead of clearing the credentials. JSON decoding doesn't have this gap, and a JSON `null` decodes as Clear. When we edit a manifest in Go and need the clear to survive, we set `capi.ClearManifestCredentials()` before marshaling. The `capi manifests apply` command sends the file exactly as written, so a `null` in that file always reaches the API.
+
+In JSON the alias is spelled `cnb_credentials`, which matches the other snake_case JSON keys on these types. The YAML key stays `cnb-credentials`.
+
 ## API Compatibility
 
-All implemented features are compatible with Cloud Foundry API v3.229.0 and follow the official CF API specification for:
+All implemented features are compatible with Cloud Foundry API v3.236.0 and follow the official CF API specification for:
 
 - `/v3/spaces/{guid}/actions/apply_manifest` - Manifest application
 - `/v3/apps/{guid}/manifest` - Manifest generation  
