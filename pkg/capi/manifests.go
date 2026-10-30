@@ -54,7 +54,9 @@ type ManifestApplication struct {
 	HealthCheckHTTPEndpoint      string   `json:"health_check_http_endpoint,omitempty"      yaml:"health-check-http-endpoint,omitempty"`
 	HealthCheckInterval          *int     `json:"health_check_interval,omitempty"           yaml:"health-check-interval,omitempty"`
 	HealthCheckInvocationTimeout *int     `json:"health_check_invocation_timeout,omitempty" yaml:"health-check-invocation-timeout,omitempty"`
-	HealthCheckTimeout           *int     `json:"health_check_timeout,omitempty"            yaml:"health-check-timeout,omitempty"`
+	// Deprecated: Cloud Controller accepts health-check-timeout at the app
+	// level but does not apply it to any process. Use Timeout.
+	HealthCheckTimeout *int `json:"health_check_timeout,omitempty" yaml:"health-check-timeout,omitempty"`
 	// Readiness health checks determine when an app is ready to receive
 	// traffic (CF v3 3.223.0 manifest schema). Valid types: http, port,
 	// process.
@@ -363,19 +365,31 @@ func (s ManifestService) nameOnly() bool {
 type ManifestRoute struct {
 	Route    string `json:"route,omitempty"    yaml:"route,omitempty"`
 	Protocol string `json:"protocol,omitempty" yaml:"protocol,omitempty"`
+	// Options are per-route options such as loadbalancing, hash_header,
+	// and hash_balance. The map keeps values as written, because
+	// hash_balance may be a number or a string.
+	Options map[string]any `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 // ManifestProcess represents a process in a manifest.
 type ManifestProcess struct {
-	Type                    string `json:"type"                                 yaml:"type"`
-	Command                 string `json:"command,omitempty"                    yaml:"command,omitempty"`
-	Memory                  string `json:"memory,omitempty"                     yaml:"memory,omitempty"`
-	Disk                    string `json:"disk_quota,omitempty"                 yaml:"disk_quota,omitempty"`
-	Instances               *int   `json:"instances,omitempty"                  yaml:"instances,omitempty"`
-	HealthCheckType         string `json:"health_check_type,omitempty"          yaml:"health-check-type,omitempty"`
-	HealthCheckHTTPEndpoint string `json:"health_check_http_endpoint,omitempty" yaml:"health-check-http-endpoint,omitempty"`
-	HealthCheckInterval     *int   `json:"health_check_interval,omitempty"      yaml:"health-check-interval,omitempty"`
-	HealthCheckTimeout      *int   `json:"health_check_timeout,omitempty"       yaml:"health-check-timeout,omitempty"`
+	Type    string `json:"type"              yaml:"type"`
+	Command string `json:"command,omitempty" yaml:"command,omitempty"`
+	// User is the user the process runs as.
+	User      string `json:"user,omitempty"       yaml:"user,omitempty"`
+	Memory    string `json:"memory,omitempty"     yaml:"memory,omitempty"`
+	Disk      string `json:"disk_quota,omitempty" yaml:"disk_quota,omitempty"`
+	Instances *int   `json:"instances,omitempty"  yaml:"instances,omitempty"`
+	// Timeout is the time in seconds at which the health check reports
+	// failure.
+	Timeout                      *int   `json:"timeout,omitempty"                         yaml:"timeout,omitempty"`
+	HealthCheckType              string `json:"health_check_type,omitempty"               yaml:"health-check-type,omitempty"`
+	HealthCheckHTTPEndpoint      string `json:"health_check_http_endpoint,omitempty"      yaml:"health-check-http-endpoint,omitempty"`
+	HealthCheckInterval          *int   `json:"health_check_interval,omitempty"           yaml:"health-check-interval,omitempty"`
+	HealthCheckInvocationTimeout *int   `json:"health_check_invocation_timeout,omitempty" yaml:"health-check-invocation-timeout,omitempty"`
+	// Deprecated: health-check-timeout is not a process-level manifest key,
+	// and Cloud Controller rejects a manifest that sets it. Use Timeout.
+	HealthCheckTimeout *int `json:"health_check_timeout,omitempty" yaml:"health-check-timeout,omitempty"`
 	// Readiness health checks determine when the process is ready to
 	// receive traffic (CF v3 3.223.0 manifest schema). Valid types: http,
 	// port, process.

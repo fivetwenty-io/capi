@@ -3,6 +3,7 @@ package capi_test
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -263,5 +264,182 @@ func TestManifestApplicationKeys(t *testing.T) {
 
 		_, out := jsonRoundTrip(t, doc)
 		assert.JSONEq(t, doc, out)
+	})
+}
+
+func TestManifestProcessAndRouteKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("yaml round-trips process and route keys", func(t *testing.T) {
+		t.Parallel()
+
+		doc := "version: 1\napplications:\n- name: a\n  routes:\n" +
+			"  - route: a.example.com\n    options: {loadbalancing: hash, hash_header: X-User, hash_balance: 1.5}\n" +
+			"  processes:\n  - type: web\n    user: vcap\n    timeout: 10\n    health-check-invocation-timeout: 3\n"
+
+		manifest, out := yamlRoundTrip(t, doc)
+		app := manifest.Applications[0]
+		assert.Equal(t, "vcap", app.Processes[0].User)
+		assert.Equal(t, 10, *app.Processes[0].Timeout)
+		assert.Equal(t, "hash", app.Routes[0].Options["loadbalancing"])
+		assert.YAMLEq(t, doc, out)
+	})
+
+	t.Run("json round-trips process and route keys", func(t *testing.T) {
+		t.Parallel()
+
+		doc := `{"version":1,"applications":[{"name":"a",` +
+			`"routes":[{"route":"a.example.com","options":{"loadbalancing":"hash","hash_balance":1.5}}],` +
+			`"processes":[{"type":"web","user":"vcap","timeout":10,"health_check_invocation_timeout":3}]}]}`
+
+		_, out := jsonRoundTrip(t, doc)
+		assert.JSONEq(t, doc, out)
+	})
+}
+
+// referenceManifest is the example manifest from the CF API 3.236.0 app
+// manifest reference.
+const referenceManifest = `version: 1
+applications:
+- name: app1
+  buildpacks:
+  - ruby_buildpack
+  - java_buildpack
+  env:
+    VAR1: value1
+    VAR2: value2
+  features:
+    ssh: true
+    revisions: true
+    service-binding-k8s: false
+    file-based-vcap-services: false
+  routes:
+  - route: route.example.com
+  - route: another-route.example.com
+    protocol: http2
+  - route: route-with-options.example.com
+    options:
+      loadbalancing: least-connection
+  services:
+  - my-service1
+  - my-service2
+  - name: my-service-with-arbitrary-params
+    binding_name: my-binding
+    parameters:
+      key1: value1
+      key2: value2
+  stack: cflinuxfs4
+  metadata:
+    annotations:
+      contact: "dev@example.com ops@example.com"
+    labels:
+      sensitive: true
+  processes:
+  - type: web
+    command: start-web.sh
+    disk_quota: 512M
+    health-check-type: http
+    health-check-http-endpoint: /healthcheck
+    health-check-invocation-timeout: 10
+    health-check-interval: 5
+    readiness-health-check-type: http
+    readiness-health-check-http-endpoint: /ready
+    readiness-health-check-invocation-timeout: 10
+    readiness-health-check-interval: 5
+    instances: 3
+    memory: 500M
+    log-rate-limit-per-second: 1KB
+    timeout: 10
+    user: vcap
+  - type: worker
+    command: start-worker.sh
+    disk_quota: 1G
+    health-check-type: process
+    instances: 2
+    memory: 256M
+    log-rate-limit-per-second: 1KB
+    timeout: 15
+- name: app2
+  env:
+    VAR1: value1
+  processes:
+  - type: web
+    instances: 1
+    memory: 256M
+    log-rate-limit-per-second: 1KB
+  sidecars:
+  - name: authenticator
+    process_types: [ 'web', 'worker' ]
+    command: bundle exec run-authenticator
+    memory: 800M
+  - name: upcaser
+    process_types: [ 'worker' ]
+    command: ./tr-server
+    memory: 2G
+`
+
+// generatedManifest is the example response of the CF API 3.236.0
+// generate manifest endpoint.
+const generatedManifest = `---
+applications:
+- name: my-app
+  stack: cflinuxfs4
+  features:
+    ssh: true
+    revisions: true
+    service-binding-k8s: false
+    file-based-vcap-services: false
+  services:
+  - my-service
+  routes:
+  - route: my-app.example.com
+    protocol: http1
+  processes:
+  - type: web
+    instances: 2
+    memory: 512M
+    log-rate-limit-per-second: 1KB
+    disk_quota: 1024M
+    health-check-type: http
+    health-check-http-endpoint: /healthy
+    health-check-invocation-timeout: 10
+    health-check-interval: 5
+    readiness-health-check-type: http
+    readiness-health-check-http-endpoint: /ready
+    readiness-health-check-invocation-timeout: 20
+    readiness-health-check-interval: 5
+`
+
+func TestManifestReferenceExamples(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the reference manifest decodes strictly and round-trips", func(t *testing.T) {
+		t.Parallel()
+
+		var manifest capi.Manifest
+
+		dec := yaml.NewDecoder(strings.NewReader(referenceManifest))
+		dec.KnownFields(true)
+		require.NoError(t, dec.Decode(&manifest))
+
+		out, err := yaml.Marshal(manifest)
+		require.NoError(t, err)
+		// Label values are strings, so the boolean label comes back quoted.
+		want := strings.Replace(referenceManifest, "sensitive: true", `sensitive: "true"`, 1)
+		assert.YAMLEq(t, want, string(out))
+	})
+
+	t.Run("the generated manifest decodes strictly and round-trips", func(t *testing.T) {
+		t.Parallel()
+
+		var manifest capi.Manifest
+
+		dec := yaml.NewDecoder(strings.NewReader(generatedManifest))
+		dec.KnownFields(true)
+		require.NoError(t, dec.Decode(&manifest))
+
+		out, err := yaml.Marshal(manifest)
+		require.NoError(t, err)
+		assert.YAMLEq(t, generatedManifest, string(out))
 	})
 }
