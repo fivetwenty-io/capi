@@ -33,19 +33,28 @@ type Manifest struct {
 
 // ManifestApplication represents an application in a manifest.
 type ManifestApplication struct {
-	Name                    string   `json:"name"                                 yaml:"name"`
-	Path                    string   `json:"path,omitempty"                       yaml:"path,omitempty"`
-	Memory                  string   `json:"memory,omitempty"                     yaml:"memory,omitempty"`
-	Disk                    string   `json:"disk_quota,omitempty"                 yaml:"disk_quota,omitempty"`
-	Instances               *int     `json:"instances,omitempty"                  yaml:"instances,omitempty"`
-	Command                 string   `json:"command,omitempty"                    yaml:"command,omitempty"`
-	Buildpacks              []string `json:"buildpacks,omitempty"                 yaml:"buildpacks,omitempty"`
-	Stack                   string   `json:"stack,omitempty"                      yaml:"stack,omitempty"`
-	Timeout                 *int     `json:"timeout,omitempty"                    yaml:"timeout,omitempty"`
-	HealthCheckType         string   `json:"health_check_type,omitempty"          yaml:"health-check-type,omitempty"`
-	HealthCheckHTTPEndpoint string   `json:"health_check_http_endpoint,omitempty" yaml:"health-check-http-endpoint,omitempty"`
-	HealthCheckInterval     *int     `json:"health_check_interval,omitempty"      yaml:"health-check-interval,omitempty"`
-	HealthCheckTimeout      *int     `json:"health_check_timeout,omitempty"       yaml:"health-check-timeout,omitempty"`
+	Name string `json:"name" yaml:"name"`
+	// Lifecycle is buildpack, cnb, or docker. Cloud Controller defaults to
+	// buildpack, or to docker when Docker is set.
+	Lifecycle string `json:"lifecycle,omitempty"  yaml:"lifecycle,omitempty"`
+	Path      string `json:"path,omitempty"       yaml:"path,omitempty"`
+	Memory    string `json:"memory,omitempty"     yaml:"memory,omitempty"`
+	Disk      string `json:"disk_quota,omitempty" yaml:"disk_quota,omitempty"`
+	Instances *int   `json:"instances,omitempty"  yaml:"instances,omitempty"`
+	Command   string `json:"command,omitempty"    yaml:"command,omitempty"`
+	// Buildpack is the legacy single-buildpack key.
+	//
+	// Deprecated: the app manifest reference replaces it with Buildpacks.
+	// It is kept so manifests that still use it decode and round-trip.
+	Buildpack                    string   `json:"buildpack,omitempty"                       yaml:"buildpack,omitempty"`
+	Buildpacks                   []string `json:"buildpacks,omitempty"                      yaml:"buildpacks,omitempty"`
+	Stack                        string   `json:"stack,omitempty"                           yaml:"stack,omitempty"`
+	Timeout                      *int     `json:"timeout,omitempty"                         yaml:"timeout,omitempty"`
+	HealthCheckType              string   `json:"health_check_type,omitempty"               yaml:"health-check-type,omitempty"`
+	HealthCheckHTTPEndpoint      string   `json:"health_check_http_endpoint,omitempty"      yaml:"health-check-http-endpoint,omitempty"`
+	HealthCheckInterval          *int     `json:"health_check_interval,omitempty"           yaml:"health-check-interval,omitempty"`
+	HealthCheckInvocationTimeout *int     `json:"health_check_invocation_timeout,omitempty" yaml:"health-check-invocation-timeout,omitempty"`
+	HealthCheckTimeout           *int     `json:"health_check_timeout,omitempty"            yaml:"health-check-timeout,omitempty"`
 	// Readiness health checks determine when an app is ready to receive
 	// traffic (CF v3 3.223.0 manifest schema). Valid types: http, port,
 	// process.
@@ -54,9 +63,11 @@ type ManifestApplication struct {
 	ReadinessHealthCheckInterval          *int              `json:"readiness_health_check_interval,omitempty"           yaml:"readiness-health-check-interval,omitempty"`
 	ReadinessHealthCheckInvocationTimeout *int              `json:"readiness_health_check_invocation_timeout,omitempty" yaml:"readiness-health-check-invocation-timeout,omitempty"`
 	Env                                   map[string]any    `json:"env,omitempty"                                       yaml:"env,omitempty"`
+	Features                              map[string]bool   `json:"features,omitempty"                                  yaml:"features,omitempty"`
 	Services                              []ManifestService `json:"services,omitempty"                                  yaml:"services,omitempty"`
 	Routes                                []ManifestRoute   `json:"routes,omitempty"                                    yaml:"routes,omitempty"`
 	RandomRoute                           *bool             `json:"random_route,omitempty"                              yaml:"random-route,omitempty"`
+	DefaultRoute                          *bool             `json:"default_route,omitempty"                             yaml:"default-route,omitempty"`
 	NoRoute                               *bool             `json:"no_route,omitempty"                                  yaml:"no-route,omitempty"`
 	Processes                             []ManifestProcess `json:"processes,omitempty"                                 yaml:"processes,omitempty"`
 	Sidecars                              []ManifestSidecar `json:"sidecars,omitempty"                                  yaml:"sidecars,omitempty"`

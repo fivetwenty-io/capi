@@ -237,3 +237,31 @@ func TestManifestSidecarMemory(t *testing.T) {
 		require.Error(t, json.Unmarshal([]byte(`{"name":"s","memory":true}`), &sidecar))
 	})
 }
+
+func TestManifestApplicationKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("yaml round-trips app keys", func(t *testing.T) {
+		t.Parallel()
+
+		doc := "version: 1\napplications:\n- name: a\n  lifecycle: cnb\n  buildpack: legacy_bp\n" +
+			"  default-route: true\n  features: {ssh: true, revisions: false}\n" +
+			"  health-check-invocation-timeout: 7\n"
+
+		manifest, out := yamlRoundTrip(t, doc)
+		app := manifest.Applications[0]
+		assert.Equal(t, "cnb", app.Lifecycle)
+		assert.Equal(t, map[string]bool{"ssh": true, "revisions": false}, app.Features)
+		assert.YAMLEq(t, doc, out)
+	})
+
+	t.Run("json round-trips app keys", func(t *testing.T) {
+		t.Parallel()
+
+		doc := `{"version":1,"applications":[{"name":"a","lifecycle":"cnb","buildpack":"legacy_bp",` +
+			`"default_route":true,"features":{"ssh":true},"health_check_invocation_timeout":7}]}`
+
+		_, out := jsonRoundTrip(t, doc)
+		assert.JSONEq(t, doc, out)
+	})
+}
