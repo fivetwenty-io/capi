@@ -7,8 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.236.0] - 2026-10-30
+
+Targets CF API 3.236.0 (capi-release 1.251.0) and covers the 3.230.0 through
+3.236.0 range. Only 3.236.0 changes the API reference, by adding
+private-buildpack credentials to the manifest and the buildpack lifecycle.
+The six releases before it carried server-side changes only, listed below
+because callers may notice them. The manifest types were also checked
+against the 3.236.0 app manifest reference, which turned up several type
+corrections. Three of them change exported types, and each says what to
+change.
+
+### Added
+
+- `ManifestApplication` gains `Credentials` (`credentials`) and
+  `CNBCredentials` (the backward-compatible alias, YAML `cnb-credentials`,
+  JSON `cnb_credentials`), keyed by host, for private buildpacks and
+  buildpack images. Entries are `ManifestCredential` values holding a
+  username and password, or a token for the cnb lifecycle. The API rejects
+  a manifest that sets both keys. (CF API v3.236.0)
+- `ManifestCredentials` holds one of four states. The zero value omits the
+  key and keeps stored credentials. `NewManifestCredentials` builds a host
+  map, and an empty map marshals as `{}`. `ClearManifestCredentials()`
+  sends an explicit `null`, which clears stored credentials. The `***`
+  that a generated manifest returns in place of stored credentials decodes
+  with `Redacted` set and marshals back as `***`, which the API rejects on
+  apply, so reset or replace the field before applying a generated
+  manifest. `RedactedManifestCredentials` names the placeholder, and
+  marshaling the zero value outside an `omitempty` or `omitzero` field
+  returns `ErrManifestCredentialsUnset` instead of a `null` that would
+  clear by accident.
+- One decoding limitation applies to the credentials keys. A YAML `null`,
+  whether written directly or reached through an alias or merge key,
+  decodes as the zero value, because the YAML decoder never calls an
+  unmarshaler for a null. Re-marshaling such a manifest omits the key and
+  keeps stored credentials. A JSON `null` decodes as cleared. Set
+  `ClearManifestCredentials()` in code when a clear has to survive a
+  round-trip.
+- `ManifestApplication` gains the reference keys it was missing:
+  `lifecycle`, `features`, `default-route`,
+  `health-check-invocation-timeout`, and the deprecated `buildpack`.
+  `ManifestProcess` gains `user`, `timeout`, and
+  `health-check-invocation-timeout`. `ManifestRoute` gains `options` as a
+  map, because `hash_balance` may be written as a number or a string.
+  Decoding dropped all of these keys before, and the reference example
+  manifest and the example generated manifest now decode under strict
+  decoding.
+- `lifecycle.data.credentials` for the buildpack lifecycle already passes
+  through the untyped `Lifecycle.Data` map on app create and update. The
+  type documentation now says so. Stored credentials read back as the
+  string `***` and the key is absent while none are stored, so callers
+  should decode the value as `any`. Omitting the key keeps stored
+  credentials, and `Data: map[string]any{"credentials": nil}` clears them.
+  (CF API v3.236.0)
+
 ### Changed
 
+- **Breaking:** `ManifestApplication.DockerImage` and `DockerUsername` are
+  replaced by `Docker *ManifestDocker`, with `Image` and `Username` fields.
+  The reference types `docker` as an object, and the generate manifest
+  endpoint returns `docker: {image, username}`. The old string under
+  `docker` failed to decode that, and `docker-username` is not a manifest
+  key. Replace `DockerImage: img, DockerUsername: user` with
+  `Docker: &capi.ManifestDocker{Image: img, Username: user}`.
+- **Breaking:** `ManifestMetadata.Labels` and `ManifestMetadata.Annotations`
+  are now `map[string]*string` (previously `map[string]string`), matching
+  `Metadata` on the resource types. A manifest removes a label by giving it
+  a null value, and the old maps turned that into an empty string. Build
+  the maps with `StringMap` and read them with `StringValue`.
+- **Breaking:** `ManifestSidecar.Memory` is now `ManifestSidecarMemory`, a
+  string type that marshals a digits-only value as an integer and anything
+  else as a string, so both `memory: 800` and `memory: 800M` round-trip.
+  String constants still assign directly, and string variables need a
+  `capi.ManifestSidecarMemory(v)` conversion. `Command` and `ProcessTypes`
+  gain `omitempty`.
+- A `ManifestService` with only `Name` set now marshals as the plain
+  service name, the form the generate manifest endpoint returns. The API
+  accepts both forms, so this changes the bytes on the wire but not their
+  meaning.
+- `.golangci.yml` configures `gomodguard_v2` to block `gopkg.in/yaml.v3`
+  in favor of `go.yaml.in/yaml/v3`.
+- The manifest guide documents the credentials states and their YAML
+  limitation, shows how to apply a `capi.Manifest` through `ApplyManifest`,
+  and scopes its compatibility claim to the CLI commands, which pass
+  manifests through untouched. Every guide now states compatibility with
+  CF API v3.236.0.
+- Server behavior changes between 3.230.0 and 3.236.0 that need no client
+  code but that callers may see:
+  - Clock jobs now recover stuck service operations. A service instance or
+    binding whose `last_operation` stays in progress for too long is
+    marked failed, and stuck instance and binding deletes are enqueued
+    again. (3.231.0)
+  - `PATCH /v3/processes/:guid` and `POST /v3/builds` now check the
+    caller's space role, so users who could previously succeed may receive
+    403. (3.233.0)
+  - `GET /v3/service_instances/:guid/permissions` returns 404 instead of
+    200 for a user with no access. (3.233.0)
+  - `PATCH /v3/service_brokers/:guid` with a URL on a different origin now
+    requires `authentication` in the same request. (3.233.0)
+  - Audit events redact sensitive manifest and service binding data for
+    roles without `read_sensitive_data`, and redact credentials in request
+    metadata. (3.232.0 and 3.234.0)
+  - A concurrent request limiter can answer 429 when an operator enables
+    it. The client already retries 429 with backoff, with or without
+    `Retry-After`. (3.235.0)
+  - Package upload now runs as a pollable job on the server. The upload
+    response is still the package, so the client is unchanged. (3.236.0)
+- The public nginx routing became an explicit allowlist in 3.234.0. Every
+  path the client calls under `/v3` stays routed.
 - The module's `go` directive moves from 1.26.0 to 1.27.3, the current Go
   release. Consumers now need Go 1.27.3 or later to build.
 - Dependencies updated to their latest releases, including `go-uaa` v0.5.1,
@@ -17,6 +123,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YAML handling moves from the archived `gopkg.in/yaml.v3` to its maintained
   fork `go.yaml.in/yaml/v3` v3.0.5, a drop-in import path change. Marshal,
   unmarshal, and error output compared identical on representative inputs.
+
+### Deprecated
+
+- `ManifestApplication.HealthCheckTimeout` and
+  `ManifestProcess.HealthCheckTimeout`. The API rejects
+  `health-check-timeout` on a process and ignores it at the app level, so
+  use `Timeout` instead.
+- `ManifestApplication.Buildpack`, which the reference replaces with
+  `Buildpacks`. It stays so that manifests using `buildpack` still decode
+  and round-trip.
+
+### Fixed
+
+- `Manifest.Version` is now `omitempty`, so a manifest built without a
+  version no longer marshals `version: 0`, which the API rejects. Set
+  `Version: 1` or leave it unset.
+- `ManifestService` decodes a plain string as the service name in YAML and
+  JSON, so manifests that list services by name decode. That includes every
+  generated manifest that has services.
+- A docker manifest, a manifest that removes a label with `null`, and a
+  manifest with integer sidecar memory now decode and round-trip, through
+  the type changes above.
 
 ## [3.229.2] - 2026-09-15
 
