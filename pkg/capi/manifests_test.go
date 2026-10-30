@@ -155,3 +155,30 @@ func TestManifestDocker(t *testing.T) {
 		assert.YAMLEq(t, doc, out)
 	})
 }
+
+func TestManifestMetadataNull(t *testing.T) {
+	t.Parallel()
+
+	t.Run("yaml null removes a key and round-trips", func(t *testing.T) {
+		t.Parallel()
+
+		doc := "version: 1\napplications:\n- name: a\n  metadata:\n" +
+			"    labels: {team: a, gone: null}\n    annotations: {old: null}\n"
+
+		manifest, out := yamlRoundTrip(t, doc)
+		labels := manifest.Applications[0].Metadata.Labels
+		require.Contains(t, labels, "gone")
+		assert.Nil(t, labels["gone"])
+		assert.Equal(t, "a", capi.StringValue(labels["team"]))
+		assert.YAMLEq(t, doc, out)
+	})
+
+	t.Run("json null removes a key and round-trips", func(t *testing.T) {
+		t.Parallel()
+
+		doc := `{"version":1,"applications":[{"name":"a","metadata":{"labels":{"team":"a","gone":null}}}]}`
+
+		_, out := jsonRoundTrip(t, doc)
+		assert.JSONEq(t, doc, out)
+	})
+}

@@ -382,10 +382,12 @@ type ManifestSidecar struct {
 	Memory       string   `json:"memory,omitempty" yaml:"memory,omitempty"`
 }
 
-// ManifestMetadata represents metadata in a manifest.
+// ManifestMetadata represents metadata in a manifest. A nil value marshals
+// as null, which removes that label or annotation from the app; build the
+// maps with StringMap and read them with StringValue.
 type ManifestMetadata struct {
-	Labels      map[string]string `json:"labels,omitempty"      yaml:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
+	Labels      map[string]*string `json:"labels,omitempty"      yaml:"labels,omitempty"`
+	Annotations map[string]*string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
 }
 
 // ManifestDiff represents a diff between manifests.
