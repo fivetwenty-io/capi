@@ -105,6 +105,19 @@ func (m *MockClient) GetRootInfo(ctx context.Context) (*capi.RootInfo, error) {
 	return rootInfo, nil
 }
 
+func (m *MockClient) Raw(ctx context.Context, req capi.RawRequest) (*capi.RawResponse, error) {
+	args := m.Called(ctx, req)
+
+	resp, _ := args.Get(0).(*capi.RawResponse)
+
+	err := args.Error(1)
+	if err != nil {
+		return resp, fmt.Errorf("Raw failed: %w", err)
+	}
+
+	return resp, nil
+}
+
 func (m *MockClient) GetUsageSummary(ctx context.Context) (*capi.UsageSummary, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {

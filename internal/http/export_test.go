@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/fivetwenty-io/capi/v3/internal/auth"
 )
@@ -11,4 +12,9 @@ import (
 // transport directly without reflecting into unexported state.
 func NewAuthRetryTransportForTest(base http.RoundTripper, tm auth.TokenManager) http.RoundTripper {
 	return newAuthRetryTransport(base, tm)
+}
+
+// SameOriginForTest exposes sameOrigin to tests in the _test package.
+func SameOriginForTest(a, b *url.URL) bool {
+	return sameOrigin(a, b)
 }
