@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.236.1] - 2026-11-11
+
+### Added
+
+- `Client` gains `Raw`, which sends a request to an endpoint the typed
+  methods do not cover and returns the status, headers, and body as a
+  `RawResponse`. It uses the client's authentication, token refresh, and
+  retries. Any HTTP status comes back to the caller instead of an error.
+  A body longer than `RawMaxResponseBytes` (16 MiB) is cut at that size
+  and marked `Truncated`.
+- `RawRequest.Path` must be an absolute path such as `/v3/apps`. A path
+  with a scheme, host, user information, query string, fragment,
+  backslash, control character, or `..` segment returns
+  `ErrRawInvalidPath`, and a bad method returns `ErrRawInvalidMethod`.
+- A raw request does not follow a redirect to another origin. It returns
+  `ErrRawRedirectRefused` and does not retry.
+
+### Changed
+
+- `Raw` is a new method on the exported `Client` interface, so a type
+  outside this module that implements `Client` must add it.
+
 ## [3.236.0] - 2026-10-30
 
 Targets CF API 3.236.0 (capi-release 1.251.0) and covers the 3.230.0 through
