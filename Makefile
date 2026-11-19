@@ -16,6 +16,7 @@ GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION ?= "dev/$(GIT_BRANCH)/$(GIT_SHA)"
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 GO_FILES := $(shell find . -name '*.go' -type f -not -path "./vendor/*")
+STATICCHECK_VERSION ?= v0.8.2
 
 ##@ General
 
@@ -110,11 +111,7 @@ gosec: ## Run security scanner on source code
 .PHONY: staticcheck
 staticcheck: ## Run staticcheck static analysis
 	@echo "$(GREEN)Running staticcheck...$(RESET)"
-	@command -v staticcheck >/dev/null 2>&1 || { \
-		echo "$(YELLOW)Installing staticcheck...$(RESET)"; \
-		go install honnef.co/go/tools/cmd/staticcheck@latest; \
-	}
-	@staticcheck $(shell go list ./... | grep -v vendor)
+	@go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) $(shell go list ./... | grep -v vendor)
 	@echo "$(GREEN)✓ Staticcheck analysis complete$(RESET)"
 
 .PHONY: golangci
