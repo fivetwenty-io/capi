@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.236.2] - 2026-11-19
+
+Two error-handling fixes and one additive error type. A user-provided
+service instance delete no longer fails on CF's 204, a 5xx that outlasts
+the retries keeps its sentinel, status and CF error envelope, and every
+mapped error carries its HTTP status as a `*StatusError`. Callers that
+use `errors.Is` or `errors.As` need no change. The CF API version this
+release targets is unchanged at 3.236.0.
+
 ### Added
 
 - `capi.StatusError` carries the HTTP status of a CF API error response.
