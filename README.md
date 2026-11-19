@@ -27,14 +27,14 @@ A Go client library and CLI for interacting with Cloud Foundry API v3.
 ### Go Library
 
 ```bash
-go get github.com/fivetwenty-io/capi/v3@v3.236.0
+go get github.com/fivetwenty-io/capi/v3@v3.236.2
 ```
 
 ### CLI Tool
 
 ```bash
 # Install from source
-go install github.com/fivetwenty-io/capi/v3/cmd/capi@v3.236.0
+go install github.com/fivetwenty-io/capi/v3/cmd/capi@v3.236.2
 
 # Or install latest version
 go install github.com/fivetwenty-io/capi/v3/cmd/capi@latest
